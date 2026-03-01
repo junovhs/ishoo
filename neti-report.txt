@@ -1,0 +1,497 @@
+========================================
+NETI SCAN REPORT
+========================================
+
+SCAN SUMMARY: 7 files | 14425 tokens | 13 violations
+
+ALL VIOLATING FILES:
+   10 violations | src/model.rs
+    3 violations | src/ui.rs
+
+error: [1 of 2] File size is 8203 tokens (Limit: 2000)
+  --> src/ui.rs:1
+   |
+     1 | use crate::model::{Issue, Status, Stats, Workspace};
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     2 | use dioxus::prelude::*;
+   = LAW OF ATOMICITY: Fix required
+   |
+   = WHY: Files beyond the token limit are too large for a single unit of work, increasing cognitive load and merge conflict risk.
+   |
+   = FIX: Split the file into smaller, focused modules. Extract related functions into their own files.
+   |
+   = SUPPRESS: // neti:allow(LAW OF ATOMICITY) on the line, or LAW OF ATOMICITY = "warn" in neti.toml [rules]
+
+warn: [1 of 2] Linear search inside loop — O(n·m) complexity
+  --> src/ui.rs:248
+   |
+   247 |     for issue in &props.issues {
+   248 |         if let Some(sec) = sections.iter_mut().find(|(s, _)| *s == issue.section) {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   249 |             sec.1.push(issue.clone());
+   = P06: Review recommended — linear scan may be intentional algorithm or bounded collection
+   |
+   = ANALYSIS:
+   |   Each outer iteration performs a full inner scan.
+   |
+   = WHY: Linear search (.find/.position/.index) inside a loop produces O(n·m) complexity.
+   |
+   = FIX: Pre-build a lookup structure (HashSet/HashMap/dict/Set) for O(1) access, or confirm the inner collection is bounded to a small constant size.
+   |
+   = SUPPRESS: // neti:allow(P06) on the line, or P06 = "warn" in neti.toml [rules]
+
+warn: [1 of 2] Nested loop (O(n²)) detected
+  --> src/ui.rs:456
+   |
+   455 |     for a in 0..active.len() {
+   456 |         for b in (a + 1)..active.len() {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   457 |             let shared: Vec<&String> = active[a].files.iter().filter(|f| active[b].files.contains(f)).collect();
+   = P04: Review recommended — inner loop may be bounded to a small constant
+   |
+   = ANALYSIS:
+   |   Quadratic complexity — scales poorly with input size.
+   |
+   = WHY: Nested loops produce O(n²) complexity, which scales poorly with input size.
+   |
+   = FIX: Replace the inner loop with a lookup structure (HashMap/HashSet) for O(n) total, or confirm the inner loop is bounded to a small constant.
+   |
+   = SUPPRESS: // neti:allow(P04) on the line, or P04 = "warn" in neti.toml [rules]
+
+error: [2 of 2] File size is 3970 tokens (Limit: 2000)
+  --> src/model.rs:1
+   = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
+
+warn: [2 of 2] Nested loop (O(n²)) detected
+  --> src/model.rs:207
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+warn: Detected `.clone()` inside a loop
+  --> src/model.rs:264
+   |
+   263 |                 resolution: String::new(),
+   264 |                 section: section.clone(),
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+   265 |                 depends_on: vec![],
+   = P01: Review recommended — receiver `section` has no known heap-type indicator — type inference incomplete
+   |
+   = ANALYSIS:
+   |   Receiver `section` appears to be a heap-owning type.
+   |   Clone inside a loop allocates on every iteration.
+   |
+   = WHY: Cloning/copying inside a loop allocates on every iteration, scaling linearly with iteration count.
+   |
+   = FIX: Hoist the allocation before the loop, use a reference or borrow, or confirm the copy is cheap (primitives, small structs, reference-counted pointers).
+   |
+   = SUPPRESS: // neti:allow(P01) on the line, or P01 = "warn" in neti.toml [rules]
+
+error: [1 of 5] String conversion inside loop
+  --> src/model.rs:247
+   |
+   246 |             if !heading.is_empty() {
+   247 |                 section = heading.to_string();
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   248 |             }
+   = P02: Fix required
+   |
+   = ANALYSIS:
+   |   `heading.to_string()` allocates a new String on every iteration.
+   |
+   = WHY: String conversion inside a loop allocates a new String on every iteration.
+   |
+   = FIX: Hoist the conversion before the loop, or operate on borrowed string slices (&str).
+   |
+   = SUPPRESS: // neti:allow(P02) on the line, or P02 = "warn" in neti.toml [rules]
+
+error: [2 of 5] String conversion inside loop
+  --> src/model.rs:293
+   = P02: `f.replace('`', "").trim().to_string()` allocates a new String on every iteration. — see first P02 above
+
+error: [3 of 5] String conversion inside loop
+  --> src/model.rs:314
+   = P02: `val.to_string()` allocates a new String on every iteration. — see first P02 above
+
+error: [4 of 5] String conversion inside loop
+  --> src/model.rs:327
+   = P02: `format!("{}\n{}", cur.resolution, line).trim().to_string()` allocates a new String on every iteration. — see first P02 above
+
+error: [5 of 5] String conversion inside loop
+  --> src/model.rs:330
+   = P02: `format!("{}\n{}", cur.description, line).trim().to_string()` allocates a new String on every iteration. — see first P02 above
+
+warn: [2 of 2] Linear search inside loop — O(n·m) complexity
+  --> src/model.rs:277
+   = P06: Each outer iteration performs a full inner scan. — see first P06 above
+
+error: Function 'parse_markdown' has cognitive complexity 49 (Max: 25)
+  --> src/model.rs:234
+   |
+   233 | 
+   234 | fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   235 |     let lines: Vec<&str> = text.lines().collect();
+   = LAW OF COMPLEXITY: Fix required
+   |
+   = ANALYSIS:
+   |   Cognitive score: 49
+   |
+   = SUPPRESS: // neti:allow(LAW OF COMPLEXITY) on the line, or LAW OF COMPLEXITY = "warn" in neti.toml [rules]
+
+X Neti found 8 errors, 5 warnings (359ms).
+
+
+========================================
+NETI LOCALITY REPORT
+========================================
+
+Mode: warn
+Edges analyzed: 2
+Violations: 0
+Cycles: 0
+Result: PASS
+
+
+========================================
+NETI COMMANDS REPORT
+========================================
+
+$ cargo clippy --all-targets --no-deps -- -D warnings
+> FAIL (22565ms)
+Checking glib v0.18.5
+    Checking gio v0.18.4
+    Checking cairo-rs v0.18.5
+    Checking atk v0.18.2
+    Checking javascriptcore-rs v1.1.2
+    Checking pango v0.18.3
+    Checking gdk-pixbuf v0.18.5
+    Checking soup3 v0.5.0
+    Checking gdk v0.18.2
+    Checking gtk v0.18.2
+    Checking webkit2gtk v2.0.1
+    Checking muda v0.17.1
+    Checking libappindicator v0.9.0
+    Checking tao v0.34.5
+    Checking tray-icon v0.21.3
+    Checking wry v0.53.5
+    Checking dioxus-desktop v0.7.3
+    Checking dioxus v0.7.3
+    Checking linearis v0.1.0 (/home/juno/ishoo)
+error[E0583]: file not found for module `import`
+ --> src/main.rs:1:1
+  |
+1 | mod import;
+  | ^^^^^^^^^^^
+  |
+  = help: to create the module `import`, create file "src/import.rs" or "src/import/mod.rs"
+  = note: if there is a `mod import` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0308]: mismatched types
+  --> src/ui.rs:16:20
+   |
+16 |       dioxus::launch(move || {
+   |  _____--------------_^
+   | |     |
+   | |     arguments to this function are incorrect
+17 | |         let workspace_path = path.clone();
+18 | |         let initial_issues = workspace.issues.clone();
+19 | |         rsx! { App { initial_issues, workspace_path } }
+20 | |     });
+   | |_____^ expected fn pointer, found closure
+   |
+   = note: expected fn pointer `fn() -> std::result::Result<dioxus::prelude::VNode, dioxus::prelude::RenderError>`
+                 found closure `{closure@src/ui.rs:16:20: 16:27}`
+note: closures can only be coerced to `fn` types if they do not capture any variables
+  --> src/ui.rs:17:30
+   |
+17 |         let workspace_path = path.clone();
+   |                              ^^^^ `path` captured here
+18 |         let initial_issues = workspace.issues.clone();
+   |                              ^^^^^^^^^ `workspace` captured here
+note: function defined here
+  --> /home/juno/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-0.7.3/src/launch.rs:55:8
+   |
+55 | pub fn launch(app: fn() -> Element) {
+   |        ^^^^^^
+
+Some errors have detailed explanations: E0308, E0583.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `linearis` (bin "linearis" test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `linearis` (bin "linearis") due to 2 previous errors
+
+$ cargo test
+> FAIL (33064ms)
+Compiling once_cell v1.21.3
+   Compiling pin-project-lite v0.2.17
+   Compiling cfg-if v1.0.4
+   Compiling smallvec v1.15.1
+   Compiling futures-core v0.3.32
+   Compiling futures-task v0.3.32
+   Compiling slab v0.4.12
+   Compiling memchr v2.8.0
+   Compiling libc v0.2.182
+   Compiling serde_core v1.0.228
+   Compiling stable_deref_trait v1.2.1
+   Compiling scopeguard v1.2.0
+   Compiling futures-io v0.3.32
+   Compiling unicode-segmentation v1.12.0
+   Compiling dioxus-core-types v0.7.3
+   Compiling thiserror v2.0.18
+   Compiling thiserror v1.0.69
+   Compiling libloading v0.8.9
+   Compiling fnv v1.0.7
+   Compiling zerofrom v0.1.6
+   Compiling itoa v1.0.17
+   Compiling anyhow v1.0.102
+   Compiling const_format v0.2.35
+   Compiling futures-channel v0.3.32
+   Compiling lock_api v0.4.14
+   Compiling longest-increasing-subsequence v0.1.0
+   Compiling rustc-hash v2.1.1
+   Compiling litemap v0.8.1
+   Compiling writeable v0.6.2
+   Compiling tracing-core v0.1.36
+   Compiling proc-macro-crate v1.3.1
+   Compiling futures-util v0.3.32
+   Compiling yoke v0.8.1
+   Compiling pin-project v1.1.11
+   Compiling memoffset v0.9.1
+   Compiling log v0.4.29
+   Compiling darling_core v0.21.3
+   Compiling typenum v1.19.0
+   Compiling percent-encoding v2.3.2
+   Compiling icu_properties_data v2.1.2
+   Compiling icu_normalizer_data v2.1.1
+   Compiling field-offset v0.3.6
+   Compiling bitflags v1.3.2
+   Compiling const-serialize v0.7.2
+   Compiling crossbeam-utils v0.8.21
+   Compiling zerocopy v0.8.40
+   Compiling zmij v1.0.21
+   Compiling zerovec v0.11.5
+   Compiling zerotrie v0.2.3
+   Compiling foreign-types-shared v0.1.1
+   Compiling simd-adler32 v0.3.8
+   Compiling dioxus-cli-config v0.7.3
+   Compiling num-traits v0.2.19
+   Compiling foreign-types v0.3.2
+   Compiling num-conv v0.2.0
+   Compiling adler2 v2.0.1
+   Compiling option-ext v0.2.0
+   Compiling convert_case v0.8.0
+   Compiling dpi v0.1.2
+   Compiling utf8_iter v1.0.4
+   Compiling regex-syntax v0.8.10
+   Compiling lazy_static v1.5.0
+   Compiling powerfmt v0.2.0
+   Compiling time-core v0.1.8
+   Compiling aho-corasick v1.1.4
+   Compiling gtk3-macros v0.18.2
+   Compiling tracing v0.1.44
+   Compiling linux-raw-sys v0.12.1
+   Compiling miniz_oxide v0.8.9
+   Compiling crc32fast v1.5.0
+   Compiling form_urlencoded v1.2.2
+   Compiling libloading v0.7.4
+   Compiling deranged v0.5.8
+   Compiling raw-window-handle v0.6.2
+   Compiling warnings v0.2.1
+   Compiling crossbeam-channel v0.5.15
+   Compiling time-macros v0.2.27
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling dioxus-core-macro v0.7.3
+   Compiling dioxus-html-internal-macro v0.7.3
+   Compiling byteorder v1.5.0
+   Compiling uuid v1.21.0
+   Compiling winnow v0.7.14
+   Compiling openssl-probe v0.2.1
+   Compiling icu_locale_core v2.1.1
+   Compiling icu_collections v2.1.1
+   Compiling generic-array v0.14.7
+   Compiling cpufeatures v0.2.17
+   Compiling httparse v1.10.1
+   Compiling flate2 v1.1.9
+   Compiling fdeflate v0.3.7
+   Compiling glib-sys v0.18.1
+   Compiling parking_lot_core v0.9.12
+   Compiling memmap2 v0.9.10
+   Compiling x11 v2.21.0
+   Compiling getrandom v0.3.4
+   Compiling openssl-sys v0.9.111
+   Compiling parking_lot v0.12.5
+   Compiling dirs-sys v0.5.0
+   Compiling rand_core v0.9.5
+   Compiling gobject-sys v0.18.0
+   Compiling cairo-sys-rs v0.18.2
+   Compiling generational-box v0.7.3
+   Compiling dirs v6.0.0
+   Compiling cfb v0.7.3
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling errno v0.3.14
+   Compiling gio-sys v0.18.1
+   Compiling pango-sys v0.18.0
+   Compiling atk-sys v0.18.2
+   Compiling icu_provider v2.1.1
+   Compiling javascriptcore-rs-sys v1.1.1
+   Compiling digest v0.10.7
+   Compiling const-serialize v0.8.0-alpha.0
+   Compiling utf-8 v0.7.6
+   Compiling time v0.3.47
+   Compiling utf8parse v0.2.2
+   Compiling data-encoding v2.10.0
+   Compiling x11rb-protocol v0.13.2
+   Compiling sha1 v0.10.6
+   Compiling dunce v1.0.5
+   Compiling rustc-hash v1.1.0
+   Compiling anstyle-parse v0.2.7
+   Compiling icu_properties v2.1.2
+   Compiling icu_normalizer v2.1.1
+   Compiling sledgehammer_utils v0.3.1
+   Compiling sledgehammer_bindgen v0.6.0
+   Compiling futures-executor v0.3.32
+   Compiling libxdo-sys v0.11.0
+   Compiling infer v0.19.0
+   Compiling dlopen2 v0.8.2
+   Compiling signal-hook-registry v1.4.8
+   Compiling libxdo v0.6.0
+   Compiling png v0.17.16
+   Compiling x11-dl v2.21.0
+   Compiling sharded-slab v0.1.7
+   Compiling thread_local v1.1.9
+   Compiling manganis-core v0.7.3
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling pollster v0.4.0
+   Compiling xkeysym v0.2.1
+   Compiling anstyle-query v1.1.5
+   Compiling regex-automata v0.4.14
+   Compiling anstyle v1.0.13
+   Compiling bitflags v2.11.0
+   Compiling serde v1.0.228
+   Compiling gdk-pixbuf-sys v0.18.0
+   Compiling soup3-sys v0.5.0
+   Compiling serde_json v1.0.149
+   Compiling glib v0.18.5
+   Compiling gdk-sys v0.18.2
+   Compiling openssl v0.10.75
+   Compiling rustix v1.1.4
+   Compiling colorchoice v1.0.4
+   Compiling raw-window-handle v0.5.2
+   Compiling anstream v0.6.21
+   Compiling rfd v0.17.2
+   Compiling signal-hook v0.3.18
+   Compiling subsecond-types v0.7.3
+   Compiling slotmap v1.1.1
+   Compiling bytes v1.11.1
+   Compiling gtk-sys v0.18.2
+   Compiling darling_macro v0.21.3
+   Compiling keyboard-types v0.7.0
+   Compiling subsecond v0.7.3
+   Compiling idna_adapter v1.2.1
+   Compiling euclid v0.22.13
+   Compiling gdkwayland-sys v0.18.2
+   Compiling idna v1.1.0
+   Compiling gdkx11-sys v0.18.2
+   Compiling darling v0.21.3
+   Compiling manganis-macro v0.7.3
+   Compiling dioxus-stores-macro v0.7.3
+   Compiling enumset_derive v0.14.0
+   Compiling http v1.4.0
+   Compiling dioxus-core v0.7.3
+   Compiling url v2.5.8
+   Compiling tokio v1.49.0
+   Compiling cookie v0.18.1
+   Compiling base64 v0.22.1
+   Compiling clap_lex v1.0.0
+   Compiling strsim v0.11.1
+   Compiling webbrowser v1.1.0
+   Compiling subtle v2.6.1
+   Compiling clap_builder v4.5.60
+   Compiling dioxus-config-macros v0.7.3
+   Compiling ppv-lite86 v0.2.21
+   Compiling manganis v0.7.3
+   Compiling enumset v1.1.10
+   Compiling rand_chacha v0.9.0
+   Compiling webkit2gtk-sys v2.0.1
+   Compiling libappindicator-sys v0.9.0
+   Compiling rand v0.9.2
+   Compiling matchers v0.2.0
+   Compiling regex v1.12.3
+   Compiling tracing-subscriber v0.3.22
+   Compiling dioxus-signals v0.7.3
+   Compiling dioxus-devtools-types v0.7.3
+   Compiling dioxus-history v0.7.3
+   Compiling gethostname v1.1.0
+   Compiling native-tls v0.2.18
+   Compiling tungstenite v0.27.0
+   Compiling dioxus-hooks v0.7.3
+   Compiling dioxus-stores v0.7.3
+   Compiling clap v4.5.60
+   Compiling dioxus-html v0.7.3
+   Compiling dioxus-devtools v0.7.3
+   Compiling dioxus-logger v0.7.3
+   Compiling dioxus-asset-resolver v0.7.3
+   Compiling x11rb v0.13.2
+   Compiling global-hotkey v0.7.0
+   Compiling gio v0.18.4
+   Compiling cairo-rs v0.18.5
+   Compiling atk v0.18.2
+   Compiling javascriptcore-rs v1.1.2
+   Compiling dioxus-interpreter-js v0.7.3
+   Compiling dioxus-document v0.7.3
+   Compiling pango v0.18.3
+   Compiling gdk-pixbuf v0.18.5
+   Compiling soup3 v0.5.0
+   Compiling gdk v0.18.2
+   Compiling gtk v0.18.2
+   Compiling muda v0.17.1
+   Compiling webkit2gtk v2.0.1
+   Compiling libappindicator v0.9.0
+   Compiling tao v0.34.5
+   Compiling tray-icon v0.21.3
+   Compiling wry v0.53.5
+   Compiling dioxus-desktop v0.7.3
+   Compiling dioxus v0.7.3
+   Compiling linearis v0.1.0 (/home/juno/ishoo)
+error[E0583]: file not found for module `import`
+ --> src/main.rs:1:1
+  |
+1 | mod import;
+  | ^^^^^^^^^^^
+  |
+  = help: to create the module `import`, create file "src/import.rs" or "src/import/mod.rs"
+  = note: if there is a `mod import` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0308]: mismatched types
+  --> src/ui.rs:16:20
+   |
+16 |       dioxus::launch(move || {
+   |  _____--------------_^
+   | |     |
+   | |     arguments to this function are incorrect
+17 | |         let workspace_path = path.clone();
+18 | |         let initial_issues = workspace.issues.clone();
+19 | |         rsx! { App { initial_issues, workspace_path } }
+20 | |     });
+   | |_____^ expected fn pointer, found closure
+   |
+   = note: expected fn pointer `fn() -> Result<VNode, dioxus::prelude::RenderError>`
+                 found closure `{closure@src/ui.rs:16:20: 16:27}`
+note: closures can only be coerced to `fn` types if they do not capture any variables
+  --> src/ui.rs:17:30
+   |
+17 |         let workspace_path = path.clone();
+   |                              ^^^^ `path` captured here
+18 |         let initial_issues = workspace.issues.clone();
+   |                              ^^^^^^^^^ `workspace` captured here
+note: function defined here
+  --> /home/juno/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-0.7.3/src/launch.rs:55:8
+   |
+55 | pub fn launch(app: fn() -> Element) {
+   |        ^^^^^^
+
+Some errors have detailed explanations: E0308, E0583.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `linearis` (bin "linearis" test) due to 2 previous errors
+

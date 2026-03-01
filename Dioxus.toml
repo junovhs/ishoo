@@ -1,0 +1,13 @@
+[application]
+name = "Linearis"
+default_platform = "desktop"
+
+[desktop]
+enable_file_drop = true
+
+[web.app]
+title = "Linearis"
+
+[web.watcher]
+reload_html = true
+watch_path = ["src", "assets"]
