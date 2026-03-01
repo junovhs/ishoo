@@ -1,0 +1,192 @@
+mod cli;
+mod parse;
+
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+pub use cli::{cli_heatmap, cli_list, cli_set_status, cli_show};
+pub use parse::parse_markdown;
+
+// ── Data Model ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Status {
+    Open,
+    InProgress,
+    Done,
+    Descoped,
+}
+
+impl Status {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Open => "OPEN",
+            Self::InProgress => "IN PROGRESS",
+            Self::Done => "DONE",
+            Self::Descoped => "DESCOPED",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        let upper = s.trim().to_uppercase();
+        if upper.contains("PROGRESS") {
+            Self::InProgress
+        } else if upper.contains("DONE") {
+            Self::Done
+        } else if upper.contains("DESCOP") {
+            Self::Descoped
+        } else {
+            Self::Open
+        }
+    }
+
+    pub fn css_class(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::InProgress => "in-progress",
+            Self::Done => "done",
+            Self::Descoped => "descoped",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Issue {
+    pub id: u32,
+    pub title: String,
+    pub status: Status,
+    pub files: Vec<String>,
+    pub description: String,
+    pub resolution: String,
+    pub section: String,
+    pub depends_on: Vec<u32>,
+}
+
+impl Issue {
+    pub fn status_ord(&self) -> u8 {
+        match self.status {
+            Status::InProgress => 0,
+            Status::Open => 1,
+            Status::Done => 2,
+            Status::Descoped => 3,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Stats {
+    pub open: usize,
+    pub in_progress: usize,
+    pub done: usize,
+    pub descoped: usize,
+    pub total: usize,
+}
+
+// ── Workspace ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct Workspace {
+    pub root: PathBuf,
+    pub issues: Vec<Issue>,
+}
+
+impl Workspace {
+    pub fn load(root: &Path) -> Result<Self, String> {
+        let mut issues = Vec::new();
+        let files = [
+            ("issues-active.md", "Active"),
+            ("issues-backlog.md", "Backlog"),
+            ("issues-done.md", "Done"),
+        ];
+        for (filename, default_sec) in &files {
+            let path = root.join(filename);
+            if path.exists() {
+                let text = fs::read_to_string(&path)
+                    .map_err(|e| format!("Failed to read {filename}: {e}"))?;
+                issues.extend(parse_markdown(&text, default_sec));
+            }
+        }
+        Ok(Workspace {
+            root: root.to_path_buf(),
+            issues,
+        })
+    }
+
+    pub fn save(&self) -> Result<(), String> {
+        let (mut active, mut backlog, mut done): (Vec<&Issue>, Vec<&Issue>, Vec<&Issue>) =
+            (Vec::new(), Vec::new(), Vec::new());
+
+        for issue in &self.issues {
+            let sec = issue.section.to_lowercase();
+            if sec.contains("done") || issue.status == Status::Done {
+                done.push(issue);
+            } else if sec.contains("backlog") {
+                backlog.push(issue);
+            } else {
+                active.push(issue);
+            }
+        }
+
+        write_section(&self.root, "issues-active.md", "ACTIVE Issues", &active)?;
+        write_section(&self.root, "issues-backlog.md", "BACKLOG Issues", &backlog)?;
+        write_section(&self.root, "issues-done.md", "DONE Issues", &done)?;
+        Ok(())
+    }
+
+    pub fn stats(&self) -> Stats {
+        let mut s = Stats::default();
+        for issue in &self.issues {
+            match issue.status {
+                Status::Open => s.open += 1,
+                Status::InProgress => s.in_progress += 1,
+                Status::Done => s.done += 1,
+                Status::Descoped => s.descoped += 1,
+            }
+        }
+        s.total = self.issues.len();
+        s
+    }
+
+    pub fn file_heatmap(&self) -> BTreeMap<String, Vec<u32>> {
+        let mut map: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+        for issue in &self.issues {
+            for file in &issue.files {
+                // neti:allow(P04) — inner loop bounded by files-per-issue (≤10)
+                map.entry(file.clone()).or_default().push(issue.id);
+            }
+        }
+        map
+    }
+
+    pub fn dependency_edges(&self) -> Vec<(u32, u32)> {
+        self.issues
+            .iter()
+            .flat_map(|i| i.depends_on.iter().map(move |&dep| (dep, i.id)))
+            .collect()
+    }
+}
+
+fn write_section(root: &Path, name: &str, title: &str, issues: &[&Issue]) -> Result<(), String> {
+    let mut md = format!("# {title}\n\n---\n");
+    for issue in issues {
+        md.push_str(&format!("\n## [{}] {}\n", issue.id, issue.title));
+        md.push_str(&format!("**Status:** {}\n", issue.status.label()));
+        if !issue.files.is_empty() {
+            let f: Vec<String> = issue.files.iter().map(|f| format!("`{f}`")).collect();
+            md.push_str(&format!("**Files:** {}\n", f.join(", ")));
+        }
+        if !issue.depends_on.is_empty() {
+            let d: Vec<String> = issue.depends_on.iter().map(|d| format!("[{d}]")).collect();
+            md.push_str(&format!("**Depends on:** {}\n", d.join(", ")));
+        }
+        if !issue.description.is_empty() {
+            md.push('\n');
+            md.push_str(&issue.description);
+            md.push('\n');
+        }
+        md.push_str(&format!("\n**Resolution:** {}\n\n---\n", issue.resolution));
+    }
+    fs::write(root.join(name), md).map_err(|e| format!("Failed to write {name}: {e}"))
+}

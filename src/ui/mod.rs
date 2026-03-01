@@ -1,32 +1,38 @@
-mod views;
-mod styles;
 mod components;
+mod styles;
+mod styles_viz;
+mod views;
 
-use crate::model::{Issue, Status, Stats, Workspace};
+use crate::model::{Issue, Stats, Status, Workspace};
 use dioxus::prelude::*;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-pub use styles::STYLES;
-
-// ── Global workspace path (set before launch, read by App) ─────────────
-
 static WORKSPACE_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 pub fn launch_dashboard(path: PathBuf) {
-    WORKSPACE_PATH.set(path).expect("workspace path already set");
+    WORKSPACE_PATH
+        .set(path)
+        .expect("workspace path already set");
     dioxus::launch(App);
 }
 
-// ── App Root ───────────────────────────────────────────────────────────
-
 #[derive(Clone, Copy, PartialEq)]
-pub enum View { Feed, Board, Heatmap, Graph, Timeline }
+pub enum View {
+    Feed,
+    Board,
+    Heatmap,
+    Graph,
+    Timeline,
+}
 
+#[component]
 fn App() -> Element {
-    let ws_path = WORKSPACE_PATH.get().expect("workspace path not set").clone();
+    let ws_path = WORKSPACE_PATH
+        .get()
+        .expect("workspace path not set")
+        .clone();
 
-    // Load initial state
     let initial = Workspace::load(&ws_path).unwrap_or_else(|_| Workspace {
         root: ws_path.clone(),
         issues: vec![],
@@ -38,7 +44,6 @@ fn App() -> Element {
     let mut active_view = use_signal(|| View::Feed);
     let mut dirty = use_signal(|| false);
 
-    // Periodic file reload
     let _poll = use_coroutine(move |_rx: UnboundedReceiver<()>| {
         let wp = ws_path.clone();
         async move {
@@ -54,8 +59,11 @@ fn App() -> Element {
     });
 
     let save = move |_| {
-        let wp = WORKSPACE_PATH.get().unwrap().clone();
-        let ws = Workspace { root: wp, issues: issues() };
+        let wp = WORKSPACE_PATH.get().expect("path not set").clone();
+        let ws = Workspace {
+            root: wp,
+            issues: issues(),
+        };
         if let Err(e) = ws.save() {
             eprintln!("Save error: {e}");
         } else {
@@ -63,40 +71,12 @@ fn App() -> Element {
         }
     };
 
-    let stats = {
-        let all = issues();
-        let mut s = Stats::default();
-        for i in &all {
-            match i.status {
-                Status::Open => s.open += 1,
-                Status::InProgress => s.in_progress += 1,
-                Status::Done => s.done += 1,
-                Status::Descoped => s.descoped += 1,
-            }
-        }
-        s.total = all.len();
-        s
-    };
-
-    let filtered: Vec<Issue> = {
-        let q = search_query().to_lowercase();
-        let all = issues();
-        if q.is_empty() {
-            all.clone()
-        } else {
-            all.iter()
-                .filter(|i| {
-                    i.title.to_lowercase().contains(&q)
-                        || i.id.to_string().contains(&q)
-                        || i.files.iter().any(|f| f.to_lowercase().contains(&q))
-                })
-                .cloned()
-                .collect()
-        }
-    };
+    let stats = compute_stats(&issues());
+    let filtered: Vec<Issue> = filter_issues(&issues(), &search_query());
+    let all_styles = format!("{}\n{}", styles::STYLES, styles_viz::STYLES_VIZ);
 
     rsx! {
-        style { {STYLES} }
+        style { {all_styles} }
         div { class: "shell",
             aside { class: "sidebar",
                 div { class: "brand",
@@ -186,4 +166,34 @@ fn App() -> Element {
             }
         }
     }
+}
+
+fn compute_stats(issues: &[Issue]) -> Stats {
+    let mut s = Stats::default();
+    for i in issues {
+        match i.status {
+            Status::Open => s.open += 1,
+            Status::InProgress => s.in_progress += 1,
+            Status::Done => s.done += 1,
+            Status::Descoped => s.descoped += 1,
+        }
+    }
+    s.total = issues.len();
+    s
+}
+
+fn filter_issues(issues: &[Issue], query: &str) -> Vec<Issue> {
+    let q = query.to_lowercase();
+    if q.is_empty() {
+        return issues.to_vec();
+    }
+    issues
+        .iter()
+        .filter(|i| {
+            i.title.to_lowercase().contains(&q)
+                || i.id.to_string().contains(&q)
+                || i.files.iter().any(|f| f.to_lowercase().contains(&q))
+        })
+        .cloned()
+        .collect()
 }

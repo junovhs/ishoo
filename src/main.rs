@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "linearis", about = "Portable markdown issue tracker with desktop UI")]
+#[command(
+    name = "linearis",
+    about = "Portable markdown issue tracker with desktop UI"
+)]
 struct Cli {
     #[arg(short, long, default_value = ".")]
     path: PathBuf,
@@ -20,8 +23,13 @@ enum Commands {
         #[arg(short, long)]
         filter: Option<String>,
     },
-    Show { id: u32 },
-    Set { id: u32, status: String },
+    Show {
+        id: u32,
+    },
+    Set {
+        id: u32,
+        status: String,
+    },
     Heatmap,
     Dash,
     New {
