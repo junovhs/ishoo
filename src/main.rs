@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
-    name = "linearis",
+    name = "ishoo",
     about = "Portable markdown issue tracker with desktop UI"
 )]
 struct Cli {
@@ -41,29 +41,30 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
+    let path = model::discover_root(&cli.path);
 
     match cli.command {
         Some(Commands::Dash) | None => {
-            ui::launch_dashboard(cli.path);
+            ui::launch_dashboard(path);
         }
         Some(Commands::List { filter }) => {
-            let ws = model::Workspace::load(&cli.path).expect("Failed to load workspace");
+            let ws = model::Workspace::load(&path).expect("Failed to load workspace");
             model::cli_list(&ws, filter.as_deref());
         }
         Some(Commands::Show { id }) => {
-            let ws = model::Workspace::load(&cli.path).expect("Failed to load workspace");
+            let ws = model::Workspace::load(&path).expect("Failed to load workspace");
             model::cli_show(&ws, id);
         }
         Some(Commands::Set { id, status }) => {
-            let mut ws = model::Workspace::load(&cli.path).expect("Failed to load workspace");
+            let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
             model::cli_set_status(&mut ws, id, &status).expect("Failed to set status");
         }
         Some(Commands::Heatmap) => {
-            let ws = model::Workspace::load(&cli.path).expect("Failed to load workspace");
+            let ws = model::Workspace::load(&path).expect("Failed to load workspace");
             model::cli_heatmap(&ws);
         }
         Some(Commands::New { title, status }) => {
-            let mut ws = model::Workspace::load(&cli.path).expect("Failed to load workspace");
+            let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
             let max_id = ws.issues.iter().map(|i| i.id).max().unwrap_or(0);
             let issue = model::Issue {
                 id: max_id + 1,

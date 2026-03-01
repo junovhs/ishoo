@@ -3,7 +3,7 @@ use super::Workspace;
 pub fn cli_list(workspace: &Workspace, filter: Option<&str>) {
     let stats = workspace.stats();
     println!(
-        "╭─ Linearis ─── {} issues ({} open, {} active, {} done) ───╮",
+        "╭─ Ishoo ─── {} issues ({} open, {} active, {} done) ───╮",
         stats.total, stats.open, stats.in_progress, stats.done
     );
 
@@ -47,7 +47,7 @@ pub fn cli_show(workspace: &Workspace, id: u32) {
         println!("│ Files: {}", i.files.join(", "));
     }
     if !i.description.is_empty() {
-        println!("├─────────────────────────────────────────────");
+        println!("├───���─────────────────────────────────────────");
         println!("│ {}", i.description.replace('\n', "\n│ "));
     }
     if !i.resolution.is_empty() {

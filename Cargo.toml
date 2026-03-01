@@ -1,5 +1,5 @@
 [package]
-name = "linearis"
+name = "ishoo"
 version = "0.1.0"
 edition = "2021"
 description = "A portable markdown-based issue tracker with a beautiful Dioxus desktop UI"

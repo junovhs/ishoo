@@ -9,6 +9,30 @@ use std::path::{Path, PathBuf};
 pub use cli::{cli_heatmap, cli_list, cli_set_status, cli_show};
 pub use parse::parse_markdown;
 
+const ISSUE_FILES: [&str; 3] = ["issues-active.md", "issues-backlog.md", "issues-done.md"];
+
+/// Searches common subdirectories for issue markdown files.
+/// Returns the first directory containing at least one match,
+/// or falls back to the given base path.
+pub fn discover_root(base: &Path) -> PathBuf {
+    let candidates = [
+        base.to_path_buf(),
+        base.join("docs/issues"),
+        base.join("docs"),
+        base.join("issues"),
+        base.join("ishoo"),
+        base.join(".issues"),
+    ];
+
+    for candidate in &candidates {
+        if ISSUE_FILES.iter().any(|f| candidate.join(f).exists()) {
+            return candidate.clone();
+        }
+    }
+
+    base.to_path_buf()
+}
+
 // ── Data Model ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

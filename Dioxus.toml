@@ -1,12 +1,12 @@
 [application]
-name = "Linearis"
+name = "Ishoo"
 default_platform = "desktop"
 
 [desktop]
 enable_file_drop = true
 
 [web.app]
-title = "Linearis"
+title = "Ishoo"
 
 [web.watcher]
 reload_html = true
