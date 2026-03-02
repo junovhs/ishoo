@@ -15,7 +15,7 @@ pub struct IssueCardProps {
 }
 
 #[component]
-pub fn IssueCard(props: IssueCardProps) -> Element {
+pub fn IssueCard(mut props: IssueCardProps) -> Element {
     let i = &props.issue;
     let id = i.id;
 

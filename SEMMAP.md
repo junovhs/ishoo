@@ -30,28 +30,54 @@ Configuration for neti.
 `src/main.rs`
 Orchestrates `clap`.
 
+`src/model/mod.rs`
+Searches common subdirectories for issue markdown files.
+→ Exports: css_class, dependency_edges, discover_root, file_heatmap
+
 `src/ui/mod.rs`
 Implements launch dashboard.
 → Exports: launch_dashboard, View
 
+`src/ui/views/mod.rs`
+Orchestrates `board`, `feed`, `viz`.
+
 ## Layer 2 -- Domain
 
-`src/model.rs`
+`src/model/cli.rs`
 Implements cli set status.
-→ Exports: cli_set_status, css_class, dependency_edges, from_str
+→ Exports: cli_set_status, cli_heatmap, cli_list, cli_show
 
-`src/ui.rs`
-Implements launch dashboard.
-→ Exports: launch_dashboard
+`src/model/parse.rs`
+Parses markdown.
+→ Exports: parse_markdown
 
 `src/ui/components.rs`
-Implements nav btn.
+Implements stat row.
 → Exports: NavBtn, StatRow
 
 `src/ui/styles.rs`
 Implements styles functionality.
 
-`src/ui/views.rs`
+`src/ui/styles_viz.rs`
+Implements styles viz.
+
+`src/ui/views/board.rs`
+Implements board view.
+→ Exports: BoardView
+
+`src/ui/views/feed.rs`
 Implements feed view props.
-→ Exports: FeedViewProps, BoardView, GraphView, HeatmapView
+→ Exports: build_virtual_layout, FeedViewProps, FeedView
+
+`src/ui/views/feed/card.rs`
+Implements issue card props.
+→ Exports: IssueCardProps, IssueCard
+
+`src/ui/views/physics.rs`
+Implements step settle.
+→ Exports: is_active, DragState, step_settle, step_drag
+
+`src/ui/views/viz.rs`
+Implements heatmap view.
+→ Exports: GraphView, HeatmapView, TimelineView
 

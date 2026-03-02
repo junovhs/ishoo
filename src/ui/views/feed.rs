@@ -24,11 +24,12 @@ pub struct FeedViewProps {
 #[component]
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
-    let issues_for_layout = use_signal(|| props.issues.clone());
+    let issues_clone = props.issues.clone();
+    let mut issues_for_layout = use_signal(|| issues_clone.clone());
 
     // Keep layout data in sync
     use_effect(move || {
-        issues_for_layout.set(props.issues.clone());
+        issues_for_layout.set(issues_clone.clone());
     });
 
     let (section_order, section_map) = group_by_section(&props.issues);
