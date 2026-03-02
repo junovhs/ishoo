@@ -1,69 +1,85 @@
 # Ishoo
 
-A portable markdown-based issue tracker with a beautiful Dioxus desktop UI.
+A portable, local-first markdown issue tracker with a beautiful Dioxus desktop UI.
 
-## Philosophy
+## Philosophy: The "Stealth" Tracker
 
 Your issues live as plain `.md` files in your repo. No database. No SaaS. Fully portable, fully AI-friendly.
 
-Most of the time, you (or AI) manage issues via CLI. When a human wants to get oriented, `ishoo dash` spawns a native desktop UI with rich visualizations.
+**Zero Tooling Footprint:** If someone clones your repo without Ishoo installed, they won't see a proprietary `.sqlite` database or a massive JSON blob. They just see a beautifully organized `docs/issues/` folder that looks like it was manually typed by an incredibly disciplined developer. 
+
+Because it uses standard markdown, your issue tracker renders natively in the GitHub/GitLab web UI, works flawlessly with AI coding assistants (Cursor, Copilot, Claude), and branches perfectly with your Git workflow.
 
 ## Quick Start
 
 ```bash
-# Initialize a new issue tracker
+# 1. Initialize a new issue tracker in your current project
 ishoo init
 
-# Launch the dashboard (also the default)
+# 2. Launch the desktop dashboard (auto-discovers your issues)
 ishoo
 ```
 
 ## File Layout
 
-```
+By default, Ishoo creates and manages files inside a `docs/issues/` directory to keep your project root clean (though it auto-discovers issues placed in `.`, `docs`, `issues`, or `.issues`).
+
+```text
 your-project/
-├── issues-active.md    # In-progress + open issues
-├── issues-backlog.md   # Future work
-└── issues-done.md      # Completed issues
+└── docs/
+    └── issues/
+        ├── issues-active.md    # Open + In-Progress issues
+        ├── issues-backlog.md   # Future work
+        └── issues-done.md      # Completed & Descoped issues
 ```
 
 ## CLI Usage
 
+While the GUI is great for getting oriented, you (or your AI agent) can manage everything directly from the terminal:
+
 ```bash
-ishoo init                             # Initialize issue tracker
-ishoo                                  # Launch dashboard (default)
-ishoo dash                             # Launch dashboard (explicit)
-ishoo list                             # List all issues
-ishoo list --filter "python"           # Filter issues
-ishoo show 47                          # Show issue detail
-ishoo set 47 done                      # Set status
-ishoo new "Fix the widget"             # Create new issue
-ishoo new "Urgent fix" --status "in progress"
-ishoo heatmap                          # File hotspot visualization
+ishoo init                             # Create the docs/issues/ folder structure
+ishoo                                  # Launch the desktop UI (default)
+ishoo dash                             # Explicitly launch the desktop UI
+ishoo list                             # List all issues with stats
+ishoo list --filter "database"         # Filter issues by keyword
+ishoo show 47                          # View detailed issue card (desc, files, deps)
+ishoo set 47 "in progress"             # Update issue status
+ishoo new "Fix the widget"             # Create a new OPEN issue
+ishoo new "Urgent fix" --status done   # Create an issue with a specific status
+ishoo heatmap                          # CLI visualization of file hotspots
 ```
 
 ## Dashboard Features
 
+When you run `ishoo`, you get a native, hardware-accelerated desktop app with rich visualizations and editing tools.
+
 ### Views
-- **Feed** — Linear-style issue list with expand/collapse, drag-to-reorder, inline editing
-- **Board** — Kanban columns by status
-- **Heatmap** — File hotspot visualization
-- **Graph** — Dependency + file-overlap graph
-- **Timeline** — Progress bar + sorted issue list
+- **Feed** — A linear task list with a custom spring-physics engine for buttery-smooth drag-and-drop reordering.
+- **Board** — A standard Kanban board organized by status (Open, In Progress, Done).
+- **Heatmap** — Codebase hotspot visualization (shows which files are touched by the most issues).
+- **Graph** — A node graph mapping out issue dependencies and file-overlap connections.
+- **Timeline** — An overall project progress bar and status-sorted list.
 
 ### Editing
-- **New Issue** — Click "+ New" in the topbar or sidebar
-- **Reorder** — Drag issues to reorder (auto-saves with toast notification)
-- **Edit Status/Resolution** — Expand any issue card, changes require manual save
-- **Toast Notifications** — Top-right corner feedback for all save operations
+- **Create & Reset** — Add new issues instantly, or wipe the board clean with the Reinitialize modal.
+- **Frictionless Reordering** — Drag and drop cards in the Feed view; changes auto-save with a toast notification.
+- **Inline Editing** — Expand any issue card to edit its description, status, or resolution notes. 
+- **Smart Syncing** — Unsaved UI edits trigger a "⚠ Unsaved" state. Click "Save All" to write your changes cleanly back to Markdown.
 
-## Building
+## Building from Source
+
+Ishoo is built with Rust and [Dioxus](https://dioxuslabs.com/).
 
 ```bash
 cargo install cargo-binstall
 cargo binstall dioxus-cli
-dx serve --desktop        # Development
-dx bundle --release       # Release build
+
+# Run in development mode
+dx serve --desktop
+
+# Bundle a release binary for your OS
+dx bundle --release
 ```
 
 ## License
