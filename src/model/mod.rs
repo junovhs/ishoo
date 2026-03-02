@@ -1,19 +1,25 @@
-// src/model/mod.rs
 mod cli;
 mod parse;
+mod workspace;
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use cli::{cli_heatmap, cli_list, cli_set_status, cli_show};
 pub use parse::parse_markdown;
+pub use workspace::Workspace;
 
 const ISSUE_FILES: [&str; 3] = ["issues-active.md", "issues-backlog.md", "issues-done.md"];
+const DEFAULT_SUBDIR: &str = "docs/issues";
 
-/// Initialize a new ishoo workspace with empty issue files
-pub fn init_workspace(path: &Path) -> Result<(), String> {
+/// Returns the default init path (base/docs/issues)
+pub fn default_init_path(base: &Path) -> PathBuf {
+    base.join(DEFAULT_SUBDIR)
+}
+
+/// Initialize a new ishoo workspace at the exact path specified
+pub fn init_workspace_at(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| format!("Failed to create directory: {e}"))?;
 
     let active = path.join("issues-active.md");
@@ -34,18 +40,45 @@ pub fn init_workspace(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Initialize at base/docs/issues (for CLI)
+pub fn init_workspace(base: &Path) -> Result<PathBuf, String> {
+    let target = default_init_path(base);
+    init_workspace_at(&target)?;
+    Ok(target)
+}
+
+/// Reinitialize (erase and recreate) at the exact path
+pub fn reinit_workspace(path: &Path) -> Result<(), String> {
+    let active = path.join("issues-active.md");
+    let backlog = path.join("issues-backlog.md");
+    let done = path.join("issues-done.md");
+
+    // Remove existing files
+    let _ = fs::remove_file(&active);
+    let _ = fs::remove_file(&backlog);
+    let _ = fs::remove_file(&done);
+
+    // Create fresh
+    fs::write(&active, "# ACTIVE Issues\n\n---\n")
+        .map_err(|e| format!("Failed to write issues-active.md: {e}"))?;
+    fs::write(&backlog, "# BACKLOG Issues\n\n---\n")
+        .map_err(|e| format!("Failed to write issues-backlog.md: {e}"))?;
+    fs::write(&done, "# DONE Issues\n\n---\n")
+        .map_err(|e| format!("Failed to write issues-done.md: {e}"))?;
+
+    Ok(())
+}
+
 /// Check if a workspace exists at the given path
 pub fn workspace_exists(path: &Path) -> bool {
     ISSUE_FILES.iter().any(|f| path.join(f).exists())
 }
 
 /// Searches common subdirectories for issue markdown files.
-/// Returns the first directory containing at least one match,
-/// or falls back to the given base path.
 pub fn discover_root(base: &Path) -> PathBuf {
     let candidates = [
-        base.to_path_buf(),
         base.join("docs/issues"),
+        base.to_path_buf(),
         base.join("docs"),
         base.join("issues"),
         base.join("ishoo"),
@@ -58,10 +91,8 @@ pub fn discover_root(base: &Path) -> PathBuf {
         }
     }
 
-    base.to_path_buf()
+    base.join(DEFAULT_SUBDIR)
 }
-
-// ── Data Model ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Status {
@@ -136,143 +167,51 @@ pub struct Stats {
     pub total: usize,
 }
 
-// ── Workspace ──────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone)]
-pub struct Workspace {
-    pub root: PathBuf,
-    pub issues: Vec<Issue>,
-}
-
-impl Workspace {
-    pub fn load(root: &Path) -> Result<Self, String> {
-        let mut issues = Vec::new();
-        let files = [
-            ("issues-active.md", "Active"),
-            ("issues-backlog.md", "Backlog"),
-            ("issues-done.md", "Done"),
-        ];
-        for (filename, default_sec) in &files {
-            let path = root.join(filename);
-            if path.exists() {
-                let text = fs::read_to_string(&path)
-                    .map_err(|e| format!("Failed to read {filename}: {e}"))?;
-                issues.extend(parse_markdown(&text, default_sec));
-            }
-        }
-        Ok(Workspace {
-            root: root.to_path_buf(),
-            issues,
-        })
-    }
-
-    pub fn save(&self) -> Result<(), String> {
-        let (mut active, mut backlog, mut done): (Vec<&Issue>, Vec<&Issue>, Vec<&Issue>) =
-            (Vec::new(), Vec::new(), Vec::new());
-
-        for issue in &self.issues {
-            let sec = issue.section.to_lowercase();
-            if sec.contains("done") || issue.status == Status::Done {
-                done.push(issue);
-            } else if sec.contains("backlog") {
-                backlog.push(issue);
-            } else {
-                active.push(issue);
-            }
-        }
-
-        write_section(&self.root, "issues-active.md", "ACTIVE Issues", &active)?;
-        write_section(&self.root, "issues-backlog.md", "BACKLOG Issues", &backlog)?;
-        write_section(&self.root, "issues-done.md", "DONE Issues", &done)?;
-        Ok(())
-    }
-
-    pub fn stats(&self) -> Stats {
-        let mut s = Stats::default();
-        for issue in &self.issues {
-            match issue.status {
-                Status::Open => s.open += 1,
-                Status::InProgress => s.in_progress += 1,
-                Status::Done => s.done += 1,
-                Status::Descoped => s.descoped += 1,
-            }
-        }
-        s.total = self.issues.len();
-        s
-    }
-
-    pub fn file_heatmap(&self) -> BTreeMap<String, Vec<u32>> {
-        let mut map: BTreeMap<String, Vec<u32>> = BTreeMap::new();
-        for issue in &self.issues {
-            for file in &issue.files {
-                map.entry(file.clone()).or_default().push(issue.id);
-            }
-        }
-        map
-    }
-
-    pub fn dependency_edges(&self) -> Vec<(u32, u32)> {
-        self.issues
-            .iter()
-            .flat_map(|i| i.depends_on.iter().map(move |&dep| (dep, i.id)))
-            .collect()
-    }
-}
-
-fn write_section(root: &Path, name: &str, title: &str, issues: &[&Issue]) -> Result<(), String> {
-    let mut md = format!("# {title}\n\n---\n");
-    for issue in issues {
-        md.push_str(&format!("\n## [{}] {}\n", issue.id, issue.title));
-        md.push_str(&format!("**Status:** {}\n", issue.status.label()));
-        if !issue.files.is_empty() {
-            let f: Vec<String> = issue.files.iter().map(|f| format!("`{f}`")).collect();
-            md.push_str(&format!("**Files:** {}\n", f.join(", ")));
-        }
-        if !issue.depends_on.is_empty() {
-            let d: Vec<String> = issue.depends_on.iter().map(|d| format!("[{d}]")).collect();
-            md.push_str(&format!("**Depends on:** {}\n", d.join(", ")));
-        }
-        if !issue.description.is_empty() {
-            md.push('\n');
-            md.push_str(&issue.description);
-            md.push('\n');
-        }
-        md.push_str(&format!("\n**Resolution:** {}\n\n---\n", issue.resolution));
-    }
-    fs::write(root.join(name), md).map_err(|e| format!("Failed to write {name}: {e}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::tempdir;
 
     #[test]
-    fn test_init_workspace_creates_files() {
+    fn test_init_creates_in_docs_issues() {
         let dir = tempdir().unwrap();
-        init_workspace(dir.path()).unwrap();
-
-        assert!(dir.path().join("issues-active.md").exists());
-        assert!(dir.path().join("issues-backlog.md").exists());
-        assert!(dir.path().join("issues-done.md").exists());
+        let result = init_workspace(dir.path()).unwrap();
+        assert_eq!(result, dir.path().join("docs/issues"));
+        assert!(dir.path().join("docs/issues/issues-active.md").exists());
     }
 
     #[test]
-    fn test_init_workspace_fails_if_exists() {
+    fn test_init_at_creates_at_exact_path() {
         let dir = tempdir().unwrap();
-        fs::write(dir.path().join("issues-active.md"), "# Test").unwrap();
-
-        let result = init_workspace(dir.path());
-        assert!(result.is_err());
+        let target = dir.path().join("my/custom/path");
+        init_workspace_at(&target).unwrap();
+        assert!(target.join("issues-active.md").exists());
     }
 
     #[test]
-    fn test_workspace_exists() {
+    fn test_init_fails_if_exists() {
         let dir = tempdir().unwrap();
-        assert!(!workspace_exists(dir.path()));
+        let target = dir.path().join("docs/issues");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("issues-active.md"), "# Test").unwrap();
+        assert!(init_workspace(dir.path()).is_err());
+    }
 
-        fs::write(dir.path().join("issues-active.md"), "# Test").unwrap();
-        assert!(workspace_exists(dir.path()));
+    #[test]
+    fn test_reinit_replaces_files() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("issues-active.md"), "# Old").unwrap();
+        reinit_workspace(dir.path()).unwrap();
+        let content = fs::read_to_string(dir.path().join("issues-active.md")).unwrap();
+        assert!(content.contains("ACTIVE Issues"));
+    }
+
+    #[test]
+    fn test_discover_prefers_docs_issues() {
+        let dir = tempdir().unwrap();
+        let docs_issues = dir.path().join("docs/issues");
+        fs::create_dir_all(&docs_issues).unwrap();
+        fs::write(docs_issues.join("issues-active.md"), "# Test").unwrap();
+        assert_eq!(discover_root(dir.path()), docs_issues);
     }
 }

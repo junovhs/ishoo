@@ -2,38 +2,19 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 19 files | 17495 tokens | 6 violations
+SCAN SUMMARY: 23 files | 21611 tokens | 4 violations
 
 ALL VIOLATING FILES:
-    3 violations | src/model/mod.rs
+    2 violations | src/model/workspace.rs
     2 violations | src/ui/views/physics.rs
-    1 violations | src/ui/styles.rs
-
-warn: Nested loop (O(n²)) detected
-  --> src/model/mod.rs:179
-   |
-   178 |         for issue in &self.issues {
-   179 |             for file in &issue.files {
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   180 |                 // neti:allow(P04) — inner loop bounded by files-per-issue (≤10)
-   = P04: Review recommended — inner loop may be bounded to a small constant
-   |
-   = ANALYSIS:
-   |   Quadratic complexity — scales poorly with input size.
-   |
-   = WHY: Nested loops produce O(n²) complexity, which scales poorly with input size.
-   |
-   = FIX: Replace the inner loop with a lookup structure (HashMap/HashSet) for O(n) total, or confirm the inner loop is bounded to a small constant.
-   |
-   = SUPPRESS: // neti:allow(P04) on the line, or P04 = "warn" in neti.toml [rules]
 
 warn: [1 of 2] Class 'Workspace' is tightly coupled (CBO: 16)
-  --> src/model/mod.rs:114
+  --> src/model/workspace.rs:9
    |
-   113 | #[derive(Debug, Clone)]
-   114 | pub struct Workspace {
+     8 | #[derive(Debug, Clone)]
+     9 | pub struct Workspace {
    | ^^^^^^^^^^^^^^^^^^^^^^
-   115 |     pub root: PathBuf,
+    10 |     pub root: PathBuf,
    = CBO: Review recommended — accurate measurement, but may be expected for central/hub types
    |
    = ANALYSIS:
@@ -42,12 +23,12 @@ warn: [1 of 2] Class 'Workspace' is tightly coupled (CBO: 16)
    = SUPPRESS: // neti:allow(CBO) on the line, or CBO = "warn" in neti.toml [rules]
 
 warn: Class 'Workspace' has high fan-out (SFOUT: 8)
-  --> src/model/mod.rs:114
+  --> src/model/workspace.rs:9
    |
-   113 | #[derive(Debug, Clone)]
-   114 | pub struct Workspace {
+     8 | #[derive(Debug, Clone)]
+     9 | pub struct Workspace {
    | ^^^^^^^^^^^^^^^^^^^^^^
-   115 |     pub root: PathBuf,
+    10 |     pub root: PathBuf,
    = SFOUT: Review recommended — high fan-out may be intentional for orchestrator/coordinator functions
    |
    = ANALYSIS:
@@ -74,21 +55,7 @@ warn: [2 of 2] Class 'DragState' is tightly coupled (CBO: 11)
   --> src/ui/views/physics.rs:45
    = CBO: External dependencies: 11 — see first CBO above
 
-error: File size is 2136 tokens (Limit: 2000)
-  --> src/ui/styles.rs:1
-   |
-     1 | pub const STYLES: &str = r#"
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     2 | @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-   = LAW OF ATOMICITY: Fix required
-   |
-   = WHY: Files beyond the token limit are too large for a single unit of work, increasing cognitive load and merge conflict risk.
-   |
-   = FIX: Split the file into smaller, focused modules. Extract related functions into their own files.
-   |
-   = SUPPRESS: // neti:allow(LAW OF ATOMICITY) on the line, or LAW OF ATOMICITY = "warn" in neti.toml [rules]
-
-X Neti found 1 error, 5 warnings (310ms).
+~ Neti found 4 warnings (292ms).
 
 
 ========================================
@@ -96,7 +63,7 @@ NETI LOCALITY REPORT
 ========================================
 
 Mode: warn
-Edges analyzed: 12
+Edges analyzed: 16
 Violations: 0
 Cycles: 0
 Result: PASS
@@ -107,8 +74,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (1388ms)
+> PASS (338ms)
 
 $ cargo test
-> PASS (1663ms)
+> PASS (266ms)
 

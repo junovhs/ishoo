@@ -1,4 +1,3 @@
-// src/main.rs
 mod model;
 mod ui;
 
@@ -20,7 +19,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize a new issue tracker in the current directory
+    /// Initialize a new issue tracker (creates docs/issues/)
     Init,
     List {
         #[arg(short, long)]
@@ -46,17 +45,19 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::Init) => {
-            if let Err(e) = model::init_workspace(&cli.path) {
+        Some(Commands::Init) => match model::init_workspace(&cli.path) {
+            Ok(created_path) => {
+                println!("✓ Initialized ishoo in {}", created_path.display());
+                println!("  Created: issues-active.md, issues-backlog.md, issues-done.md");
+            }
+            Err(e) => {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
             }
-            println!("✓ Initialized ishoo in {}", cli.path.display());
-            println!("  Created: issues-active.md, issues-backlog.md, issues-done.md");
-        }
+        },
         _ => {
             let path = model::discover_root(&cli.path);
-            match cli.command {
+            match &cli.command {
                 Some(Commands::Dash) | None => {
                     ui::launch_dashboard(path);
                 }
@@ -66,11 +67,11 @@ fn main() {
                 }
                 Some(Commands::Show { id }) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
-                    model::cli_show(&ws, id);
+                    model::cli_show(&ws, *id);
                 }
                 Some(Commands::Set { id, status }) => {
                     let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
-                    model::cli_set_status(&mut ws, id, &status).expect("Failed to set status");
+                    model::cli_set_status(&mut ws, *id, status).expect("Failed to set status");
                 }
                 Some(Commands::Heatmap) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
