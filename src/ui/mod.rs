@@ -1,9 +1,10 @@
+// src/ui/mod.rs
 mod components;
 mod styles;
 mod styles_viz;
 mod views;
 
-use crate::model::{Issue, Stats, Status, Workspace};
+use crate::model::{init_workspace, workspace_exists, Issue, Stats, Status, Workspace};
 use dioxus::prelude::*;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -26,12 +27,200 @@ pub enum View {
     Timeline,
 }
 
+// ── Toast System ───────────────────────────────────────────────────────
+
+#[derive(Clone, PartialEq)]
+pub struct Toast {
+    pub id: u64,
+    pub message: String,
+    pub kind: ToastKind,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum ToastKind {
+    Success,
+    Error,
+    Info,
+}
+
+impl ToastKind {
+    fn class(&self) -> &'static str {
+        match self {
+            Self::Success => "toast-success",
+            Self::Error => "toast-error",
+            Self::Info => "toast-info",
+        }
+    }
+}
+
+#[component]
+fn ToastContainer(toasts: Vec<Toast>, on_dismiss: EventHandler<u64>) -> Element {
+    rsx! {
+        div { class: "toast-container",
+            for toast in toasts {
+                div {
+                    key: "{toast.id}",
+                    class: "toast {toast.kind.class()}",
+                    onclick: move |_| on_dismiss.call(toast.id),
+                    "{toast.message}"
+                }
+            }
+        }
+    }
+}
+
+// ── New Issue Modal ────────────────────────────────────────────────────
+
+#[derive(Clone, PartialEq, Props)]
+struct NewIssueModalProps {
+    on_create: EventHandler<(String, String)>,
+    on_cancel: EventHandler<()>,
+}
+
+#[component]
+fn NewIssueModal(props: NewIssueModalProps) -> Element {
+    let mut title = use_signal(String::new);
+    let mut status = use_signal(|| "OPEN".to_string());
+
+    let can_create = !title().trim().is_empty();
+
+    rsx! {
+        div { class: "modal-overlay", onclick: move |_| props.on_cancel.call(()),
+            div {
+                class: "modal",
+                onclick: move |e| e.stop_propagation(),
+                div { class: "modal-header",
+                    h2 { "New Issue" }
+                    button {
+                        class: "modal-close",
+                        onclick: move |_| props.on_cancel.call(()),
+                        "×"
+                    }
+                }
+                div { class: "modal-body",
+                    div { class: "fgroup",
+                        label { class: "flbl", "Title" }
+                        input {
+                            class: "modal-input",
+                            r#type: "text",
+                            placeholder: "What needs to be done?",
+                            value: "{title}",
+                            autofocus: true,
+                            oninput: move |e| title.set(e.value()),
+                            onkeydown: move |e| {
+                                if e.key() == Key::Enter && can_create {
+                                    props.on_create.call((title(), status()));
+                                }
+                            },
+                        }
+                    }
+                    div { class: "fgroup",
+                        label { class: "flbl", "Initial Status" }
+                        select {
+                            class: "sel",
+                            value: "{status}",
+                            onchange: move |e| status.set(e.value()),
+                            option { value: "OPEN", "Open" }
+                            option { value: "IN PROGRESS", "In Progress" }
+                        }
+                    }
+                }
+                div { class: "modal-footer",
+                    button {
+                        class: "btn-secondary",
+                        onclick: move |_| props.on_cancel.call(()),
+                        "Cancel"
+                    }
+                    button {
+                        class: "btn-primary",
+                        disabled: !can_create,
+                        onclick: move |_| {
+                            if can_create {
+                                props.on_create.call((title(), status()));
+                            }
+                        },
+                        "Create Issue"
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Welcome / Init Screen ──────────────────────────────────────────────
+
+#[derive(Clone, PartialEq, Props)]
+struct WelcomeScreenProps {
+    path: PathBuf,
+    on_init: EventHandler<()>,
+}
+
+#[component]
+fn WelcomeScreen(props: WelcomeScreenProps) -> Element {
+    let mut error = use_signal(|| None::<String>);
+
+    rsx! {
+        div { class: "welcome-screen",
+            div { class: "welcome-card",
+                div { class: "welcome-icon",
+                    svg {
+                        width: "64", height: "64", view_box: "0 0 24 24",
+                        fill: "none", stroke: "currentColor", stroke_width: "1.5",
+                        path { d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" }
+                    }
+                }
+                h1 { "Welcome to Ishoo" }
+                p { class: "welcome-desc",
+                    "No issue tracker found in this directory. Initialize one to get started."
+                }
+                p { class: "welcome-path", "{props.path.display()}" }
+
+                if let Some(err) = error() {
+                    div { class: "welcome-error", "{err}" }
+                }
+
+                button {
+                    class: "btn-primary btn-lg",
+                    onclick: move |_| {
+                        match init_workspace(&props.path) {
+                            Ok(()) => props.on_init.call(()),
+                            Err(e) => error.set(Some(e)),
+                        }
+                    },
+                    "Initialize Issue Tracker"
+                }
+
+                p { class: "welcome-hint",
+                    "This will create: issues-active.md, issues-backlog.md, issues-done.md"
+                }
+            }
+        }
+    }
+}
+
+// ── Main App ───────────────────────────────────────────────────────────
+
 #[component]
 fn App() -> Element {
     let ws_path = WORKSPACE_PATH
         .get()
         .expect("workspace path not set")
         .clone();
+
+    let mut initialized = use_signal(|| workspace_exists(&ws_path));
+
+    // If not initialized, show welcome screen
+    if !initialized() {
+        return rsx! {
+            style { {styles::STYLES} }
+            style { {styles::STYLES_MODAL} }
+            style { {styles::STYLES_WELCOME} }
+            WelcomeScreen {
+                path: ws_path.clone(),
+                on_init: move |_| initialized.set(true),
+            }
+        };
+    }
 
     let initial = Workspace::load(&ws_path).unwrap_or_else(|_| Workspace {
         root: ws_path.clone(),
@@ -43,6 +232,25 @@ fn App() -> Element {
     let mut active_issue_id = use_signal(|| None::<u32>);
     let mut active_view = use_signal(|| View::Feed);
     let mut dirty = use_signal(|| false);
+    let mut show_new_modal = use_signal(|| false);
+    let mut toasts = use_signal(Vec::<Toast>::new);
+    let mut toast_counter = use_signal(|| 0u64);
+
+    let add_toast = move |message: String, kind: ToastKind| {
+        let id = toast_counter();
+        toast_counter.set(id + 1);
+        let mut t = toasts();
+        t.push(Toast { id, message, kind });
+        toasts.set(t);
+
+        // Auto-dismiss after 3 seconds
+        spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            let mut t = toasts();
+            t.retain(|toast| toast.id != id);
+            toasts.set(t);
+        });
+    };
 
     let _poll = use_coroutine(move |_rx: UnboundedReceiver<()>| {
         let wp = ws_path.clone();
@@ -58,31 +266,80 @@ fn App() -> Element {
         }
     });
 
-    let save = move |_| {
+    let save_and_notify = move |msg: &str| {
         let wp = WORKSPACE_PATH.get().expect("path not set").clone();
         let ws = Workspace {
             root: wp,
             issues: issues(),
         };
         if let Err(e) = ws.save() {
-            eprintln!("Save error: {e}");
+            add_toast(format!("Save failed: {e}"), ToastKind::Error);
         } else {
             dirty.set(false);
+            add_toast(msg.to_string(), ToastKind::Success);
         }
+    };
+
+    let save = move |_| {
+        save_and_notify("Changes saved");
     };
 
     let stats = compute_stats(&issues());
     let filtered: Vec<Issue> = filter_issues(&issues(), &search_query());
     let all_styles = format!(
-        "{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}",
         styles::STYLES,
         styles::STYLES_CARD,
         styles::STYLES_DRAG,
+        styles::STYLES_MODAL,
+        styles::STYLES_TOAST,
         styles_viz::STYLES_VIZ
     );
 
     rsx! {
         style { {all_styles} }
+
+        ToastContainer {
+            toasts: toasts(),
+            on_dismiss: move |id| {
+                let mut t = toasts();
+                t.retain(|toast| toast.id != id);
+                toasts.set(t);
+            }
+        }
+
+        if show_new_modal() {
+            NewIssueModal {
+                on_create: move |(title, status): (String, String)| {
+                    let max_id = issues().iter().map(|i| i.id).max().unwrap_or(0);
+                    let issue = Issue {
+                        id: max_id + 1,
+                        title: title.clone(),
+                        status: Status::from_str(&status),
+                        files: vec![],
+                        description: String::new(),
+                        resolution: String::new(),
+                        section: "ACTIVE Issues".to_string(),
+                        depends_on: vec![],
+                    };
+                    let mut all = issues();
+                    all.insert(0, issue.clone());
+                    issues.set(all);
+                    show_new_modal.set(false);
+
+                    // Auto-save new issue
+                    let wp = WORKSPACE_PATH.get().expect("path not set").clone();
+                    let ws = Workspace { root: wp, issues: issues() };
+                    if let Err(e) = ws.save() {
+                        add_toast(format!("Save failed: {e}"), ToastKind::Error);
+                    } else {
+                        add_toast(format!("Created #{} {}", issue.id, title), ToastKind::Success);
+                    }
+                },
+                on_cancel: move |_| show_new_modal.set(false),
+            }
+        }
+
         div { class: "shell",
             aside { class: "sidebar",
                 div { class: "brand",
@@ -116,6 +373,11 @@ fn App() -> Element {
                 }
 
                 div { class: "sidebar-foot",
+                    button {
+                        class: "new-issue-btn",
+                        onclick: move |_| show_new_modal.set(true),
+                        "+ New Issue"
+                    }
                     div { class: if dirty() { "sync dirty" } else { "sync" },
                         if dirty() { "⚠ Unsaved" } else { "✓ Synced" }
                     }
@@ -135,6 +397,11 @@ fn App() -> Element {
                             value: "{search_query}",
                             oninput: move |e| search_query.set(e.value()),
                         }
+                    }
+                    button {
+                        class: "topbar-new-btn",
+                        onclick: move |_| show_new_modal.set(true),
+                        "+ New"
                     }
                     span { class: "count-pill", "{stats.total} issues" }
                 }
@@ -184,7 +451,15 @@ fn App() -> Element {
                                         }
                                     }
                                     issues.set(all);
-                                    dirty.set(true);
+
+                                    // Auto-save on reorder
+                                    let wp = WORKSPACE_PATH.get().expect("path not set").clone();
+                                    let ws = Workspace { root: wp, issues: issues() };
+                                    if let Err(e) = ws.save() {
+                                        add_toast(format!("Save failed: {e}"), ToastKind::Error);
+                                    } else {
+                                        add_toast("Reordered".to_string(), ToastKind::Success);
+                                    }
                                 },
                             }
                         },

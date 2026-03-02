@@ -35,7 +35,7 @@ Searches common subdirectories for issue markdown files.
 → Exports: css_class, dependency_edges, discover_root, file_heatmap
 
 `src/ui/mod.rs`
-Implements launch dashboard.
+Implements view functionality.
 → Exports: launch_dashboard, View
 
 `src/ui/views/mod.rs`

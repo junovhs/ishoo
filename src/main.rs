@@ -1,3 +1,4 @@
+// src/main.rs
 mod model;
 mod ui;
 
@@ -19,6 +20,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Initialize a new issue tracker in the current directory
+    Init,
     List {
         #[arg(short, long)]
         filter: Option<String>,
@@ -41,44 +44,57 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
-    let path = model::discover_root(&cli.path);
 
-    match cli.command {
-        Some(Commands::Dash) | None => {
-            ui::launch_dashboard(path);
+    match &cli.command {
+        Some(Commands::Init) => {
+            if let Err(e) = model::init_workspace(&cli.path) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+            println!("✓ Initialized ishoo in {}", cli.path.display());
+            println!("  Created: issues-active.md, issues-backlog.md, issues-done.md");
         }
-        Some(Commands::List { filter }) => {
-            let ws = model::Workspace::load(&path).expect("Failed to load workspace");
-            model::cli_list(&ws, filter.as_deref());
-        }
-        Some(Commands::Show { id }) => {
-            let ws = model::Workspace::load(&path).expect("Failed to load workspace");
-            model::cli_show(&ws, id);
-        }
-        Some(Commands::Set { id, status }) => {
-            let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
-            model::cli_set_status(&mut ws, id, &status).expect("Failed to set status");
-        }
-        Some(Commands::Heatmap) => {
-            let ws = model::Workspace::load(&path).expect("Failed to load workspace");
-            model::cli_heatmap(&ws);
-        }
-        Some(Commands::New { title, status }) => {
-            let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
-            let max_id = ws.issues.iter().map(|i| i.id).max().unwrap_or(0);
-            let issue = model::Issue {
-                id: max_id + 1,
-                title,
-                status: model::Status::from_str(&status),
-                files: vec![],
-                description: String::new(),
-                resolution: String::new(),
-                section: "ACTIVE Issues".to_string(),
-                depends_on: vec![],
-            };
-            println!("Created [{}] {}", issue.id, issue.title);
-            ws.issues.push(issue);
-            ws.save().expect("Failed to save");
+        _ => {
+            let path = model::discover_root(&cli.path);
+            match cli.command {
+                Some(Commands::Dash) | None => {
+                    ui::launch_dashboard(path);
+                }
+                Some(Commands::List { filter }) => {
+                    let ws = model::Workspace::load(&path).expect("Failed to load workspace");
+                    model::cli_list(&ws, filter.as_deref());
+                }
+                Some(Commands::Show { id }) => {
+                    let ws = model::Workspace::load(&path).expect("Failed to load workspace");
+                    model::cli_show(&ws, id);
+                }
+                Some(Commands::Set { id, status }) => {
+                    let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
+                    model::cli_set_status(&mut ws, id, &status).expect("Failed to set status");
+                }
+                Some(Commands::Heatmap) => {
+                    let ws = model::Workspace::load(&path).expect("Failed to load workspace");
+                    model::cli_heatmap(&ws);
+                }
+                Some(Commands::New { title, status }) => {
+                    let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
+                    let max_id = ws.issues.iter().map(|i| i.id).max().unwrap_or(0);
+                    let issue = model::Issue {
+                        id: max_id + 1,
+                        title: title.clone(),
+                        status: model::Status::from_str(status),
+                        files: vec![],
+                        description: String::new(),
+                        resolution: String::new(),
+                        section: "ACTIVE Issues".to_string(),
+                        depends_on: vec![],
+                    };
+                    println!("Created [{}] {}", issue.id, issue.title);
+                    ws.issues.push(issue);
+                    ws.save().expect("Failed to save");
+                }
+                Some(Commands::Init) => unreachable!(),
+            }
         }
     }
 }

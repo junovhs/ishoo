@@ -1,3 +1,4 @@
+// src/model/mod.rs
 mod cli;
 mod parse;
 
@@ -10,6 +11,33 @@ pub use cli::{cli_heatmap, cli_list, cli_set_status, cli_show};
 pub use parse::parse_markdown;
 
 const ISSUE_FILES: [&str; 3] = ["issues-active.md", "issues-backlog.md", "issues-done.md"];
+
+/// Initialize a new ishoo workspace with empty issue files
+pub fn init_workspace(path: &Path) -> Result<(), String> {
+    fs::create_dir_all(path).map_err(|e| format!("Failed to create directory: {e}"))?;
+
+    let active = path.join("issues-active.md");
+    let backlog = path.join("issues-backlog.md");
+    let done = path.join("issues-done.md");
+
+    if active.exists() || backlog.exists() || done.exists() {
+        return Err("Issue files already exist in this directory".to_string());
+    }
+
+    fs::write(&active, "# ACTIVE Issues\n\n---\n")
+        .map_err(|e| format!("Failed to write issues-active.md: {e}"))?;
+    fs::write(&backlog, "# BACKLOG Issues\n\n---\n")
+        .map_err(|e| format!("Failed to write issues-backlog.md: {e}"))?;
+    fs::write(&done, "# DONE Issues\n\n---\n")
+        .map_err(|e| format!("Failed to write issues-done.md: {e}"))?;
+
+    Ok(())
+}
+
+/// Check if a workspace exists at the given path
+pub fn workspace_exists(path: &Path) -> bool {
+    ISSUE_FILES.iter().any(|f| path.join(f).exists())
+}
 
 /// Searches common subdirectories for issue markdown files.
 /// Returns the first directory containing at least one match,
@@ -177,7 +205,6 @@ impl Workspace {
         let mut map: BTreeMap<String, Vec<u32>> = BTreeMap::new();
         for issue in &self.issues {
             for file in &issue.files {
-                // neti:allow(P04) — inner loop bounded by files-per-issue (≤10)
                 map.entry(file.clone()).or_default().push(issue.id);
             }
         }
@@ -213,4 +240,39 @@ fn write_section(root: &Path, name: &str, title: &str, issues: &[&Issue]) -> Res
         md.push_str(&format!("\n**Resolution:** {}\n\n---\n", issue.resolution));
     }
     fs::write(root.join(name), md).map_err(|e| format!("Failed to write {name}: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_init_workspace_creates_files() {
+        let dir = tempdir().unwrap();
+        init_workspace(dir.path()).unwrap();
+
+        assert!(dir.path().join("issues-active.md").exists());
+        assert!(dir.path().join("issues-backlog.md").exists());
+        assert!(dir.path().join("issues-done.md").exists());
+    }
+
+    #[test]
+    fn test_init_workspace_fails_if_exists() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("issues-active.md"), "# Test").unwrap();
+
+        let result = init_workspace(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workspace_exists() {
+        let dir = tempdir().unwrap();
+        assert!(!workspace_exists(dir.path()));
+
+        fs::write(dir.path().join("issues-active.md"), "# Test").unwrap();
+        assert!(workspace_exists(dir.path()));
+    }
 }
