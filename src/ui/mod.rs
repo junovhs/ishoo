@@ -73,7 +73,13 @@ fn App() -> Element {
 
     let stats = compute_stats(&issues());
     let filtered: Vec<Issue> = filter_issues(&issues(), &search_query());
-    let all_styles = format!("{}\n{}", styles::STYLES, styles_viz::STYLES_VIZ);
+    let all_styles = format!(
+        "{}\n{}\n{}\n{}",
+        styles::STYLES,
+        styles::STYLES_CARD,
+        styles::STYLES_DRAG,
+        styles_viz::STYLES_VIZ
+    );
 
     rsx! {
         style { {all_styles} }
@@ -140,18 +146,43 @@ fn App() -> Element {
                                 issues: filtered.clone(),
                                 active_id: active_issue_id(),
                                 on_toggle: move |id: u32| {
-                                    if active_issue_id() == Some(id) { active_issue_id.set(None); }
-                                    else { active_issue_id.set(Some(id)); }
+                                    if active_issue_id() == Some(id) {
+                                        active_issue_id.set(None);
+                                    } else {
+                                        active_issue_id.set(Some(id));
+                                    }
                                 },
                                 on_status: move |(id, s): (u32, String)| {
                                     let mut all = issues();
-                                    if let Some(i) = all.iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }
+                                    if let Some(i) = all.iter_mut().find(|i| i.id == id) {
+                                        i.status = Status::from_str(&s);
+                                    }
                                     issues.set(all);
                                     dirty.set(true);
                                 },
                                 on_resolution: move |(id, t): (u32, String)| {
                                     let mut all = issues();
-                                    if let Some(i) = all.iter_mut().find(|i| i.id == id) { i.resolution = t; }
+                                    if let Some(i) = all.iter_mut().find(|i| i.id == id) {
+                                        i.resolution = t;
+                                    }
+                                    issues.set(all);
+                                    dirty.set(true);
+                                },
+                                on_collapse_all: move |_| {
+                                    active_issue_id.set(None);
+                                },
+                                on_reorder: move |(dragged_id, target_id, insert_after): (u32, u32, bool)| {
+                                    let mut all = issues();
+                                    if let Some(dragged_idx) = all.iter().position(|i| i.id == dragged_id) {
+                                        let mut dragged_issue = all.remove(dragged_idx);
+                                        if let Some(target_idx) = all.iter().position(|i| i.id == target_id) {
+                                            dragged_issue.section = all[target_idx].section.clone();
+                                            let insert_idx = if insert_after { target_idx + 1 } else { target_idx };
+                                            all.insert(insert_idx.min(all.len()), dragged_issue);
+                                        } else {
+                                            all.insert(dragged_idx, dragged_issue);
+                                        }
+                                    }
                                     issues.set(all);
                                     dirty.set(true);
                                 },

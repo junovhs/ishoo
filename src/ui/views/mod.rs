@@ -1,5 +1,6 @@
 mod board;
 mod feed;
+mod physics;
 mod viz;
 
 pub use board::BoardView;
