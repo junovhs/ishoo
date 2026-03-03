@@ -2,71 +2,69 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 23 files | 21611 tokens | 4 violations
+SCAN SUMMARY: 26 files | 27320 tokens | 7 violations
 
 ALL VIOLATING FILES:
-    2 violations | src/model/workspace.rs
-    2 violations | src/ui/views/physics.rs
+    6 violations | src\ui\views\viz.rs
+    1 violations | src\model\workspace.rs
 
-warn: [1 of 2] Class 'Workspace' is tightly coupled (CBO: 16)
-  --> src/model/workspace.rs:9
+warn: [1 of 4] Nested loop (O(n²)) detected
+  --> src\model\workspace.rs:75
    |
-     8 | #[derive(Debug, Clone)]
-     9 | pub struct Workspace {
-   | ^^^^^^^^^^^^^^^^^^^^^^
-    10 |     pub root: PathBuf,
-   = CBO: Review recommended — accurate measurement, but may be expected for central/hub types
+    74 |             // neti:allow(P04) — inner loop bounded by files-per-issue (≤10)
+    75 |             for file in &issue.files {
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    76 |                 map.entry(file.clone()).or_default().push(issue.id);
+   = P04: Review recommended — inner loop may be bounded to a small constant
    |
    = ANALYSIS:
-   |   External dependencies: 16
+   |   Quadratic complexity — scales poorly with input size.
    |
-   = SUPPRESS: // neti:allow(CBO) on the line, or CBO = "warn" in neti.toml [rules]
+   = WHY: Nested loops produce O(n²) complexity, which scales poorly with input size.
+   |
+   = FIX: Replace the inner loop with a lookup structure (HashMap/HashSet) for O(n) total, or confirm the inner loop is bounded to a small constant.
+   |
+   = SUPPRESS: // neti:allow(P04) on the line, or P04 = "warn" in neti.toml [rules]
 
-warn: Class 'Workspace' has high fan-out (SFOUT: 8)
-  --> src/model/workspace.rs:9
-   |
-     8 | #[derive(Debug, Clone)]
-     9 | pub struct Workspace {
-   | ^^^^^^^^^^^^^^^^^^^^^^
-    10 |     pub root: PathBuf,
-   = SFOUT: Review recommended — high fan-out may be intentional for orchestrator/coordinator functions
-   |
-   = ANALYSIS:
-   |   Max outgoing calls: 8
-   |
-   = SUPPRESS: // neti:allow(SFOUT) on the line, or SFOUT = "warn" in neti.toml [rules]
+warn: [2 of 4] Nested loop (O(n²)) detected
+  --> src\ui\views\viz.rs:168
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
-warn: Class 'DragState' exposes too much state (AHF: 0.0%)
-  --> src/ui/views/physics.rs:45
+error: [1 of 3] String conversion inside loop
+  --> src\ui\views\viz.rs:178
    |
-    44 | #[derive(Clone)]
-    45 | pub struct DragState {
-   | ^^^^^^^^^^^^^^^^^^^^^^
-    46 |     pub dragging_id: Option<u32>,
-   = AHF: Review recommended — public fields may be intentional API surface (data structs, config)
+   177 |                 let key = if a < b { (a, b) } else { (b, a) };
+   178 |                 overlap_set.entry(key).or_default().push((*file).to_owned());
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   179 |             }
+   = P02: Fix required
    |
    = ANALYSIS:
-   |   AHF is 0.0% (min 60%)
-   |   0 of 18 fields are private.
+   |   `(*file).to_string()` allocates a new String on every iteration.
    |
-   = SUPPRESS: // neti:allow(AHF) on the line, or AHF = "warn" in neti.toml [rules]
+   = WHY: String conversion inside a loop allocates a new String on every iteration.
+   |
+   = FIX: Hoist the conversion before the loop, or operate on borrowed string slices (&str).
+   |
+   = SUPPRESS: // neti:allow(P02) on the line, or P02 = "warn" in neti.toml [rules]
 
-warn: [2 of 2] Class 'DragState' is tightly coupled (CBO: 11)
-  --> src/ui/views/physics.rs:45
-   = CBO: External dependencies: 11 — see first CBO above
+warn: [3 of 4] Nested loop (O(n²)) detected
+  --> src\ui\views\viz.rs:175
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
-~ Neti found 4 warnings (292ms).
+error: [2 of 3] String conversion inside loop
+  --> src\ui\views\viz.rs:178
+   = P02: `(*file).to_string()` allocates a new String on every iteration. — see first P02 above
 
+warn: [4 of 4] Nested loop (O(n²)) detected
+  --> src\ui\views\viz.rs:176
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
-========================================
-NETI LOCALITY REPORT
-========================================
+error: [3 of 3] String conversion inside loop
+  --> src\ui\views\viz.rs:178
+   = P02: `(*file).to_string()` allocates a new String on every iteration. — see first P02 above
 
-Mode: warn
-Edges analyzed: 16
-Violations: 0
-Cycles: 0
-Result: PASS
+X Neti found 3 errors, 4 warnings (400ms).
 
 
 ========================================
@@ -74,8 +72,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (338ms)
+> PASS (64935ms)
 
 $ cargo test
-> PASS (266ms)
+> PASS (53890ms)
 

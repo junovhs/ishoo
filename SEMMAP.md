@@ -12,86 +12,88 @@
 
 `[UTIL]` Utility functions
 
+`[HOTSPOT]` High fan-in file imported by 4+ others — request this file early in any task
+
 ## Layer 0 -- Config
 
 `Cargo.toml`
-Rust package manifest and dependencies. Centralizes project configuration.
+Workspace configuration.
 
 `Dioxus.toml`
-Configuration for Dioxus. Centralizes project configuration.
+Configuration for Dioxus.
 
 `neti.toml`
-Configuration for neti. Centralizes project configuration.
+Configuration for neti.
 
 ## Layer 1 -- Core
 
 `src/main.rs`
-Orchestrates `clap`. Provides application entry point.
+Orchestrates `clap`.
 
 `src/model/mod.rs`
-Module providing `Issue`, `Stats`, `Status`. Defines domain data structures.
-→ Exports: Issue, Stats, Status, css_class, default_init_path, discover_root, from_str, init_workspace, init_workspace_at, label, reinit_workspace, status_ord, workspace_exists
+Creates workspace at.
+→ Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`
-Module providing `View`, `get_workspace_path`, `launch_dashboard`. Supports application functionality.
-→ Exports: View, get_workspace_path, launch_dashboard
+Gets the workspace path.
+→ Exports: get_workspace_path, launch_dashboard, View
 
 `src/ui/views/mod.rs`
-Orchestrates `board`, `feed`, `viz`. Supports application functionality.
+Orchestrates `board`, `feed`, `viz`.
 
 ## Layer 2 -- Domain
 
 `src/model/cli.rs`
-Module providing `cli_heatmap`, `cli_list`, `cli_set_status`. Defines domain data structures.
-→ Exports: cli_heatmap, cli_list, cli_set_status, cli_show
+Implements cli set status.
+→ Exports: cli_set_status, cli_heatmap, cli_list, cli_show
 
 `src/model/parse.rs`
-Module providing `parse_markdown`. Parses input into structured data.
+Parses markdown.
 → Exports: parse_markdown
 
 `src/model/workspace.rs`
-Module providing `Workspace`, `dependency_edges`, `file_heatmap`. Defines domain data structures.
-→ Exports: Workspace, dependency_edges, file_heatmap, load, save, stats
+Implements Workspace functionality.
+→ Exports: dependency_edges, file_heatmap, Workspace, load
 
 `src/ui/app.rs`
-Module providing `App`. Supports application functionality.
+Implements App functionality.
 → Exports: App
 
 `src/ui/components.rs`
-Module providing `NavBtn`, `StatRow`. Supports application functionality.
+Implements nav btn.
 → Exports: NavBtn, StatRow
 
 `src/ui/styles.rs`
-Implements styles functionality. Supports application functionality.
+Implements styles functionality.
 
 `src/ui/styles_viz.rs`
-Implements styles viz. Supports application functionality.
+Implements styles viz.
 
 `src/ui/toast.rs`
-Module providing `Toast`, `ToastContainer`, `ToastKind`. Supports application functionality.
-→ Exports: Toast, ToastContainer, ToastKind, class
+Implements toast container.
+→ Exports: ToastContainer, ToastKind, class, Toast
 
 `src/ui/views/board.rs`
-Module providing `BoardView`. Supports application functionality.
+Implements board view.
 → Exports: BoardView
 
 `src/ui/views/feed.rs`
-Module providing `FeedView`, `FeedViewProps`, `build_virtual_layout`. Supports application functionality.
-→ Exports: FeedView, FeedViewProps, build_virtual_layout
+Implements feed view props.
+→ Exports: build_virtual_layout, FeedViewProps, FeedView
 
 `src/ui/views/feed/card.rs`
-Module providing `IssueCard`, `IssueCardProps`. Supports application functionality.
-→ Exports: IssueCard, IssueCardProps
+Implements issue card props.
+→ Exports: IssueCardProps, IssueCard
 
 `src/ui/views/physics.rs`
-Module providing `DragState`, `Spring`, `done`. Supports application functionality.
-→ Exports: DragState, Spring, done, is_active, new, set, step, step_drag, step_settle
+Implements step settle.
+→ Exports: is_active, DragState, step_settle, step_drag
 
 `src/ui/views/viz.rs`
-Module providing `GraphView`, `HeatmapView`, `TimelineView`. Supports application functionality.
+Implements graph view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
-Module providing `WelcomeScreen`. Supports application functionality.
+Implements welcome screen.
 → Exports: WelcomeScreen
 
