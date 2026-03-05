@@ -3,7 +3,7 @@
 ---
 
 ## [47] Fix drag-and-drop state corruption after first reorder
-**Status:** DONE
+**Status:** NOT FUCKING DONE THIS WAS A LIE
 **Files:** `src/ui/views/physics.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
 
 Critical UX bug: drag-and-drop worked on the first attempt but broke progressively on subsequent drags due to stale `item_springs` HashMap entries leaking between drag sessions.
@@ -17,6 +17,64 @@ Critical UX bug: drag-and-drop worked on the first attempt but broke progressive
 Tests added in `physics.rs`: `reset_clears_item_springs_completely`, `step_settle_hard_cap_forces_clear_even_when_not_converged`, `second_drag_starts_with_clean_state`.
 Verified: `neti check` → clean, clippy PASS, tests PASS. All 3 new tests pass.
 Commands: `neti check`
+
+## Handoff: Ishoo Drag-and-Drop Reorder
+
+### Context
+Ishoo is a Dioxus (Rust) desktop app — an issues tracker. The user has a working HTML/JS spike prototype (`dragging-prototype.html`) with perfect spring-physics drag-and-drop reordering. The goal is to replicate that exact feel in the Dioxus app.
+
+### The Core Problem We Solved
+The original code used `document::eval()` JS calls to measure card positions via `getBoundingClientRect()`. **This silently fails on Dioxus desktop targets** — there's no real browser environment. The `card_screen_tops` signal was always empty, so `nat_tops` was empty, so slot detection never worked. Cards would drag but snap back because `cur_idx` never changed from `orig_idx`.
+
+### Current State
+We bypassed JS measurement with a hack in `card.rs` `onpointerdown`:
+
+```rust
+// Estimate positions from click point and assumed slot size
+let slot_size = 71.0_f32;
+let base_top = y - (orig_idx as f32 * slot_size);
+let nat_tops: Vec<f32> = (0..layout_ids.len())
+    .map(|i| base_top + (i as f32 * slot_size))
+    .collect();
+```
+
+**This works but is "broken and buggy"** because:
+1. Slot size is hardcoded (71px) — actual cards may differ
+2. Position estimation assumes click is at card top — clicking middle/bottom skews everything
+
+### What Needs To Happen
+Replace the hardcoded estimation with actual measured positions. Options:
+
+1. **Use `onmounted` + `get_client_rect()`** on each card to measure real positions and store in a signal
+2. **Use Dioxus's native layout queries** if available for desktop
+3. **Calculate from known CSS values** — card height + gap from styles
+
+### Key Files
+- `src/ui/views/feed.rs` — FeedView component, physics loop, pointer handlers
+- `src/ui/views/feed/card.rs` — IssueCard component, `onpointerdown` handler (the hack is here)
+- `src/ui/views/physics.rs` — Spring physics, DragState, PendingReorder
+- `src/ui/styles.rs` — CSS (card heights/gaps defined here)
+- `dragging-prototype.html` — the reference implementation with perfect feel
+
+### Architecture Notes
+- `DragState` holds all drag/settle state including springs
+- `pending_reorder` delays the actual reorder callback until settle animation completes (prevents re-render from killing animation)
+- Physics loop runs via `use_coroutine` (must only spawn once, not every render)
+- Spring constants match prototype: scale `k=650,c=28`, x-return `k=420,c=34`, y-return `k=560,c=40`, items `k=900,c=45`
+
+### The Prototype Reference
+The HTML prototype uses:
+- `pointerrawupdate` for OS-rate input (with `getPredictedEvents` fallback)
+- FLIP technique on release: measure rendered rects → clear transforms → reorder DOM → measure clean layout → apply inverse deltas
+- Fixed-timestep spring integration (1/120s substeps, 1/30s max)
+- Velocity smoothing with `VEL_SMOOTH = 0.35`
+
+### Next Step
+Fix card position measurement for desktop. Either:
+- Query actual card dimensions via Dioxus desktop APIs
+- Or compute from CSS constants (`CARD` styles show card structure — measure the actual rendered heights)
+
+The user is frustrated after hours of debugging. Keep responses focused and test-driven.
 
 ---
 
