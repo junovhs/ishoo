@@ -25,34 +25,20 @@ Configuration for Dioxus.
 `neti.toml`
 Configuration for neti.
 
-## Layer 1 -- Core
+## Layer 1 -- Domain (Engine)
 
-`src/main.rs`
-Orchestrates `clap`.
+`README.md`
+Handles README.
 
-`src/model/mod.rs`
-Creates workspace at.
-→ Exports: default_init_path, init_workspace_at, css_class, discover_root
-
-`src/ui/mod.rs`
-Gets the workspace path.
-→ Exports: get_workspace_path, launch_dashboard, View
-
-`src/ui/views/mod.rs`
-Orchestrates `board`, `feed`, `viz`.
-
-## Layer 2 -- Domain
+`SEMMAP.md`
+Handles SEMMAP.
 
 `src/model/cli.rs`
-Implements cli set status.
+Implements cli set status. [TYPE]
 → Exports: cli_set_status, cli_heatmap, cli_list, cli_show
 
-`src/model/parse.rs`
-Parses markdown.
-→ Exports: parse_markdown
-
 `src/model/workspace.rs`
-Implements Workspace functionality.
+Implements Workspace functionality. [TYPE]
 → Exports: dependency_edges, file_heatmap, Workspace, load
 
 `src/ui/app.rs`
@@ -60,7 +46,7 @@ Implements App functionality.
 → Exports: App
 
 `src/ui/components.rs`
-Implements nav btn.
+Implements stat row.
 → Exports: NavBtn, StatRow
 
 `src/ui/styles.rs`
@@ -79,15 +65,15 @@ Implements board view.
 
 `src/ui/views/feed.rs`
 Implements feed view props.
-→ Exports: build_virtual_layout, FeedViewProps, FeedView
+→ Exports: FeedViewProps, FeedView
 
 `src/ui/views/feed/card.rs`
-Implements issue card props.
+Real screen tops of all cards, measured by JS eval after each render.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/physics.rs`
-Implements step settle.
-→ Exports: is_active, DragState, step_settle, step_drag
+Fixed-timestep sub-step integration.
+→ Exports: anchor_nat_tops, calculate_shift, is_active, slot_size
 
 `src/ui/views/viz.rs`
 Implements graph view.
@@ -96,4 +82,34 @@ Implements graph view.
 `src/ui/welcome.rs`
 Implements welcome screen.
 → Exports: WelcomeScreen
+
+## Layer 2 -- Adapters / Infra
+
+`src/model/parse.rs`
+Parses markdown. [UTIL]
+→ Exports: parse_markdown
+
+## Layer 3 -- App / Entrypoints
+
+`dragging-prototype.html`
+Smooth Reorder
+
+`src/main.rs`
+Application entry point. [ENTRY]
+
+`src/model/mod.rs`
+Implements status ord. [TYPE]
+→ Exports: default_init_path, init_workspace_at, css_class, discover_root
+
+`src/ui/mod.rs`
+Gets the workspace path. [ENTRY]
+→ Exports: get_workspace_path, launch_dashboard, View
+
+`src/ui/views/mod.rs`
+Module definitions for mod. [ENTRY]
+
+## Layer 4 -- Tests
+
+`src/ui/views/physics/tests.rs`
+Tests for super.
 

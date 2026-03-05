@@ -2,69 +2,8 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 26 files | 27320 tokens | 7 violations
+SCAN SUMMARY: 28 files | 36964 tokens | Clean
 
-ALL VIOLATING FILES:
-    6 violations | src\ui\views\viz.rs
-    1 violations | src\model\workspace.rs
-
-warn: [1 of 4] Nested loop (O(n²)) detected
-  --> src\model\workspace.rs:75
-   |
-    74 |             // neti:allow(P04) — inner loop bounded by files-per-issue (≤10)
-    75 |             for file in &issue.files {
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
-    76 |                 map.entry(file.clone()).or_default().push(issue.id);
-   = P04: Review recommended — inner loop may be bounded to a small constant
-   |
-   = ANALYSIS:
-   |   Quadratic complexity — scales poorly with input size.
-   |
-   = WHY: Nested loops produce O(n²) complexity, which scales poorly with input size.
-   |
-   = FIX: Replace the inner loop with a lookup structure (HashMap/HashSet) for O(n) total, or confirm the inner loop is bounded to a small constant.
-   |
-   = SUPPRESS: // neti:allow(P04) on the line, or P04 = "warn" in neti.toml [rules]
-
-warn: [2 of 4] Nested loop (O(n²)) detected
-  --> src\ui\views\viz.rs:168
-   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
-
-error: [1 of 3] String conversion inside loop
-  --> src\ui\views\viz.rs:178
-   |
-   177 |                 let key = if a < b { (a, b) } else { (b, a) };
-   178 |                 overlap_set.entry(key).or_default().push((*file).to_owned());
-   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   179 |             }
-   = P02: Fix required
-   |
-   = ANALYSIS:
-   |   `(*file).to_string()` allocates a new String on every iteration.
-   |
-   = WHY: String conversion inside a loop allocates a new String on every iteration.
-   |
-   = FIX: Hoist the conversion before the loop, or operate on borrowed string slices (&str).
-   |
-   = SUPPRESS: // neti:allow(P02) on the line, or P02 = "warn" in neti.toml [rules]
-
-warn: [3 of 4] Nested loop (O(n²)) detected
-  --> src\ui\views\viz.rs:175
-   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
-
-error: [2 of 3] String conversion inside loop
-  --> src\ui\views\viz.rs:178
-   = P02: `(*file).to_string()` allocates a new String on every iteration. — see first P02 above
-
-warn: [4 of 4] Nested loop (O(n²)) detected
-  --> src\ui\views\viz.rs:176
-   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
-
-error: [3 of 3] String conversion inside loop
-  --> src\ui\views\viz.rs:178
-   = P02: `(*file).to_string()` allocates a new String on every iteration. — see first P02 above
-
-X Neti found 3 errors, 4 warnings (400ms).
 
 
 ========================================
@@ -72,8 +11,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (64935ms)
+> PASS (2065ms)
 
 $ cargo test
-> PASS (53890ms)
+> PASS (3954ms)
 

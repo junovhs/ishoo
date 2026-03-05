@@ -1,20 +1,27 @@
 # BACKLOG Issues
+
 ---
+
 ## [5] Add conflict resolution for concurrent edits
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/model/workspace.rs`
 **Depends on:** [4]
+
 If the user modifies an issue in the UI (`dirty = true`) and an external process modifies the markdown simultaneously, "Save All" overwrites the external changes with no warning.
 The current poll handler also has an internal race: the `if !dirty()` check and `issues.set()` are not atomic, so a user edit between those two calls is silently dropped even without external interference.
 Resolution should include:
 - Content hash or generation counter comparison before overwriting
 - A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
 - Optionally, per-issue dirty tracking instead of a single global `dirty` flag
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [8] Switch to AST-based markdown parser
 **Status:** OPEN
 **Files:** `src/model/parse.rs`
+
 The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
 Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
 - Make parsing robust against human typos
@@ -22,159 +29,232 @@ Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
 - Simplify the accumulator state machine
 - Potentially support richer description content (inline code blocks, lists, etc.)
 This is the highest-impact backlog item.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [7] Implement issue deletion via CLI
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+
 Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
 Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [9] Add global keyboard shortcuts
 **Status:** OPEN
 **Files:** `src/ui/app.rs`
 **Depends on:** [6]
+
 Essential keyboard shortcuts for the desktop app:
 - `Cmd/Ctrl + S` — Save All
 - `Esc` — Close modal or collapse active card
 Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [15] Implement ishoo edit CLI command
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/cli.rs`
+
 Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
 `ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on [8] for robust re-parsing.
 Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [16] Preserve unknown markdown fields through save
 **Status:** OPEN
 **Files:** `src/model/parse.rs`, `src/model/workspace.rs`
 **Depends on:** [8]
+
 If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
 After [8] lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [21] Add labels/tags system
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
 Issues need lightweight categorization beyond status. A `**Labels:**` field with comma-separated tags (e.g., `frontend, performance, v2`) would enable:
 - Filtering the feed by label
 - Color-coded label chips on cards
 - CLI filtering: `ishoo list --label performance`
 Labels should be freeform strings, not from a fixed set.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [27] Add comments per issue
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+
 Issues have a description (immutable context) and a resolution (final outcome), but no way to log intermediate notes, decisions, or blockers.
 Add a `### Comments` subsection under each issue. The UI should render comments chronologically within the expanded card, with an input box to append new entries. Each comment gets an auto-timestamp.
 Keep it simple — no editing or deleting comments. Append-only log.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [28] Support arbitrary issue file names
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+
 The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
 Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
 This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
 If a new issue is created and has no source file, default to `issues-active.md`.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [30] Render markdown in description and resolution fields
 **Status:** OPEN
 **Files:** `src/ui/views/feed/card.rs`
 **Depends on:** [8]
+
 Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
 After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [31] Status changes move issues between files automatically
 **Status:** OPEN
 **Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+
 When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
 Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [33] Add issue linking and mentions
 **Status:** OPEN
 **Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
+
 The `**Depends on:**` field captures blocking relationships, but there's no way to express softer links: "related to", "duplicates", "superseded by".
 More importantly, if a description or resolution mentions `#14` or `[14]`, it should render as a clickable link that navigates to that issue in the UI. The Graph view should pick up these informal references as edges.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [36] Validate and lint issue files
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/parse.rs`
+
 There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
 - `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
 - `ishoo lint --strict` — treats warnings as errors (useful for CI)
 This enables a pre-commit hook: `ishoo lint --strict || exit 1`
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [37] Add CI/pre-commit hook integration
 **Status:** OPEN
 **Files:** `src/main.rs`, `docs/`
 **Depends on:** [36]
+
 Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
 - Duplicate issue IDs introduced by a bad merge
 - Dangling dependency references
 - Issues left in IN PROGRESS on a branch that's being merged to main
 Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [41] Add a compact/dense display mode
 **Status:** OPEN
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
 The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Add a toggle between:
 - **Comfortable** (current) — full card with padding, badges, description preview
 - **Compact** — single-line rows with ID, title, status dot, and file count, similar to `ishoo list` CLI output
 The toggle should be a small button in the topbar.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [43] Add issue description editing in the UI
 **Status:** OPEN
 **Files:** `src/ui/views/feed/card.rs`
+
 The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
 Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on [30]).
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [44] Add notification/badge for externally changed issues
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
 **Depends on:** [4]
+
 When the file watcher detects external changes, the UI silently refreshes. The user has no idea which issues changed or what changed about them.
 After reload, diff the old and new issue lists. For any issue that changed, show a subtle "updated" indicator on the card (e.g., a blue dot that fades after 10 seconds). Optionally show a toast: "3 issues updated externally".
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [46] Cross-platform path handling and line ending audit
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+
 Development is on Pop!_OS Linux and Windows 11. PathBuf operations should be cross-platform, but there are untested risks:
 - Backslash vs forward slash in `**Files:**` field values parsed on Windows vs displayed on Linux
 - Case sensitivity differences (Windows NTFS is case-insensitive, Linux ext4 is not) — could cause duplicate file entries in the heatmap
 - Line ending normalization: if a Windows user commits with CRLF and a Linux user opens the same file, does the parser handle `\r\n` correctly? The `lines()` iterator strips `\r` but the `accumulate_text` function may re-introduce inconsistencies
 - Long path issues on Windows (>260 chars without the `\\?\` prefix)
 Add integration tests that exercise `init → new → save → load` with both forward and backslash paths. Test with CRLF input.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [48] Add issue count badges per section in sidebar
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`
+
 The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names ([28]), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
-**Resolution:**
+
+**Resolution:** 
+
 ---
+
 ## [54] Add issue dependency blocking visualization
 **Status:** OPEN
 **Files:** `src/ui/views/viz.rs`
+
 The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue [5] depends on [4], and [4] is still OPEN, then [5] is effectively blocked. Visually distinguish:
 - Satisfied dependencies (dependency is DONE) — green edge
 - Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
 The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
-**Resolution:**
+
+**Resolution:** 
 
 ---
 
@@ -191,7 +271,7 @@ The Feed view currently shows issues in file order (manual position). Add toggle
 
 The data for all three is already available — heatmap scores from `file_heatmap()`, dependency edges from `dependency_edges()`. This is just sort functions on existing data, surfaced as pills.
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -204,7 +284,7 @@ After [54] adds blocking visualization (green/red edges), add a "Bottlenecks" mo
 
 This answers "what's the single most important thing to do right now" from a pure dependency perspective. Compute transitive dependents by walking the dependency graph — no new data source needed.
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -218,7 +298,7 @@ Show a subtle "stale" indicator on cards that haven't been touched in N days (co
 
 This answers "what's stalled and why am I pretending it isn't?"
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -239,7 +319,7 @@ Cluster: card.rs + feed.rs
 
 This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -254,7 +334,7 @@ Evolve the existing sidebar metrics (Backlog 28, In Flight 1, Resolved 3) into a
 
 This answers "am I making progress or am I treading water?"
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -268,7 +348,7 @@ High-cost issues that are still OPEN and have no dependents (nothing else is wai
 
 This answers "what should I seriously consider descoping?"
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -280,7 +360,7 @@ The Timeline view should show completed issues plotted over time (derived from g
 
 Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -298,7 +378,7 @@ A single-issue view with full context and zero noise. Press Esc or click "Back t
 
 This answers "I've decided what to work on, now show me everything I need to know about just this one thing."
 
-**Resolution:**
+**Resolution:** 
 
 ---
 
@@ -315,4 +395,6 @@ Move all graph computation into `Workspace`:
 
 The viz views become pure consumers of precomputed data. This fixes the current Neti violations and makes all the new lens/sort features cheap to render.
 
-**Resolution:**
+**Resolution:** 
+
+---

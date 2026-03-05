@@ -1,13 +1,11 @@
 mod card;
 
-use super::physics::DragState;
+use super::physics::{DragState, PendingReorder};
 use crate::model::Issue;
 use card::IssueCard;
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-const HEADER_HEIGHT: f32 = 73.0;
-const CARD_HEIGHT: f32 = 62.0;
 const DRAG_THRESHOLD: f32 = 5.0;
 
 #[derive(Clone, PartialEq, Props)]
@@ -26,44 +24,113 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
     let issues_clone = props.issues.clone();
     let mut issues_for_layout = use_signal(|| issues_clone.clone());
+    let mut card_screen_tops: Signal<Vec<(u32, f32)>> = use_signal(Vec::new);
 
-    // Keep layout data in sync
+    // Keep layout signal in sync with props
     use_effect(move || {
         issues_for_layout.set(issues_clone.clone());
     });
 
+    // Measure real card positions after render
+    use_effect(move || {
+        let _ = issues_for_layout.read();
+        spawn(async move {
+            let js = "Array.from(document.querySelectorAll('[data-card-id]')).map(el => [parseInt(el.dataset.cardId), el.getBoundingClientRect().top])";
+            let ev = document::eval(js);
+            if let Ok(val) = ev.await {
+                if let Some(arr) = val.as_array() {
+                    let tops: Vec<(u32, f32)> = arr
+                        .iter()
+                        .filter_map(|v| {
+                            let pair = v.as_array()?;
+                            let id = pair.first()?.as_f64()? as u32;
+                            let top = pair.get(1)?.as_f64()? as f32;
+                            Some((id, top))
+                        })
+                        .collect();
+                    card_screen_tops.set(tops);
+                }
+            }
+        });
+    });
+
     let (section_order, section_map) = group_by_section(&props.issues);
 
-    spawn_physics_loop(drag_state);
+    let on_reorder = props.on_reorder;
+
+    // Physics loop — spawns ONCE per component mount via use_coroutine
+    use_coroutine(move |_rx: UnboundedReceiver<()>| async move {
+        let mut last_time = tokio::time::Instant::now();
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(8)).await;
+            let now = tokio::time::Instant::now();
+            let dt = now.duration_since(last_time).as_secs_f32();
+            last_time = now;
+
+            let is_active = drag_state.read().is_active();
+            if is_active {
+                let mut ds = drag_state.write();
+                if ds.is_dragging && ds.dragging_id.is_some() {
+                    ds.step_drag(dt);
+                } else if ds.settling_id.is_some() {
+                    if let Some(reorder) = ds.step_settle(dt) {
+                        drop(ds);
+                        on_reorder.call((reorder.drag_id, reorder.target_id, reorder.insert_after));
+                    }
+                }
+            }
+        }
+    });
 
     rsx! {
         div {
             class: "feed",
             onpointermove: move |e| {
+                let coords = e.client_coordinates();
+                let x = coords.x as f32;
+                let y = coords.y as f32;
+
                 let mut ds = drag_state.write();
                 if ds.dragging_id.is_some() {
-                    let coords = e.client_coordinates();
-                    ds.cur_x = coords.x as f32;
-                    ds.cur_y = coords.y as f32;
+                    let dt = 1.0 / 60.0;
+                    ds.update_velocity(x, y, dt);
+
                     if !ds.is_dragging && exceeds_threshold(&ds) {
                         ds.is_dragging = true;
                     }
                 }
             },
             onpointerup: move |_| {
-                let result = finalize_drag(&mut drag_state.write());
-                if let Some((id, is_click, do_reorder, target_id, insert_after)) = result {
-                    if is_click {
+                let mut ds = drag_state.write();
+                if let Some(id) = ds.dragging_id {
+                    if !ds.is_dragging {
+                        ds.reset();
+                        drop(ds);
                         props.on_toggle.call(id);
-                    } else if do_reorder {
-                        props.on_reorder.call((id, target_id, insert_after));
+                    } else {
+                        let dy = ds.cur_y - ds.start_y;
+                        let dx = (ds.cur_x - ds.start_x) * 0.6;
+                        let new_idx = ds.cur_idx;
+                        let orig_idx = ds.orig_idx;
+
+                        if new_idx != orig_idx {
+                            let target_id = ds.layout_ids.get(new_idx).copied().unwrap_or(0);
+                            let insert_after = new_idx > orig_idx;
+                            ds.pending_reorder = Some(PendingReorder {
+                                drag_id: id,
+                                target_id,
+                                insert_after,
+                            });
+                        }
+
+                        ds.begin_settle(dy, dx, new_idx);
+                        ds.settling_id = Some(id);
+                        ds.dragging_id = None;
                     }
                 }
             },
             onpointercancel: move |_| {
-                let mut ds = drag_state.write();
-                ds.dragging_id = None;
-                ds.is_dragging = false;
+                drag_state.write().reset();
             },
 
             div { class: "feed-inner",
@@ -83,6 +150,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                     expanded: props.active_id == Some(issue.id),
                                     drag_state: drag_state,
                                     issues_for_layout: issues_for_layout,
+                                    card_screen_tops: card_screen_tops,
                                     on_collapse_all: props.on_collapse_all,
                                     on_status: props.on_status,
                                     on_resolution: props.on_resolution,
@@ -114,85 +182,7 @@ fn group_by_section(issues: &[Issue]) -> (Vec<String>, HashMap<String, Vec<Issue
     (section_order, section_map)
 }
 
-pub fn build_virtual_layout(issues: &[Issue]) -> (Vec<f32>, Vec<u32>) {
-    let mut y_pos = 0.0;
-    let mut nat_tops = Vec::new();
-    let mut layout_ids = Vec::new();
-    let mut current_section: Option<&str> = None;
-
-    for issue in issues {
-        if current_section != Some(&issue.section) {
-            y_pos += HEADER_HEIGHT;
-            current_section = Some(&issue.section);
-        }
-        nat_tops.push(y_pos);
-        layout_ids.push(issue.id);
-        y_pos += CARD_HEIGHT;
-    }
-
-    (nat_tops, layout_ids)
-}
-
 fn exceeds_threshold(ds: &DragState) -> bool {
-    (ds.cur_x - ds.start_x).abs() > DRAG_THRESHOLD || (ds.cur_y - ds.start_y).abs() > DRAG_THRESHOLD
-}
-
-fn finalize_drag(ds: &mut DragState) -> Option<(u32, bool, bool, u32, bool)> {
-    let id = ds.dragging_id?;
-
-    let dy = ds.cur_y - ds.start_y;
-    let dx = (ds.cur_x - ds.start_x) * 0.4;
-    let is_click = !ds.is_dragging;
-
-    let do_reorder = !is_click && ds.cur_idx != ds.orig_idx;
-    let target_id = ds.layout_ids.get(ds.cur_idx).copied().unwrap_or(0);
-    let insert_after = ds.cur_idx > ds.orig_idx;
-
-    if !is_click {
-        ds.x_return.pos = dx;
-        ds.x_return.target = 0.0;
-        ds.scale_spring.target = 1.0;
-
-        if do_reorder {
-            let old_top = *ds.nat_tops.get(ds.orig_idx).unwrap_or(&0.0);
-            let new_top = *ds.nat_tops.get(ds.cur_idx).unwrap_or(&0.0);
-            ds.y_return.pos = old_top + dy - new_top;
-        } else {
-            ds.y_return.pos = dy;
-        }
-        ds.y_return.target = 0.0;
-
-        for spring in ds.item_springs.values_mut() {
-            spring.target = 0.0;
-        }
-
-        ds.is_dragging = false;
-        ds.settling_id = Some(id);
-    }
-
-    ds.dragging_id = None;
-    Some((id, is_click, do_reorder, target_id, insert_after))
-}
-
-fn spawn_physics_loop(mut drag_state: Signal<DragState>) {
-    use_coroutine(move |_rx: UnboundedReceiver<()>| async move {
-        let mut last_time = tokio::time::Instant::now();
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(16)).await;
-            let now = tokio::time::Instant::now();
-            let dt = now.duration_since(last_time).as_secs_f32();
-            last_time = now;
-
-            let is_active = drag_state.read().is_active();
-
-            if is_active {
-                let mut ds = drag_state.write();
-                if ds.is_dragging && ds.dragging_id.is_some() {
-                    ds.step_drag(dt);
-                } else if ds.settling_id.is_some() {
-                    ds.step_settle(dt);
-                }
-            }
-        }
-    });
+    (ds.cur_x - ds.start_x).abs() > DRAG_THRESHOLD
+        || (ds.cur_y - ds.start_y).abs() > DRAG_THRESHOLD
 }

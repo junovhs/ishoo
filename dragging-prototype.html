@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smooth Reorder</title>
+    <style>
+      *, *::before, *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        background: #0a0a0a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        overflow-x: hidden;
+        -webkit-user-select: none;
+        user-select: none;
+        /*
+          Prevents scroll-related compositing work on the main thread
+          from competing with our drag animations.
+        */
+        overscroll-behavior: none;
+      }
+
+      /*
+        contain: layout style — the browser will never look outside this
+        element to resolve layout. Zero reflow propagation per frame.
+        isolation: isolate — own stacking context, no z-index surprises.
+      */
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        align-items: center;
+        padding: 40px 16px;
+        contain: layout style;
+        isolation: isolate;
+      }
+
+      .item {
+        width: 256px;
+        height: 128px;
+        touch-action: none;
+        position: relative;
+        /*
+          will-change is NOT set here statically.
+          We add/remove it dynamically in JS, only on elements that are
+          actively animating. Leaving will-change on static elements wastes
+          GPU memory and can cause compositing budget issues.
+        */
+      }
+
+      .item.dragging { z-index: 50; }
+      .item.settling  { z-index: 50; }
+
+      .item-inner {
+        width: 100%;
+        height: 100%;
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        position: relative;
+        /*
+          backface-visibility: hidden tells the compositor to skip
+          rendering the back face of the layer — a measurable win
+          when many layers are active simultaneously.
+        */
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+      }
+
+      .item.dragging .item-inner { cursor: grabbing; }
+
+      .item-inner::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 2px 4px rgba(255,255,255,0.4);
+        pointer-events: none;
+      }
+
+      .item-inner::after {
+        content: "";
+        position: absolute;
+        inset: -16px;
+        border-radius: 40px;
+        opacity: 0;
+        filter: blur(32px);
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+        will-change: opacity;
+      }
+
+      .item:hover .item-inner::after,
+      .item.dragging .item-inner::after { opacity: 1; }
+
+      .c0 .item-inner { background: #f43f5e; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+      .c0 .item-inner::after { background: rgba(244,63,94,0.4); }
+      .c0.dragging .item-inner { box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+
+      .c1 .item-inner { background: #3b82f6; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+      .c1 .item-inner::after { background: rgba(59,130,246,0.4); }
+      .c1.dragging .item-inner { box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+
+      .c2 .item-inner { background: #10b981; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+      .c2 .item-inner::after { background: rgba(16,185,129,0.4); }
+      .c2.dragging .item-inner { box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+
+      .c3 .item-inner { background: #f59e0b; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+      .c3 .item-inner::after { background: rgba(245,158,11,0.4); }
+      .c3.dragging .item-inner { box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+
+      .c4 .item-inner { background: #8b5cf6; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+      .c4 .item-inner::after { background: rgba(139,92,246,0.4); }
+      .c4.dragging .item-inner { box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+
+      .item-label {
+        position: relative;
+        color: white;
+        font-size: 48px;
+        font-weight: 700;
+        pointer-events: none;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+      }
+
+      @media (max-width: 640px) {
+        .list { gap: 16px; }
+        .item { width: 192px; height: 96px; }
+        .item-inner, .item-inner::before { border-radius: 16px; }
+        .item-label { font-size: 36px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="list" id="list">
+      <div class="item c0"><div class="item-inner"><span class="item-label">1</span></div></div>
+      <div class="item c1"><div class="item-inner"><span class="item-label">2</span></div></div>
+      <div class="item c2"><div class="item-inner"><span class="item-label">3</span></div></div>
+      <div class="item c3"><div class="item-inner"><span class="item-label">4</span></div></div>
+      <div class="item c4"><div class="item-inner"><span class="item-label">5</span></div></div>
+    </div>
+
+    <script>
+    (function () {
+      "use strict";
+
+      var list = document.getElementById("list");
+
+      // ─────────────────────────────────────────────────────────────────────
+      // GPU LAYER MANAGEMENT
+      //
+      // We promote elements to their own compositor layer only when they are
+      // about to animate, and demote immediately when they stop. This keeps
+      // GPU memory usage minimal and avoids "layer explosion" where the
+      // compositor spends more time managing layers than drawing them.
+      //
+      // translate3d(0,0,0) is the canonical way to force the 3D compositing
+      // path in all browsers, guaranteeing hardware acceleration even before
+      // we write real transform values.
+      // ─────────────────────────────────────────────────────────────────────
+      function promoteLayer(el) {
+        el.style.willChange = "transform";
+      }
+      function demoteLayer(el) {
+        el.style.willChange = "auto";
+        el.style.transform  = "";
+      }
+      function promoteInner(el) {
+        el.querySelector(".item-inner").style.willChange = "transform";
+      }
+      function demoteInner(el) {
+        var inner = el.querySelector(".item-inner");
+        inner.style.willChange = "auto";
+        inner.style.transform  = "";
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SPRING — fixed sub-step integration
+      //
+      // Standard Euler integration with a variable dt is unstable: a single
+      // frame spike (GC pause, tab switch, heavy repaint) injects a huge dt
+      // and causes the spring to visibly overshoot or explode.
+      //
+      // Solution: clamp dt to MAX_DT, then integrate in fixed FIXED_DT
+      // sub-steps. The spring sees a smooth, uniform time series regardless
+      // of how ragged the rAF timestamps are. This is standard practice in
+      // game physics engines and eliminates a whole class of jank.
+      // ─────────────────────────────────────────────────────────────────────
+      var FIXED_DT = 1 / 120;   // sub-step size: 8.33 ms
+      var MAX_DT   = 1 / 30;    // hard cap: never integrate more than 33 ms
+
+      function Spring(k, c, m, init) {
+        this.k   = k    || 300;
+        this.c   = c    || 25;
+        this.m   = m    || 1;
+        this.pos = init != null ? init : 0;
+        this.tgt = init != null ? init : 0;
+        this.vel = 0;
+      }
+
+      Spring.prototype.step = function (dt) {
+        dt = Math.min(dt, MAX_DT);
+        var rem = dt;
+        while (rem > 1e-6) {
+          var h   = rem < FIXED_DT ? rem : FIXED_DT;
+          var x   = this.pos - this.tgt;
+          var acc = (-this.k * x - this.c * this.vel) / this.m;
+          this.vel += acc * h;
+          this.pos += this.vel * h;
+          rem -= h;
+        }
+      };
+
+      Spring.prototype.done = function (thr) {
+        thr = thr || 0.5;
+        return Math.abs(this.pos - this.tgt) < thr && Math.abs(this.vel) < thr;
+      };
+
+      Spring.prototype.set = function (v) {
+        this.pos = v; this.tgt = v; this.vel = 0;
+      };
+
+      // ─────────────────────────────────────────────────────────────────────
+      // STATE
+      // ─────────────────────────────────────────────────────────────────────
+      var items      = Array.from(list.children);
+      var dragged    = null;
+      var isDragging = false;
+
+      // Pointer coordinates are written at OS rate (pointerrawupdate)
+      // and consumed at rAF rate. Keep them as plain vars — no object
+      // allocation in the hot path.
+      var rawCurY = 0, rawCurX = 0;
+
+      // Predicted coordinates from getPredictedEvents().
+      // Using these makes the dragged card appear to sit exactly where the
+      // pointer WILL be on the next frame rather than where it WAS on the
+      // last frame — eliminating one full frame of perceived input latency.
+      var predY = 0, predX = 0;
+      var hasPrediction = false;
+
+      var startY = 0, startX = 0;
+      var origIdx = -1, curIdx = -1;
+      var natTops = [];           // captured once at drag-start, never re-read
+      var itemH = 0, gap = 0, slotSize = 0;
+
+      var itemSprings = new Map();
+      var scaleSpring = new Spring(600, 25, 1, 1);
+      var xReturn     = new Spring(400, 30);
+      var yReturn     = new Spring(500, 35);
+
+      var raf = null, lastT = 0;
+      var settling = false, settleEl = null;
+
+      function currentGap() { return window.innerWidth <= 640 ? 16 : 24; }
+
+      function springFor(el) {
+        if (!itemSprings.has(el)) itemSprings.set(el, new Spring(800, 40));
+        return itemSprings.get(el);
+      }
+
+      function startLoop() {
+        if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(loop); }
+      }
+
+      function clearAllStyles() {
+        items.forEach(function (el) {
+          demoteLayer(el);
+          demoteInner(el);
+          el.style.transition = "";
+          el.style.opacity    = "";
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // POINTERRAWUPDATE — the highest-frequency pointer hook in the browser
+      //
+      // On a 240 hz gaming mouse this fires 4× per rAF frame. On modern
+      // trackpads it fires at ~120 hz. We do NOTHING here except store the
+      // two coordinates. All DOM work happens in the rAF loop.
+      //
+      // getCoalescedEvents() recovers any sub-events the browser batched
+      // together before delivering this one, giving us the most recent
+      // possible position with sub-pixel accuracy.
+      //
+      // getPredictedEvents() asks the browser "where do you think the pointer
+      // will be on the next frame?" — uses the OS's own Kalman-filter or
+      // polynomial extrapolation. We speculatively draw to that position to
+      // cut perceived latency to zero.
+      // ─────────────────────────────────────────────────────────────────────
+      function onRawUpdate(e) {
+        if (!isDragging) return;
+
+        if (e.getCoalescedEvents) {
+          var coalesced = e.getCoalescedEvents();
+          var src = coalesced.length > 0 ? coalesced[coalesced.length - 1] : e;
+          rawCurY = src.clientY;
+          rawCurX = src.clientX;
+        } else {
+          rawCurY = e.clientY;
+          rawCurX = e.clientX;
+        }
+
+        if (e.getPredictedEvents) {
+          var predicted = e.getPredictedEvents();
+          if (predicted.length > 0) {
+            predY = predicted[predicted.length - 1].clientY;
+            predX = predicted[predicted.length - 1].clientX;
+            hasPrediction = true;
+          } else {
+            hasPrediction = false;
+          }
+        } else {
+          hasPrediction = false;
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // POINTER DOWN
+      // ─────────────────────────────────────────────────────────────────────
+      function onDown(e) {
+        var item = e.target.closest(".item");
+        if (!item || isDragging) return;
+        e.preventDefault();
+        item.setPointerCapture(e.pointerId);
+
+        if (settleEl) {
+          settleEl.classList.remove("settling");
+          demoteLayer(settleEl);
+          demoteInner(settleEl);
+          settleEl = null;
+          settling = false;
+        }
+
+        // ── ALL layout reads happen here, in a single batched block. ───────
+        // After this point, the rAF loop only writes styles — never reads
+        // layout properties. This prevents layout thrashing, which is the
+        // #1 source of dropped frames in drag UIs.
+        clearAllStyles();
+        void list.offsetHeight;   // one deliberate reflow to get clean state
+
+        items   = Array.from(list.children);
+        dragged = item;
+        isDragging = true;
+        origIdx    = items.indexOf(item);
+        curIdx     = origIdx;
+        itemH      = item.offsetHeight;           // layout read
+        gap        = currentGap();
+        slotSize   = itemH + gap;
+        natTops    = items.map(function (el) {    // batch layout reads
+          return el.getBoundingClientRect().top;
+        });
+        // ── End of layout reads ────────────────────────────────────────────
+
+        startY = e.clientY;  startX = e.clientX;
+        rawCurY = e.clientY; rawCurX = e.clientX;
+        predY   = e.clientY; predX   = e.clientX;
+        hasPrediction = false;
+
+        scaleSpring.pos = 1;
+        scaleSpring.tgt = 1.08;
+        scaleSpring.vel = 0;
+        xReturn.set(0);
+        yReturn.set(0);
+        items.forEach(function (el) { springFor(el).set(0); });
+
+        // Promote ALL items to compositor layers NOW — before the first
+        // animation frame arrives — so the GPU compositor is fully ready
+        // the instant we start moving. No per-frame promotion cost.
+        items.forEach(function (el) { promoteLayer(el); });
+        promoteInner(item);
+
+        dragged.classList.add("dragging");
+        startLoop();
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // POINTER MOVE — rAF-aligned fallback
+      // Used in browsers without pointerrawupdate, and for coalesced events.
+      // ─────────────────────────────────────────────────────────────────────
+      function onMove(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        if (e.getCoalescedEvents) {
+          var coalesced = e.getCoalescedEvents();
+          var src = coalesced.length > 0 ? coalesced[coalesced.length - 1] : e;
+          rawCurY = src.clientY;
+          rawCurX = src.clientX;
+        } else {
+          rawCurY = e.clientY;
+          rawCurX = e.clientX;
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // POINTER UP
+      // ─────────────────────────────────────────────────────────────────────
+      function onUp() {
+        if (!isDragging || !dragged) return;
+
+        var dy = rawCurY - startY;
+        var dx = (rawCurX - startX) * 0.6;
+
+        var oldIndex    = new Map();
+        var oldSpringVal = new Map();
+        items.forEach(function (el, i) {
+          oldIndex.set(el, i);
+          oldSpringVal.set(el, springFor(el).pos);
+        });
+
+        if (curIdx !== origIdx) {
+          dragged.remove();
+          var rem = Array.from(list.children);
+          if (curIdx >= rem.length) list.appendChild(dragged);
+          else list.insertBefore(dragged, rem[curIdx]);
+        }
+
+        items = Array.from(list.children);
+        var newIdx = items.indexOf(dragged);
+
+        yReturn.pos = natTops[origIdx] + dy - natTops[newIdx];
+        yReturn.tgt = 0;
+        yReturn.vel = 0;
+        xReturn.pos = dx;
+        xReturn.tgt = 0;
+        scaleSpring.tgt = 1;
+
+        items.forEach(function (el, i) {
+          if (el === dragged) return;
+          var oi = oldIndex.get(el);
+          var os = oldSpringVal.get(el) || 0;
+          var s  = springFor(el);
+          s.pos = natTops[oi] + os - natTops[i];
+          s.tgt = 0;
+          if (Math.abs(s.pos) > 0.5) {
+            el.style.transform = "translate3d(0," + s.pos + "px,0)";
+          }
+        });
+
+        // Set initial settling state — no visual pop on release
+        dragged.style.transform =
+          "translate3d(0," + yReturn.pos + "px,0)";
+        dragged.querySelector(".item-inner").style.transform =
+          "translate3d(" + xReturn.pos + "px,0,0) scale3d(" +
+          scaleSpring.pos + "," + scaleSpring.pos + ",1)";
+
+        isDragging    = false;
+        hasPrediction = false;
+        settling      = true;
+        settleEl      = dragged;
+        dragged.classList.remove("dragging");
+        dragged.classList.add("settling");
+        dragged = null;
+        startLoop();
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // RAF LOOP
+      //
+      // The golden rule: ZERO layout reads in here. No getBoundingClientRect,
+      // no offsetHeight, no scrollTop. Only style.transform writes.
+      //
+      // All transform strings use translate3d / scale3d (3D notation) even
+      // for 2D movement. This guarantees the browser uses the 3D compositing
+      // path, keeping every animated element on its own GPU layer throughout
+      // the animation without triggering a compositor path switch mid-drag.
+      // ─────────────────────────────────────────────────────────────────────
+      function loop(now) {
+        var dt = Math.min((now - lastT) / 1000, MAX_DT);
+        lastT  = now;
+        var active = false;
+
+        // ── DRAGGING ──────────────────────────────────────────────────────
+        if (isDragging && dragged) {
+          active = true;
+          scaleSpring.step(dt);
+
+          // Use predicted position when available.
+          // The dragged card renders where the pointer WILL be next frame
+          // rather than where it WAS last frame — zero perceived latency.
+          var useY = hasPrediction ? predY : rawCurY;
+          var useX = hasPrediction ? predX : rawCurX;
+          var dy   = useY - startY;
+          var dx   = (useX - startX) * 0.6;
+
+          dragged.style.transform =
+            "translate3d(0," + dy + "px,0)";
+
+          dragged.querySelector(".item-inner").style.transform =
+            "translate3d(" + dx + "px,0,0) scale3d(" +
+            scaleSpring.pos + "," + scaleSpring.pos + ",1)";
+
+          // Slot detection — pure arithmetic, no layout reads
+          var center   = natTops[origIdx] + itemH * 0.5 + dy;
+          var best     = origIdx;
+          var bestDist = Infinity;
+          for (var i = 0; i < natTops.length; i++) {
+            var d = Math.abs(center - (natTops[i] + itemH * 0.5));
+            if (d < bestDist) { bestDist = d; best = i; }
+          }
+          curIdx = best;
+
+          // Shift non-dragged items via springs
+          for (var j = 0; j < items.length; j++) {
+            if (items[j] === dragged) continue;
+            var s = springFor(items[j]);
+            var shift = 0;
+            if (origIdx < curIdx && j > origIdx && j <= curIdx) shift = -slotSize;
+            else if (origIdx > curIdx && j >= curIdx && j < origIdx) shift = slotSize;
+            s.tgt = shift;
+            s.step(dt);
+            items[j].style.transform = "translate3d(0," + s.pos + "px,0)";
+          }
+        }
+
+        // ── SETTLING ─────────────────────────────────────────────────────
+        if (settling) {
+          yReturn.step(dt);
+          xReturn.step(dt);
+          scaleSpring.step(dt);
+
+          if (settleEl) {
+            settleEl.style.transform =
+              "translate3d(0," + yReturn.pos + "px,0)";
+            settleEl.querySelector(".item-inner").style.transform =
+              "translate3d(" + xReturn.pos + "px,0,0) scale3d(" +
+              scaleSpring.pos + "," + scaleSpring.pos + ",1)";
+
+            if (yReturn.done(0.3) && xReturn.done(0.3) && scaleSpring.done(0.002)) {
+              settleEl.classList.remove("settling");
+              demoteLayer(settleEl);
+              demoteInner(settleEl);
+              settleEl = null;
+            } else {
+              active = true;
+            }
+          }
+
+          var allDone = true;
+          items.forEach(function (el) {
+            if (el === settleEl) return;
+            var s = itemSprings.get(el);
+            if (!s) return;
+            s.step(dt);
+            if (!s.done(0.3)) {
+              el.style.transform = "translate3d(0," + s.pos + "px,0)";
+              allDone = false;
+            } else {
+              demoteLayer(el);
+            }
+          });
+
+          if (!allDone) active = true;
+          if (allDone && !settleEl) settling = false;
+        }
+
+        raf = active ? requestAnimationFrame(loop) : null;
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // EVENTS
+      // ─────────────────────────────────────────────────────────────────────
+      list.addEventListener("pointerdown", onDown);
+
+      // pointerrawupdate: fires at full OS pointer rate, before rAF.
+      // passive: true — we never preventDefault, so browser keeps scroll
+      // handling off the main thread.
+      window.addEventListener("pointerrawupdate", onRawUpdate, { passive: true });
+
+      // pointermove: rAF-aligned fallback + coalesced events
+      window.addEventListener("pointermove", onMove, { passive: false });
+
+      window.addEventListener("pointerup",     onUp);
+      window.addEventListener("pointercancel", onUp);
+      list.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+      list.addEventListener("touchmove", function (e) {
+        if (isDragging) e.preventDefault();
+      }, { passive: false });
+
+      // ─────────────────────────────────────────────────────────────────────
+      // ENTRANCE ANIMATION
+      // ─────────────────────────────────────────────────────────────────────
+      items.forEach(function (el, i) {
+        el.style.opacity   = "0";
+        el.style.transform = "translate3d(0,50px,0) scale3d(0.8,0.8,1)";
+      });
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          items.forEach(function (el, i) {
+            el.style.transition =
+              "opacity 0.5s cubic-bezier(0.22,1,0.36,1) " + (i * 0.06) + "s, " +
+              "transform 0.5s cubic-bezier(0.22,1,0.36,1) " + (i * 0.06) + "s";
+            el.style.opacity   = "1";
+            el.style.transform = "";
+          });
+          setTimeout(function () {
+            items.forEach(function (el) {
+              el.style.transition = "";
+              el.style.opacity    = "";
+              el.style.transform  = "";
+            });
+          }, 800);
+        });
+      });
+
+    })();
+    </script>
+  </body>
+</html>

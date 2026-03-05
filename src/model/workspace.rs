@@ -70,12 +70,10 @@ impl Workspace {
 
     pub fn file_heatmap(&self) -> BTreeMap<String, Vec<u32>> {
         let mut map: BTreeMap<String, Vec<u32>> = BTreeMap::new();
-        for issue in &self.issues {
-            // neti:allow(P04) — inner loop bounded by files-per-issue (≤10)
-            for file in &issue.files {
-                map.entry(file.clone()).or_default().push(issue.id);
-            }
-        }
+        self.issues
+            .iter()
+            .flat_map(|i| i.files.iter().map(move |f| (f.clone(), i.id)))
+            .for_each(|(f, id)| map.entry(f).or_default().push(id));
         map
     }
 

@@ -1,5 +1,4 @@
 use crate::model::{Issue, Status};
-use crate::ui::views::feed::build_virtual_layout;
 use crate::ui::views::physics::DragState;
 use dioxus::prelude::*;
 
@@ -9,6 +8,9 @@ pub struct IssueCardProps {
     pub expanded: bool,
     pub drag_state: Signal<DragState>,
     pub issues_for_layout: Signal<Vec<Issue>>,
+    /// Real screen tops of all cards, measured by JS eval after each render.
+    /// Sorted by top (ascending). Used for slot detection — no hardcoded heights.
+    pub card_screen_tops: Signal<Vec<(u32, f32)>>,
     pub on_collapse_all: EventHandler<()>,
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
@@ -23,10 +25,10 @@ pub fn IssueCard(mut props: IssueCardProps) -> Element {
 
     rsx! {
         div { class: "{item_class}", style: "{item_style}",
+            "data-card-id": "{id}",
             div {
                 class: if props.expanded { "card active" } else { "card" },
                 style: "{card_style}",
-
                 div {
                     class: "card-hdr",
                     onpointerdown: move |e| {
@@ -37,19 +39,27 @@ pub fn IssueCard(mut props: IssueCardProps) -> Element {
                         let x = coords.x as f32;
                         let y = coords.y as f32;
 
-                        let layout = build_virtual_layout(&props.issues_for_layout.read());
-                        let (nat_tops, layout_ids) = layout;
+                        // Get layout from props directly — no JS needed
+                        let issues = props.issues_for_layout.read();
+                        let layout_ids: Vec<u32> = issues.iter().map(|i| i.id).collect();
                         let orig_idx = layout_ids.iter().position(|&i| i == id).unwrap_or(0);
 
+                        // Estimate positions: assume ~62px card height + 9px margin = 71px per slot
+                        // This is a fallback; we'll refine it
+                        let slot_size = 71.0_f32;
+                        let base_top = y - (orig_idx as f32 * slot_size);
+                        let nat_tops: Vec<f32> = (0..layout_ids.len())
+                            .map(|i| base_top + (i as f32 * slot_size))
+                            .collect();
+
                         let mut ds = props.drag_state.write();
+                        ds.reset();
                         ds.dragging_id = Some(id);
-                        ds.settling_id = None;
                         ds.is_dragging = false;
                         ds.start_x = x;
                         ds.start_y = y;
                         ds.cur_x = x;
                         ds.cur_y = y;
-                        ds.prev_x = x;
                         ds.nat_tops = nat_tops;
                         ds.layout_ids = layout_ids;
                         ds.orig_idx = orig_idx;
@@ -57,13 +67,6 @@ pub fn IssueCard(mut props: IssueCardProps) -> Element {
 
                         ds.scale_spring.set(1.0);
                         ds.scale_spring.target = 1.05;
-                        ds.rot_spring.set(0.0);
-                        ds.x_return.set(0.0);
-                        ds.y_return.set(0.0);
-
-                        for spring in ds.item_springs.values_mut() {
-                            spring.set(0.0);
-                        }
                     },
                     span { class: "cid", "#{id}" }
                     span { class: "ctitle", "{i.title}" }
@@ -83,40 +86,27 @@ fn compute_styles(id: u32, ds: &DragState) -> (String, String, String) {
     let is_settling = ds.settling_id == Some(id);
 
     let mut item_class = "item".to_string();
-    if is_dragging {
-        item_class.push_str(" dragging");
-    }
-    if is_settling {
-        item_class.push_str(" settling");
-    }
+    if is_dragging { item_class.push_str(" dragging"); }
+    if is_settling { item_class.push_str(" settling"); }
 
+    // Cards never rotate. Outer wrapper handles vertical translation only.
+    // Inner card handles horizontal float + scale.
+    // translate3d forces GPU 3D compositing path unconditionally.
     let (item_style, card_style) = if is_dragging {
         let dy = ds.cur_y - ds.start_y;
         let dx = (ds.cur_x - ds.start_x) * 0.4;
         (
-            format!("transform: translateY({}px); z-index: 500;", dy),
-            format!(
-                "transform: translateX({}px) scale({}) rotate({}deg);",
-                dx, ds.scale_spring.pos, ds.rot_spring.pos
-            ),
+            format!("transform: translate3d(0,{}px,0); z-index: 500;", dy),
+            format!("transform: translate3d({}px,0,0) scale3d({s},{s},1);", dx, s = ds.scale_spring.pos),
         )
     } else if is_settling {
         (
-            format!(
-                "transform: translateY({}px); z-index: 400;",
-                ds.y_return.pos
-            ),
-            format!(
-                "transform: translateX({}px) scale({}) rotate({}deg);",
-                ds.x_return.pos, ds.scale_spring.pos, ds.rot_spring.pos
-            ),
+            format!("transform: translate3d(0,{}px,0); z-index: 400;", ds.y_return.pos),
+            format!("transform: translate3d({}px,0,0) scale3d({s},{s},1);", ds.x_return.pos, s = ds.scale_spring.pos),
         )
     } else if let Some(spring) = ds.item_springs.get(&id) {
         if spring.pos.abs() > 0.1 {
-            (
-                format!("transform: translateY({}px);", spring.pos),
-                String::new(),
-            )
+            (format!("transform: translate3d(0,{}px,0);", spring.pos), String::new())
         } else {
             (String::new(), String::new())
         }
@@ -133,7 +123,6 @@ fn render_card_body(
     on_resolution: EventHandler<(u32, String)>,
 ) -> Element {
     let id = i.id;
-
     rsx! {
         div { class: "card-body",
             div { class: "detail-grid",
@@ -172,9 +161,7 @@ fn render_card_body(
                         div { class: "fgroup",
                             label { class: "flbl", "Files" }
                             div { class: "chips",
-                                for f in &i.files {
-                                    span { class: "chip-file", "{f}" }
-                                }
+                                for f in &i.files { span { class: "chip-file", "{f}" } }
                             }
                         }
                     }
@@ -182,9 +169,7 @@ fn render_card_body(
                         div { class: "fgroup",
                             label { class: "flbl", "Depends On" }
                             div { class: "chips",
-                                for d in &i.depends_on {
-                                    span { class: "chip-dep", "#{d}" }
-                                }
+                                for d in &i.depends_on { span { class: "chip-dep", "#{d}" } }
                             }
                         }
                     }
