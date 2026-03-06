@@ -2,17 +2,6 @@
 
 ---
 
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
-
-**Resolution:** 
-
----
-
 ## [11] Implement categorical issue IDs
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
@@ -44,14 +33,12 @@ Should prompt for confirmation unless `--force` is passed. After deletion, the i
 
 ---
 
-## [28] Support arbitrary issue file names
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+## [4] Replace polling with OS file system events
+**Status:** IN PROGRESS
+**Files:** `src/ui/app.rs`, `Cargo.toml`
 
-The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
-Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
-This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
-If a new issue is created and has no source file, default to `issues-active.md`.
+The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
 
 **Resolution:** 
 
@@ -68,6 +55,19 @@ Resolution should include:
 - Content hash or generation counter comparison before overwriting
 - A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
 - Optionally, per-issue dirty tracking instead of a single global `dirty` flag
+
+**Resolution:** 
+
+---
+
+## [28] Support arbitrary issue file names
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+
+The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
+Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
+This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
+If a new issue is created and has no source file, default to `issues-active.md`.
 
 **Resolution:** 
 

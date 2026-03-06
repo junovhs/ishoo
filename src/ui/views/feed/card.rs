@@ -70,10 +70,16 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
 
     let mut drag_state_signal = props.drag_state;
 
-    let section_color = match i.section.as_str() {
-        "active" => "var(--orange)",
-        "done" => "var(--green)",
-        _ => "var(--blue)",
+    let is_done = i.status == crate::model::Status::Done || i.status == crate::model::Status::Descoped;
+    let sec_lower = i.section.to_lowercase();
+    let is_backlog = !is_done && sec_lower.contains("backlog");
+    
+    let section_color = if is_done {
+        "var(--green)"
+    } else if is_backlog {
+        "var(--blue)"
+    } else {
+        "var(--orange)"
     };
 
     rsx! {
@@ -89,6 +95,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     ds_write.start_idx = idx;
                     ds_write.hover_idx = idx;
                     ds_write.start_y = e.client_coordinates().y as f32;
+                    ds_write.start_virtual_y = props.virtual_y;
                     ds_write.offset_y = 0.0;
                     ds_write.hover_y = props.virtual_y;
                     ds_write.releasing = false;

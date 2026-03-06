@@ -2,18 +2,11 @@
 
 ---
 
-## [106] Gotta Poop
+## [27] Add comments per issue
 **Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
 
-**Resolution:** 
-
----
-
-## [21] Add labels/tags system
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
-
-Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
+Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
 
 **Resolution:** 
 
@@ -65,11 +58,11 @@ Can be done immediately with pure CSS and minor markup tweaks.
 
 ---
 
-## [27] Add comments per issue
+## [21] Add labels/tags system
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
 
-Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
+Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
 
 **Resolution:** 
 

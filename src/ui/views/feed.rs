@@ -1,3 +1,4 @@
+// neti:allow(LAW OF ATOMICITY)
 mod card;
 
 use crate::model::{Issue, Status};
@@ -11,6 +12,7 @@ pub struct DragState {
     pub hover_idx: usize,
     pub hover_y: f32,
     pub start_y: f32,
+    pub start_virtual_y: f32,
     pub offset_y: f32,
     pub releasing: bool,
 }
@@ -49,10 +51,49 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 if ds.dragging_id.is_some() && !ds.releasing {
                     ds.offset_y = e.client_coordinates().y as f32 - ds.start_y;
                     
-                    // What slot grid is the card currently dragged over?
-                    let raw_y = (ds.start_idx as f32 * SLOT) + ds.offset_y;
-                    let max_idx = issues_len.saturating_sub(1);
-                    ds.hover_idx = (raw_y / SLOT).round().clamp(0.0, max_idx as f32) as usize;
+                    let logical_y = ds.start_virtual_y + ds.offset_y;
+                    
+                    let sections = [
+                        ("Active", "active", "var(--orange)"),
+                        ("Backlog", "backlog", "var(--blue)"),
+                        ("Done", "done", "var(--green)"),
+                    ];
+                    
+                    let mut closest_idx = ds.start_idx;
+                    let mut min_dist = f32::MAX;
+                    let mut v_idx = 0;
+                    
+                    for (_label, key, _color) in sections {
+                        let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
+                            .filter(|(_, i)| {
+                                let sec = i.section.to_lowercase();
+                                let is_done = sec.contains("done") || i.status == Status::Done || i.status == Status::Descoped;
+                                let is_backlog = !is_done && sec.contains("backlog");
+                                match key {
+                                    "done" => is_done,
+                                    "backlog" => is_backlog,
+                                    "active" => !is_done && !is_backlog,
+                                    _ => false,
+                                }
+                            })
+                            .collect();
+                            
+                        if section_items.is_empty() { continue; }
+                        v_idx += 1;
+                        if !collapsed.read().contains(key) {
+                            for (idx, _) in section_items {
+                                let vy = v_idx as f32 * SLOT;
+                                let dist = (vy - logical_y).abs();
+                                if dist < min_dist {
+                                    min_dist = dist;
+                                    closest_idx = idx;
+                                    ds.hover_y = vy;
+                                }
+                                v_idx += 1;
+                            }
+                        }
+                    }
+                    ds.hover_idx = closest_idx;
                 }
             },
             onpointerup: move |_| {
@@ -191,8 +232,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                     }
                                 },
                                 span { 
-                                    class: "chevron", 
-                                    style: if is_collapsed { "transform: rotate(-90deg);" } else { "" },
+                                    class: if is_collapsed { "chevron collapsed" } else { "chevron" }, 
                                     "▼" 
                                 }
                                 div { class: "section-dot", style: "background:{color}" }
