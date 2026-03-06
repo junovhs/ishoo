@@ -1,7 +1,5 @@
 mod app;
 mod components;
-mod styles;
-mod styles_viz;
 mod toast;
 mod views;
 mod welcome;

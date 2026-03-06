@@ -1,6 +1,6 @@
 use super::toast::{Toast, ToastContainer, ToastKind};
 use super::welcome::WelcomeScreen;
-use super::{components, get_workspace_path, styles, styles_viz, views, View};
+use super::{components, get_workspace_path, views, View};
 use crate::model::{reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
 use dioxus::prelude::*;
 
@@ -11,6 +11,8 @@ struct AppState {
     toast_id: Signal<u64>,
 }
 
+const STYLESHEET: &str = include_str!("../../assets/style.css");
+
 #[component]
 pub fn App() -> Element {
     let ws_path = get_workspace_path();
@@ -18,8 +20,7 @@ pub fn App() -> Element {
 
     if !initialized() {
         return rsx! {
-            style { {styles::BASE} }
-            style { {styles::MODAL} }
+            style { "{STYLESHEET}" }
             WelcomeScreen { path: ws_path, on_init: move |_| initialized.set(true) }
         };
     }
@@ -68,17 +69,9 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let stats = compute_stats(&(state.issues)());
     let filtered = filter_issues(&(state.issues)(), &search());
 
-    let all_styles = format!(
-        "{}\n{}\n{}\n{}\n{}",
-        styles::BASE,
-        styles::CARD,
-        styles::DRAG,
-        styles::MODAL,
-        styles_viz::STYLES_VIZ
-    );
-
     rsx! {
-        style { {all_styles} }
+        style { "{STYLESHEET}" }
+        
         ToastContainer {
             toasts: toasts(),
             on_dismiss: move |id| { toasts.write().retain(|t| t.id != id); }

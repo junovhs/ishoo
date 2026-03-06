@@ -2,19 +2,31 @@
 
 ---
 
-## [6] Move CSS to native asset files
-**Status:** OPEN
-**Files:** `src/ui/styles.rs`, `src/ui/styles_viz.rs`, `Dioxus.toml`, `assets/`
+## [4] Replace polling with OS file system events
+**Status:** IN PROGRESS
+**Files:** `src/ui/app.rs`, `Cargo.toml`
 
-Dioxus supports standard CSS files served from an `assets/` directory. There is zero reason to embed 4KB+ of minified CSS inside Rust string literals — it kills syntax highlighting, linting, and auto-completion.
-Additionally, the current `@import url()` for Google Fonts (DM Sans, JetBrains Mono) fetches from the network at runtime, which silently degrades to system fonts when offline. This contradicts the local-first philosophy. The font files should be bundled in `assets/fonts/` and loaded via `@font-face`.
-Steps:
-1. Create `assets/base.css`, `assets/card.css`, `assets/drag.css`, `assets/modal.css`, `assets/viz.css`
-2. Move each `pub const` CSS block from `styles.rs` / `styles_viz.rs` into the corresponding file
-3. Download DM Sans and JetBrains Mono `.woff2` files into `assets/fonts/`
-4. Replace the `@import url()` with local `@font-face` declarations
-5. Update `Dioxus.toml` to bundle the `assets/` directory
-6. Delete `styles.rs` and `styles_viz.rs`
+The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+
+**Resolution:** 
+
+---
+
+## [6] Move CSS to native asset files
+**Status:** DONE
+**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs` (deleted)
+
+**Resolution:** Migrated all CSS from Rust string literals into a standard `assets/style.css` file. Used the standard Rust `include_str!` macro to bundle the stylesheet directly into the binary at compile time. This preserves the "single executable" portability and `cargo install` compatibility while allowing for a proper CSS development experience with syntax highlighting and linting.
+
+---
+
+## [7] Implement issue deletion via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
 
 **Resolution:** 
 
@@ -31,12 +43,13 @@ Currently this only happens on explicit "Save All" and only for the DONE→done-
 
 ---
 
-## [7] Implement issue deletion via CLI
+## [30] Render markdown in description and resolution fields
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+**Files:** `src/ui/views/feed/card.rs`
+**Depends on:** [8]
 
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
+Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
+After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
 
 **Resolution:** 
 
@@ -58,13 +71,17 @@ Resolution should include:
 
 ---
 
-## [30] Render markdown in description and resolution fields
+## [8] Switch to AST-based markdown parser
 **Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Depends on:** [8]
+**Files:** `src/model/parse.rs`
 
-Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
-After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
+The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
+Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
+- Make parsing robust against human typos
+- Enable round-tripping of unknown/custom fields
+- Simplify the accumulator state machine
+- Potentially support richer description content (inline code blocks, lists, etc.)
+This is the highest-impact backlog item.
 
 **Resolution:** 
 
@@ -90,33 +107,6 @@ This requires updating:
 
 ---
 
-## [8] Switch to AST-based markdown parser
-**Status:** OPEN
-**Files:** `src/model/parse.rs`
-
-The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
-Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
-- Make parsing robust against human typos
-- Enable round-tripping of unknown/custom fields
-- Simplify the accumulator state machine
-- Potentially support richer description content (inline code blocks, lists, etc.)
-This is the highest-impact backlog item.
-
-**Resolution:** 
-
----
-
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
-
-**Resolution:** 
-
----
-
 ## [42] Protect against data loss on crash during save
 **Status:** OPEN
 **Files:** `src/model/workspace.rs`
@@ -133,16 +123,10 @@ Fix:
 ---
 
 ## [14] Fix re-render performance in physics loop
-**Status:** OPEN
-**Files:** `src/ui/views/physics.rs`, `src/ui/views/feed/card.rs`
+**Status:** DONE
+**Files:** `src/ui/views/physics.rs` (deleted), `src/ui/views/feed.rs`
 
-`Signal<DragState>` compares by pointer, not by value (DragState doesn't implement PartialEq). This means every physics tick (60fps) triggers a re-render of every `IssueCard`, even cards that aren't moving. With 50+ issues this will be visibly slow.
-Options:
-- Derive or implement `PartialEq` on `DragState` (complex due to `HashMap<u32, Spring>`)
-- Split drag state into per-card signals so only affected cards re-render
-- Use CSS transforms driven by a single DOM manipulation pass instead of per-component state
-
-**Resolution:** 
+**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
 
 ---
 
