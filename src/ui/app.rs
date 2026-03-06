@@ -1,7 +1,9 @@
+// neti:allow(LAW OF ATOMICITY)
 use super::toast::{Toast, ToastContainer, ToastKind};
 use super::welcome::WelcomeScreen;
 use super::{components, get_workspace_path, views, View};
 use crate::model::{reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
+use dioxus::document::eval;
 use dioxus::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -9,6 +11,7 @@ struct AppState {
     issues: Signal<Vec<Issue>>,
     toasts: Signal<Vec<Toast>>,
     toast_id: Signal<u64>,
+    is_compact: Signal<bool>,
 }
 
 const STYLESHEET: &str = include_str!("../../assets/style.css");
@@ -42,11 +45,13 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let reinit_modal = use_signal(|| false);
     let mut toasts = use_signal(Vec::<Toast>::new);
     let toast_id = use_signal(|| 0u64);
+    let is_compact = use_signal(|| false);
 
     let state = AppState {
         issues,
         toasts,
         toast_id,
+        is_compact,
     };
 
     let _poll = {
@@ -80,10 +85,10 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         if modal() { {render_new_issue_modal(modal, state)} }
         if reinit_modal() { {render_reinit_modal(reinit_modal, state)} }
 
-        div { class: "shell",
+        div { class: "app",
             {render_sidebar(view, stats.clone(), dirty, modal, reinit_modal, state)}
-            main { class: "main",
-                {render_topbar(search, modal, &stats)}
+            main { class: "mn",
+                {render_topbar(search, modal, &stats, state)}
                 {render_content(view, filtered, dirty, state)}
             }
         }
@@ -124,11 +129,12 @@ fn render_new_issue_modal(mut modal: Signal<bool>, state: AppState) -> Element {
     rsx! {
         div { class: "modal-overlay", onclick: move |_| modal.set(false),
             div { class: "modal", onclick: move |e| e.stop_propagation(),
-                div { class: "modal-header",
-                    h2 { "New Issue" }
-                    button { class: "modal-close", onclick: move |_| modal.set(false), "×" }
+                div { class: "m-head",
+                    div { class: "m-title", "New Issue" }
+                    button { class: "m-close", onclick: move |_| modal.set(false), "×" }
                 }
-                div { class: "modal-body",
+                div { class: "m-divider" }
+                div { class: "m-body",
                     div { class: "fgroup",
                         label { class: "flbl", "Title" }
                         input {
@@ -179,11 +185,12 @@ fn render_reinit_modal(mut modal: Signal<bool>, state: AppState) -> Element {
     rsx! {
         div { class: "modal-overlay", onclick: move |_| modal.set(false),
             div { class: "modal modal-danger", onclick: move |e| e.stop_propagation(),
-                div { class: "modal-header",
-                    h2 { "⚠️ Reinitialize Tracker" }
-                    button { class: "modal-close", onclick: move |_| modal.set(false), "×" }
+                div { class: "m-head",
+                    div { class: "m-title", "⚠️ Reinitialize Tracker" }
+                    button { class: "m-close", onclick: move |_| modal.set(false), "×" }
                 }
-                div { class: "modal-body",
+                div { class: "m-divider" }
+                div { class: "m-body",
                     p { class: "warning-text", "This will permanently delete all issues." }
                     p { class: "hint-text", "💡 Commit to git first so you have history." }
                     div { class: "fgroup",
@@ -227,49 +234,114 @@ fn render_sidebar(
     state: AppState,
 ) -> Element {
     rsx! {
-        aside { class: "sidebar",
-            div { class: "brand",
-                svg { width: "24", height: "24", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2.5",
-                    path { d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" }
+        aside { class: "sb",
+            div { class: "logo",
+                div { class: "logo-d" }
+                em { "Ishoo" }
+                button { 
+                    class: "dm-toggle", 
+                    title: "Toggle dark mode",
+                    onclick: move |_| {
+                        // We use a small JS eval to toggle the class on the html element
+                        let _ = eval("document.documentElement.classList.toggle('dark'); 
+                                      let btn = document.getElementById('dm-toggle-btn');
+                                      if (document.documentElement.classList.contains('dark')) {
+                                          btn.innerHTML = '☀';
+                                      } else {
+                                          btn.innerHTML = '☽';
+                                      }");
+                    },
+                    id: "dm-toggle-btn",
+                    "☽"
                 }
-                span { "Ishoo" }
             }
-            nav { class: "nav",
-                div { class: "nav-label", "Views" }
+            nav { class: "vl",
+                div { class: "sl", "Views" }
                 components::NavBtn { label: "Feed", active: view() == View::Feed, onclick: move |_| view.set(View::Feed) }
                 components::NavBtn { label: "Board", active: view() == View::Board, onclick: move |_| view.set(View::Board) }
                 components::NavBtn { label: "Heatmap", active: view() == View::Heatmap, onclick: move |_| view.set(View::Heatmap) }
                 components::NavBtn { label: "Graph", active: view() == View::Graph, onclick: move |_| view.set(View::Graph) }
                 components::NavBtn { label: "Timeline", active: view() == View::Timeline, onclick: move |_| view.set(View::Timeline) }
             }
-            div { class: "stats-area",
-                div { class: "nav-label", "Metrics" }
-                div { class: "stat-list",
-                    components::StatRow { label: "Backlog", count: stats.open, color: "var(--c-blue)" }
-                    components::StatRow { label: "In Flight", count: stats.in_progress, color: "var(--c-amber)" }
-                    components::StatRow { label: "Resolved", count: stats.done, color: "var(--c-green)" }
+            div { class: "vl", style: "margin-top:auto;",
+                div { class: "sl", "Breakdown" }
+                div { class: "mr",
+                    span { class: "l", "Active" }
+                    span { class: "v", style: "color: var(--orange)", "{stats.in_progress}" }
+                }
+                div { class: "mr",
+                    span { class: "l", "Backlog" }
+                    span { class: "v", style: "color: var(--blue)", "{stats.open}" }
+                }
+                div { class: "mr",
+                    span { class: "l", "Done" }
+                    span { class: "v", style: "color: var(--green)", "{stats.done}" }
                 }
             }
             div { class: "sidebar-foot",
-                button { class: "new-issue-btn", onclick: move |_| modal.set(true), "+ New Issue" }
-                div { class: if dirty() { "sync dirty" } else { "sync" }, if dirty() { "⚠ Unsaved" } else { "✓ Synced" } }
+                button { class: "btn-n", onclick: move |_| modal.set(true), "+ New Issue" }
+                div { class: if dirty() { "sync-status dirty" } else { "sync-status" }, if dirty() { "⚠ Unsaved" } else { "✓ Synced" } }
                 if dirty() {
-                    button { class: "save-btn", onclick: move |_| { save_workspace(state, "Saved"); dirty.set(false); }, "Save All" }
+                    button { class: "sync-action", onclick: move |_| { save_workspace(state, "Saved"); dirty.set(false); }, "Save All" }
                 }
-                button { class: "reinit-btn", onclick: move |_| reinit_modal.set(true), "↻ Reset" }
+                button { class: "sync-action", style: "background:transparent; color:var(--ink3); border:1px solid var(--rule);", onclick: move |_| reinit_modal.set(true), "↻ Reset" }
+            }
+            div { class: "kb-ref",
+                kbd { "/" } " search" br {}
+                kbd { "j" } kbd { "k" } " navigate" br {}
+                kbd { "Enter" } " open" br {}
+                kbd { "Esc" } " close" br {}
+                kbd { "d" } " toggle density" br {}
+                kbd { "t" } " toggle theme"
             }
         }
     }
 }
 
-fn render_topbar(mut search: Signal<String>, mut modal: Signal<bool>, stats: &Stats) -> Element {
+fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stats, state: AppState) -> Element {
+    let mut is_compact = state.is_compact;
+    let mut active_lens = use_signal(|| "My Order".to_string());
+    
     rsx! {
-        div { class: "topbar",
-            div { class: "search-box",
-                input { class: "search", placeholder: "Search…", value: "{search}", oninput: move |e| search.set(e.value()) }
+        div {
+            div { class: "topbar",
+                input { class: "si", placeholder: "Search…", value: "{search}", oninput: move |e| search.set(e.value()) }
+                
+                div { class: "density-toggle",
+                    button { 
+                        class: if !is_compact() { "dt-btn active" } else { "dt-btn" }, 
+                        onclick: move |_| is_compact.set(false), 
+                        "Comfortable" 
+                    }
+                    button { 
+                        class: if is_compact() { "dt-btn active" } else { "dt-btn" }, 
+                        onclick: move |_| is_compact.set(true), 
+                        "Compact" 
+                    }
+                }
             }
-            button { class: "topbar-new-btn", onclick: move |_| modal.set(true), "+ New" }
-            span { class: "count-pill", "{stats.total} issues" }
+            div { class: "lens-row",
+                button { 
+                    class: if active_lens() == "My Order" { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set("My Order".to_string()), 
+                    "My Order" 
+                }
+                button { 
+                    class: if active_lens() == "Next Up" { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set("Next Up".to_string()), 
+                    "Next Up" 
+                }
+                button { 
+                    class: if active_lens() == "Hot Path" { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set("Hot Path".to_string()), 
+                    "Hot Path" 
+                }
+                button { 
+                    class: if active_lens() == "Quick Wins" { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set("Quick Wins".to_string()), 
+                    "Quick Wins" 
+                }
+            }
         }
     }
 }
@@ -286,6 +358,7 @@ fn render_content(
             match view() {
                 View::Feed => rsx! {
                     views::FeedView {
+                        is_compact: (state.is_compact)(),
                         issues: filtered.clone(),
                         on_status: move |(id, s): (u32, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }

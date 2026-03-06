@@ -4,8 +4,9 @@ use dioxus::prelude::*;
 pub fn NavBtn(label: String, active: bool, onclick: EventHandler<MouseEvent>) -> Element {
     rsx! {
         button {
-            class: if active { "nav-btn on" } else { "nav-btn" },
+            class: if active { "vb active" } else { "vb" },
             onclick: move |e| onclick.call(e),
+            div { class: "p" }
             "{label}"
         }
     }
@@ -14,9 +15,9 @@ pub fn NavBtn(label: String, active: bool, onclick: EventHandler<MouseEvent>) ->
 #[component]
 pub fn StatRow(label: String, count: usize, color: String) -> Element {
     rsx! {
-        div { class: "stat",
-            span { class: "stat-lbl", "{label}" }
-            span { class: "stat-val", style: "color:{color}", "{count}" }
+        div { class: "mr",
+            span { class: "l", "{label}" }
+            span { class: "v", style: "color:{color}", "{count}" }
         }
     }
 }

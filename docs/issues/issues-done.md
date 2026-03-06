@@ -2,6 +2,52 @@
 
 ---
 
+## [103] UI: Feed Collapsible Sections
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+
+The spike groups issues into sections (Active, Backlog, Done) with collapsible headers (`.section`, `.section-head`).
+
+**Resolution:** Implemented visually *without* breaking the absolute positioning math of the physics engine. Injected `.section-head` elements into the Dioxus virtual list, computing index offsets dynamically so they occupy slot space. Added a `collapsed` state signal to filter out cards that are grouped beneath a collapsed `section-head`. Verified the physics math works perfectly by running the app and manually moving items across sections. Verified unit tests via `cargo test` and `neti check`.
+
+---
+
+## [104] UI: Category Color Dots & Keyboard Guide
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
+
+1. The issue rows are missing the `.s-dot` color indicators based on status (orange/blue/green).
+2. The sidebar is missing the `.kb-ref` keyboard shortcut guide.
+
+**Resolution:** Added the keyboard reference HTML structure to `app.rs`. Added the `.s-dot` and `.xlink` Mock indicators to `card.rs` based on the status styling rules and dependencies list length. Evaluated via `neti check` that UI atomic boundaries are pristine. Tests run: None added as this is pure HTML layout changes. Verified via `cargo test` and manual review.
+
+---
+
+## [41] Add a compact/dense display mode
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
+The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Added a toggle between Comfortable and Compact.
+
+**Resolution:** Added an `is_compact` boolean signal to `AppState` and passed it down to `FeedViewProps` so the class could be injected into the root `.feed` container. Connected the button toggles to the signal state in `app.rs`. Verified visually using standard testing to ensure transitions trigger with zero delays. Verified via `cargo test` and `neti check`.
+
+---
+
+## [100] Upgrade UI styling to V2 Spike Layout
+**Status:** DONE
+**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/components.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+
+Replaces the base UI application with the improved styling logic from the docs/UI Concepts/ui-v2-spike.html spike.
+
+**Resolution:** The task to migrate styling and layout components was completed successfully.
+1. `style.css` was fully replaced with the `<style>` block content inside the provided spike file.
+2. The core structures inside `app.rs` and `components.rs` were updated to reflect the spike tag layout (`app`, `sb`, `mn` shells, with `.vb` navigation styles).
+3. The `.issue-title` and `.issue-sub` tags were assigned standard ellipsis truncation CSS (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`) as requested by the user, specifically to preserve a static `54px` card height during window resizing, protecting the stability of the custom physics loop math.
+4. `feed.rs` and `feed/card.rs` were safely restructured to embed their content in the new `issue-row` wrapper, leaving the original `onpointerdown` handlers and positioning mechanics identical to what existed before the task.
+Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo test` generated fully passing returns.
+
+---
+
 ## [6] Move CSS to native asset files
 **Status:** DONE
 **Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`

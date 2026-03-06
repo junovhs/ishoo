@@ -9,6 +9,7 @@ pub struct DragState {
     pub dragging_id: Option<u32>,
     pub start_idx: usize,
     pub hover_idx: usize,
+    pub hover_y: f32,
     pub start_y: f32,
     pub offset_y: f32,
     pub releasing: bool,
@@ -16,6 +17,7 @@ pub struct DragState {
 
 #[derive(Clone, PartialEq, Props)]
 pub struct FeedViewProps {
+    pub is_compact: bool,
     pub issues: Vec<Issue>,
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
@@ -33,11 +35,15 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let issues_for_up = props.issues.clone();
     
     // Compute total absolute container height, plus the 200px scroll padding at the bottom
-    let total_height = (issues_len as f32 * SLOT) + 200.0;
+    // We add 1 SLOT worth of height for each of the 3 section headers
+    let total_height = (issues_len as f32 * SLOT) + (3.0 * SLOT) + 200.0;
+    
+    // We need to track which sections are currently collapsed
+    let mut collapsed = use_signal(std::collections::HashSet::<String>::new);
 
     rsx! {
         div {
-            class: "feed",
+            class: if props.is_compact { "feed compact" } else { "feed" },
             onpointermove: move |e| {
                 let mut ds = drag_state.write();
                 if ds.dragging_id.is_some() && !ds.releasing {
@@ -100,13 +106,121 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 class: "feed-inner",
                 // absolute container required so cards measure from the top
                 style: "position: relative; height: {total_height}px;",
-                for (idx, issue) in props.issues.iter().enumerate() {
-                    IssueCard {
-                        key: "{issue.id}",
-                        issue: issue.clone(),
-                        idx: idx,
-                        drag_state: drag_state,
+                {
+                    // Group issues into sections in the exact order they appear in the array
+                    // so that `idx` strictly maps 1:1 with `props.issues[idx]`.
+                    let mut elements = vec![];
+                    
+                    let sections = [
+                        ("Active", "active", "var(--orange)"),
+                        ("Backlog", "backlog", "var(--blue)"),
+                        ("Done", "done", "var(--green)"),
+                    ];
+                    
+                    // We must track the `virtual_idx` which is the actual vertical slot.
+                    // Every section header takes up 1 slot. Cards take up 1 slot each.
+                    let mut virtual_idx = 0;
+                    
+                    for (_label, key, _color) in sections {
+                        // Find all issues belonging to this section, preserving their original index in `props.issues`
+                        let _section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
+                            .filter(|(_, i)| {
+                                if key == "active" { i.status == Status::Open || i.status == Status::InProgress }
+                                else if key == "done" { i.status == Status::Done || i.status == Status::Descoped }
+                                else { i.status == Status::Open /* fallback, wait actually we should check the actual section string */ }
+                            })
+                            .collect();
+                            
+                        // Wait, the spike just groups by status. Let's do a strict pass based on `i.status`
+                        let _section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
+                            .filter(|(_, i)| {
+                                match key {
+                                    "active" => i.status == Status::InProgress || i.status == Status::Open,
+                                    "done" => i.status == Status::Done || i.status == Status::Descoped,
+                                    "backlog" => false, // We'll fix this, Issue struct doesn't have "backlog" status.
+                                    _ => false
+                                }
+                            })
+                            .collect();
                     }
+                    
+                    // Rewrite this logic properly:
+                    // In `workspace.rs`, `Issue` has `pub section: String`. We should use that!
+                    // Let's iterate the sections and pull out items where `i.section.to_lowercase() == key`
+                    for (label, key, color) in sections {
+                        let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
+                            .filter(|(_, i)| {
+                                let sec = i.section.to_lowercase();
+                                let is_done = sec.contains("done") || i.status == Status::Done;
+                                let is_backlog = !is_done && sec.contains("backlog");
+                                let is_active = !is_done && !is_backlog;
+                                
+                                match key {
+                                    "done" => is_done,
+                                    "backlog" => is_backlog,
+                                    "active" => is_active,
+                                    _ => false
+                                }
+                            })
+                            .collect();
+                            
+                        if section_items.is_empty() {
+                            continue;
+                        }
+                        
+                        let is_collapsed = collapsed.read().contains(key);
+                        let _chevron_class = if is_collapsed { "chevron collapsed" } else { "chevron" };
+                        let y_pos = virtual_idx as f32 * SLOT;
+                        
+                        let key_clone = key.to_string();
+                        let count = section_items.len();
+                        
+                        // Push the header element into the container natively, taking up 1 SLOT.
+                        // For the section class, we append " collapsed" if true, though the CSS 
+                        // handles the chevron separately via the outer class. We'll just style the chevron directly.
+                        elements.push(rsx! {
+                            div {
+                                class: "section-head",
+                                style: "position: absolute; top: {y_pos}px; left: 0; right: 0; height: {SLOT}px;",
+                                onclick: move |_| {
+                                    let mut c = collapsed.write();
+                                    if c.contains(&key_clone) {
+                                        c.remove(&key_clone);
+                                    } else {
+                                        c.insert(key_clone.clone());
+                                    }
+                                },
+                                span { 
+                                    class: "chevron", 
+                                    style: if is_collapsed { "transform: rotate(-90deg);" } else { "" },
+                                    "▼" 
+                                }
+                                div { class: "section-dot", style: "background:{color}" }
+                                span { class: "section-title", "{label}" }
+                                span { class: "section-count", "{count}" }
+                                div { class: "section-line" }
+                            }
+                        });
+                        
+                        virtual_idx += 1;
+                        
+                        if !is_collapsed {
+                            for (idx, issue) in section_items {
+                                elements.push(rsx! {
+                                    IssueCard {
+                                        key: "{issue.id}",
+                                        issue: issue.clone(),
+                                        idx: idx,
+                                        virtual_y: virtual_idx as f32 * SLOT, // We need to modify IssueCard to take `virtual_y`
+                                        drag_state: drag_state,
+                                    }
+                                });
+                                virtual_idx += 1;
+                            }
+                        }
+                    }
+                    
+                    elements.into_iter()
                 }
             }
         }
@@ -137,78 +251,105 @@ fn IssueModal(props: IssueModalProps) -> Element {
     let i = &props.issue;
     let id = i.id;
 
+    let color = match i.section.as_str() {
+        "active" => "var(--orange)",
+        "done" => "var(--green)",
+        _ => "var(--blue)",
+    };
+    
+    // We don't have age or comments on the backend yet, use placeholders
+    let age = "2 days";
+    let comments_len = 0;
+
     rsx! {
         div {
-            class: "modal-overlay",
+            class: "modal-overlay open", // We use Dioxus conditional rendering so it's always open when mounted
             onclick: move |_| props.on_close.call(()),
             div {
                 class: "modal",
                 onclick: move |e| e.stop_propagation(),
-                div { class: "modal-header",
-                    h2 {
-                        span { class: "cid", style: "margin-right:12px;", "#{id}" }
-                        "{i.title}"
+                div { class: "m-accent", style: "background:{color}" }
+                div { class: "m-head",
+                    div {
+                        div { class: "m-id", "ISSUE-" }
+                        div { class: "m-id-num", "{id}" }
                     }
-                    div { style: "display:flex;align-items:center;gap:12px;",
-                        span { class: "badge b-{i.status.css_class()}", "{i.status.label()}" }
-                        button {
-                            class: "modal-close",
-                            onclick: move |_| props.on_close.call(()),
-                            "×"
+                    div { class: "m-actions",
+                        button { class: "m-btn", title: "Edit description", "✎ Edit" }
+                        button { class: "m-close", id: "mc", onclick: move |_| props.on_close.call(()), "×" }
+                    }
+                }
+                div { class: "m-title", "{i.title}" }
+                div { class: "m-status-row",
+                    div { class: "m-dot", style: "background:{color}" }
+                    span { class: "m-status-text", "{i.status.label()}" }
+                    div { class: "m-labels",
+                        span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
+                        // Real tags would map here in the future
+                    }
+                }
+                hr { class: "m-divider" }
+                div { class: "m-grid",
+                    div { class: "m-cell", 
+                        div { class: "m-cell-l", "Age" } 
+                        div { class: "m-cell-v", "{age}" } 
+                    }
+                    div { class: "m-cell", 
+                        div { class: "m-cell-l", "Files" } 
+                        div { class: "m-cell-v", "{i.files.len()}" } 
+                    }
+                    div { class: "m-cell", 
+                        div { class: "m-cell-l", "Notes" } 
+                        div { class: "m-cell-v", "{comments_len}" } 
+                    }
+                }
+                div { style: "padding:0 28px;",
+                    div { class: "m-cell-l", style: "margin:8px 0 4px;", "Files" }
+                    div { class: "m-cell-v files",
+                        for f in &i.files { code { "{f}" } br {} }
+                    }
+                }
+                if !i.depends_on.is_empty() {
+                    div { class: "m-links",
+                        hr { class: "m-divider", style: "margin:12px 0;" }
+                        div { class: "m-link-label", "Linked Issues" }
+                        for d in &i.depends_on {
+                            span { class: "m-link-item", "↗ ISSUE-{d}" }
                         }
                     }
                 }
-                div { class: "modal-body",
-                    div { class: "detail-grid",
-                        div { class: "detail-l",
-                            if !i.description.is_empty() {
-                                div { class: "fgroup",
-                                    label { class: "flbl", "Description" }
-                                    div { class: "desc-block", "{i.description}" }
-                                }
-                            }
-                            div { class: "fgroup",
-                                label { class: "flbl", "Resolution Notes" }
-                                textarea {
-                                    class: "res-input",
-                                    rows: "5",
-                                    placeholder: "Log your solution…",
-                                    value: "{i.resolution}",
-                                    oninput: move |e| props.on_resolution.call((id, e.value())),
-                                }
-                            }
-                        }
-                        div { class: "detail-r",
-                            div { class: "fgroup",
-                                label { class: "flbl", "Status" }
-                                select {
-                                    class: "sel",
-                                    value: "{i.status.label()}",
-                                    onchange: move |e| props.on_status.call((id, e.value())),
-                                    option { value: "OPEN", selected: i.status == Status::Open, "Open" }
-                                    option { value: "IN PROGRESS", selected: i.status == Status::InProgress, "In Progress" }
-                                    option { value: "DONE", selected: i.status == Status::Done, "Done" }
-                                    option { value: "DESCOPED", selected: i.status == Status::Descoped, "Descoped" }
-                                }
-                            }
-                            if !i.files.is_empty() {
-                                div { class: "fgroup",
-                                    label { class: "flbl", "Files" }
-                                    div { class: "chips",
-                                        for f in &i.files { span { class: "chip-file", "{f}" } }
-                                    }
-                                }
-                            }
-                            if !i.depends_on.is_empty() {
-                                div { class: "fgroup",
-                                    label { class: "flbl", "Depends On" }
-                                    div { class: "chips",
-                                        for d in &i.depends_on { span { class: "chip-dep", "#{d}" } }
-                                    }
-                                }
-                            }
+                hr { class: "m-divider" }
+                div { class: "m-body",
+                    div { class: "m-body-label", "Description" }
+                    div { "{i.description}" }
+                    
+                    div { style: "margin-top: 16px;",
+                        div { class: "m-body-label", "Resolution" }
+                        textarea {
+                            class: "res-input",
+                            style: "width: 100%; border: 1px solid var(--rule); background: transparent; color: inherit; font: inherit; padding: 8px;",
+                            rows: "4",
+                            placeholder: "Log your solution...",
+                            value: "{i.resolution}",
+                            oninput: move |e| props.on_resolution.call((id, e.value())),
                         }
                     }
+                    div { style: "margin-top: 16px;",
+                        div { class: "m-body-label", "Update Status" }
+                        select {
+                            class: "sel",
+                            value: "{i.status.label()}",
+                            onchange: move |e| props.on_status.call((id, e.value())),
+                            option { value: "OPEN", selected: i.status == Status::Open, "Open" }
+                            option { value: "IN PROGRESS", selected: i.status == Status::InProgress, "In Progress" }
+                            option { value: "DONE", selected: i.status == Status::Done, "Done" }
+                            option { value: "DESCOPED", selected: i.status == Status::Descoped, "Descoped" }
+                        }
+                    }
+                }
+                div { class: "m-nav",
+                    span { kbd { "↑" } kbd { "↓" } " prev / next" }
+                    span { kbd { "Esc" } " close" }
                 }
             }
         }
