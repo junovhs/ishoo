@@ -1,6 +1,6 @@
 # Ishoo
 
-A portable, local-first markdown issue tracker with a beautiful Dioxus desktop UI.
+Ishoo is a local-first Markdown issue tracker built for both AI agents and human developers. It stores issues as clean, Git-tracked Markdown files inside the repository rather than in a database or SaaS backend, so the system stays portable, readable, and usable even without the app installed. On top of that source of truth, Ishoo provides a native desktop dashboard for visually managing work through Kanban boards, drag-and-drop feeds, dependency graphs, file heatmaps, timelines, and inline editing.
 
 ## Philosophy: The "Stealth" Tracker
 

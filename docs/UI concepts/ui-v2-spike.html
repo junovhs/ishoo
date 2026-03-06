@@ -1,0 +1,1792 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Ishoo — Feed</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --bg: #edead4;
+                --ink: #1a1a18;
+                --ink2: #52514a;
+                --ink3: #8a8878;
+                --ink4: #bfbcb0;
+                --rule: #d6d2c4;
+                --blue: #3d7ec7;
+                --orange: #c96a2a;
+                --green: #4a9a60;
+                --pink: #c74a6e;
+                --teal: #3a9a8e;
+                --yellow: #b89a2a;
+                --purple: #7b6baa;
+            }
+            html.dark {
+                --bg: #252725;
+                --ink: #dbcfc0;
+                --ink2: #b8ad9f;
+                --ink3: #8a8278;
+                --ink4: #5a5650;
+                --rule: #353533;
+                --blue: #25a7d7;
+                --orange: #d57729;
+                --green: #27a54a;
+                --pink: #d53829;
+                --teal: #4cc0b0;
+                --yellow: #d0b040;
+                --purple: #5c56a5;
+            }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                background: var(--bg);
+                font-family: "DM Mono", monospace;
+                color: var(--ink);
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                padding: 28px 20px;
+            }
+            .app {
+                max-width: 1060px;
+                width: 100%;
+                display: grid;
+                grid-template-columns: 172px 1fr;
+            }
+
+            /* Sidebar */
+            .sb {
+                padding-right: 24px;
+                position: sticky;
+                top: 28px;
+                align-self: start;
+            }
+            .logo {
+                font-family: "Instrument Serif", serif;
+                font-size: 26px;
+                font-style: italic;
+                margin-bottom: 40px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .logo-d {
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                background: var(--ink);
+            }
+            .dm-toggle {
+                font-size: 20px;
+                background: none;
+                border: none;
+                color: var(--ink3);
+                cursor: pointer;
+                margin-left: auto;
+                padding: 0 2px;
+                transition: color 0.12s;
+                line-height: 1;
+                font-style: normal;
+                font-family: sans-serif;
+            }
+            .dm-toggle:hover {
+                color: var(--ink);
+            }
+            .sl {
+                font-size: 10px;
+                letter-spacing: 3px;
+                text-transform: uppercase;
+                color: var(--ink3);
+                margin-bottom: 8px;
+            }
+            .vl {
+                margin-bottom: 36px;
+            }
+            .vb {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font: inherit;
+                font-size: 12px;
+                color: var(--ink3);
+                background: none;
+                border: none;
+                padding: 5px 0;
+                cursor: pointer;
+                width: 100%;
+                text-align: left;
+                transition: color 0.12s;
+            }
+            .vb:hover {
+                color: var(--ink);
+            }
+            .vb.active {
+                color: var(--ink);
+                font-weight: 500;
+            }
+            .vb .p {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                border: 1.5px solid var(--ink4);
+                transition: all 0.12s;
+            }
+            .vb.active .p {
+                background: var(--ink);
+                border-color: var(--ink);
+            }
+
+            /* Health pulse */
+            .health {
+                margin-bottom: 32px;
+                padding: 12px 0;
+                border-top: 1px solid var(--rule);
+                border-bottom: 1px solid var(--rule);
+            }
+            .health-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                margin-bottom: 8px;
+            }
+            .health-pct {
+                font-family: "Instrument Serif", serif;
+                font-size: 22px;
+                color: var(--green);
+            }
+            .health-lbl {
+                font-size: 10px;
+                color: var(--ink3);
+                letter-spacing: 1px;
+            }
+            .health-bar {
+                height: 3px;
+                background: var(--rule);
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .health-fill {
+                height: 100%;
+                border-radius: 2px;
+                background: var(--green);
+                transition: width 0.5s;
+            }
+            .health-trend {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                margin-top: 6px;
+                font-size: 10px;
+                color: var(--green);
+            }
+            .sparkline {
+                display: flex;
+                align-items: end;
+                gap: 1px;
+                height: 12px;
+            }
+            .sparkline span {
+                width: 3px;
+                background: var(--green);
+                border-radius: 1px;
+                opacity: 0.6;
+            }
+
+            .mr {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                padding: 7px 0;
+                border-bottom: 1px solid var(--rule);
+            }
+            .mr:first-of-type {
+                border-top: 1px solid var(--rule);
+            }
+            .mr .l {
+                font-size: 11px;
+                color: var(--ink3);
+            }
+            .mr .v {
+                font-family: "Instrument Serif", serif;
+                font-size: 18px;
+            }
+            .btn-n {
+                margin-top: 24px;
+                font: inherit;
+                font-size: 11px;
+                letter-spacing: 1px;
+                padding: 8px 0;
+                width: 100%;
+                text-align: center;
+                border: 1.5px solid var(--ink);
+                background: none;
+                color: var(--ink);
+                cursor: pointer;
+                transition: all 0.12s;
+            }
+            .btn-n:hover {
+                background: var(--ink);
+                color: var(--bg);
+            }
+            .sy {
+                font-size: 10px;
+                color: var(--green);
+                text-align: center;
+                margin-top: 6px;
+                letter-spacing: 1px;
+            }
+            .kb-ref {
+                margin-top: 24px;
+                font-size: 10px;
+                color: var(--ink3);
+                line-height: 1.9;
+            }
+            .kb-ref kbd {
+                font-family: inherit;
+                border: 1px solid var(--ink3);
+                padding: 1px 5px;
+                border-radius: 2px;
+                font-size: 10px;
+            }
+
+            /* Main */
+            .mn {
+                border-left: 1px solid var(--rule);
+                padding-left: 28px;
+                min-width: 0;
+            }
+            .topbar {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid var(--rule);
+                flex-wrap: wrap;
+            }
+            .si {
+                flex: 1;
+                min-width: 140px;
+                border: none;
+                border-bottom: 1px solid transparent;
+                background: none;
+                font: inherit;
+                font-size: 12px;
+                color: var(--ink);
+                padding: 4px 0;
+                outline: none;
+            }
+            .si::placeholder {
+                color: var(--ink4);
+            }
+            .si:focus {
+                border-bottom-color: var(--ink4);
+            }
+
+            /* Lens pills */
+            .lens-row {
+                display: flex;
+                gap: 4px;
+                margin: 10px 0 0;
+            }
+            .lens {
+                font: inherit;
+                font-size: 10px;
+                letter-spacing: 1.5px;
+                text-transform: uppercase;
+                padding: 3px 10px;
+                border-radius: 12px;
+                border: 1px solid var(--rule);
+                background: none;
+                color: var(--ink3);
+                cursor: pointer;
+                transition: all 0.12s;
+                white-space: nowrap;
+            }
+            .lens:hover {
+                border-color: var(--ink3);
+                color: var(--ink);
+            }
+            .lens.active {
+                background: var(--ink);
+                color: var(--bg);
+                border-color: var(--ink);
+            }
+
+            /* Density toggle */
+            .density-toggle {
+                display: flex;
+                gap: 2px;
+                margin-left: auto;
+                flex-shrink: 0;
+            }
+            .dt-btn {
+                font: inherit;
+                font-size: 10px;
+                padding: 3px 9px;
+                border: 1px solid var(--rule);
+                background: none;
+                color: var(--ink3);
+                cursor: pointer;
+                transition: all 0.12s;
+            }
+            .dt-btn:first-child {
+                border-radius: 3px 0 0 3px;
+            }
+            .dt-btn:last-child {
+                border-radius: 0 3px 3px 0;
+            }
+            .dt-btn.active {
+                background: var(--ink);
+                color: var(--bg);
+                border-color: var(--ink);
+            }
+
+            /* Sections */
+            .section {
+                margin-top: 20px;
+            }
+            .section-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+            }
+            .section-title {
+                font-family: "Instrument Serif", serif;
+                font-size: 14px;
+                font-style: italic;
+                color: var(--ink2);
+            }
+            .section-count {
+                font-size: 10px;
+                color: var(--ink3);
+                letter-spacing: 1px;
+            }
+            .section-line {
+                flex: 1;
+                height: 1px;
+                background: var(--rule);
+            }
+
+            /* Issue rows */
+            .issue-row {
+                display: grid;
+                grid-template-columns: 72px 1fr auto;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 8px;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.035);
+                cursor: pointer;
+                transition: background 0.12s;
+                position: relative;
+                border-radius: 3px;
+            }
+            .issue-row:hover {
+                background: rgba(0, 0, 0, 0.018);
+            }
+            html.dark .issue-row:hover {
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            /* ID badge - first class! */
+            .id-badge {
+                display: flex;
+                align-items: center;
+                gap: 0;
+                font-size: 14px;
+                font-weight: 500;
+                letter-spacing: 0.5px;
+                color: var(--ink);
+                white-space: nowrap;
+            }
+            .id-cat {
+                color: var(--ink3);
+                font-size: 12px;
+                letter-spacing: 1px;
+            }
+            .id-num {
+                font-family: "Instrument Serif", serif;
+                font-size: 20px;
+                font-style: italic;
+            }
+
+            /* Compact mode IDs */
+            .compact .id-badge {
+                font-size: 12px;
+            }
+            .compact .id-num {
+                font-size: 16px;
+            }
+
+            .issue-body {
+                min-width: 0;
+            }
+            .issue-title {
+                font-size: 13px;
+                color: var(--ink);
+                line-height: 1.3;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .issue-sub {
+                font-size: 11px;
+                color: var(--ink3);
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                margin-top: 2px;
+            }
+            .issue-sub .sep {
+                color: var(--ink4);
+            }
+            .issue-right {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-shrink: 0;
+            }
+
+            /* Labels */
+            .label {
+                font-size: 10px;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+                padding: 2px 7px;
+                border-radius: 10px;
+                border: 1px solid;
+                white-space: nowrap;
+            }
+
+            /* Link bracket gutter — single bracket, hover-reveal */
+            .section-issues {
+                position: relative;
+                padding-left: 24px;
+            }
+            .bracket-svg {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 22px;
+                height: 100%;
+                pointer-events: none;
+                overflow: visible;
+                opacity: 0;
+                transition: opacity 0.12s ease;
+            }
+            .bracket-svg.visible {
+                opacity: 1;
+            }
+            .bracket-line {
+                stroke: var(--ink3);
+                stroke-width: 1.8;
+                fill: none;
+                stroke-linecap: round;
+            }
+            .bracket-tick {
+                stroke: var(--ink3);
+                stroke-width: 1.8;
+                stroke-linecap: round;
+            }
+            .issue-row.link-hl {
+                background: rgba(0, 0, 0, 0.03);
+                transition: background 0.15s;
+            }
+            html.dark .issue-row.link-hl {
+                background: rgba(255, 255, 255, 0.035);
+            }
+            /* Cross-section link indicator */
+            .xlink {
+                font-size: 11px;
+                color: var(--ink3);
+                margin-right: 4px;
+                cursor: help;
+                transition: color 0.12s;
+            }
+            .xlink:hover {
+                color: var(--ink2);
+            }
+
+            /* Collapsible sections */
+            .section-head {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 6px 0;
+                margin-bottom: 2px;
+                cursor: pointer;
+                user-select: none;
+            }
+            .section-head .chevron {
+                font-size: 11px;
+                color: var(--ink3);
+                transition: transform 0.2s;
+                display: inline-block;
+                width: 12px;
+                text-align: center;
+                font-style: normal;
+            }
+            .section.collapsed .chevron {
+                transform: rotate(-90deg);
+            }
+            .section.collapsed .section-issues {
+                display: none;
+            }
+
+            /* External change badge */
+            .ext-badge {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--pink);
+                position: absolute;
+                top: 8px;
+                right: 0;
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.3;
+                }
+            }
+
+            /* Compact mode */
+            .compact .issue-row {
+                padding: 5px 8px;
+                grid-template-columns: 72px 1fr auto;
+            }
+            .compact .issue-sub {
+                display: none;
+            }
+            .compact .issue-title {
+                font-size: 12px;
+            }
+            .compact .labels-row {
+                display: none;
+            }
+
+            /* Status dot in row */
+            .s-dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
+            .issue-row:hover .s-dot {
+                transform: scale(1.3);
+            }
+
+            /* ── MODAL ── */
+            .modal-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(26, 26, 24, 0.06);
+                backdrop-filter: blur(3px);
+                display: flex;
+                align-items: start;
+                justify-content: center;
+                z-index: 100;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.2s;
+                padding-top: 6vh;
+                overflow-y: auto;
+            }
+            html.dark .modal-overlay {
+                background: rgba(0, 0, 0, 0.3);
+            }
+            html.dark .modal {
+                box-shadow:
+                    0 24px 80px rgba(0, 0, 0, 0.4),
+                    0 2px 6px rgba(0, 0, 0, 0.2);
+            }
+            html.dark .m-body code,
+            html.dark .m-comment-body code,
+            html.dark .m-cell-v.files code {
+                background: rgba(255, 255, 255, 0.06);
+            }
+            html.dark .label {
+                border-width: 1px;
+            }
+            .modal-overlay.open {
+                opacity: 1;
+                pointer-events: all;
+            }
+            .modal {
+                background: var(--bg);
+                border: 1px solid var(--rule);
+                width: 640px;
+                max-width: 94vw;
+                padding: 0;
+                transform: translateY(10px) scale(0.98);
+                transition:
+                    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                    opacity 0.15s;
+                opacity: 0;
+                box-shadow:
+                    0 24px 80px rgba(0, 0, 0, 0.1),
+                    0 2px 6px rgba(0, 0, 0, 0.04);
+                margin-bottom: 6vh;
+            }
+            .modal-overlay.open .modal {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            .m-accent {
+                height: 3px;
+                width: 100%;
+            }
+            .m-head {
+                padding: 24px 28px 0;
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+            }
+            .m-id {
+                font-size: 12px;
+                letter-spacing: 1px;
+                color: var(--ink3);
+            }
+            .m-id-num {
+                font-family: "Instrument Serif", serif;
+                font-size: 40px;
+                font-style: italic;
+                color: var(--ink4);
+                line-height: 1;
+            }
+            .m-actions {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            .m-btn {
+                font: inherit;
+                font-size: 11px;
+                background: none;
+                border: 1px solid var(--rule);
+                color: var(--ink3);
+                cursor: pointer;
+                padding: 4px 10px;
+                border-radius: 3px;
+                transition: all 0.12s;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .m-btn:hover {
+                border-color: var(--ink3);
+                color: var(--ink);
+            }
+            .m-close {
+                font: inherit;
+                font-size: 20px;
+                background: none;
+                border: none;
+                color: var(--ink4);
+                cursor: pointer;
+                padding: 0 2px;
+                line-height: 1;
+            }
+            .m-close:hover {
+                color: var(--ink);
+            }
+            .m-title {
+                font-family: "Instrument Serif", serif;
+                font-size: 22px;
+                padding: 6px 28px 0;
+                line-height: 1.3;
+            }
+            .m-status-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 28px 0;
+                flex-wrap: wrap;
+            }
+            .m-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+            }
+            .m-status-text {
+                font-size: 10px;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+                color: var(--ink3);
+            }
+            .m-labels {
+                display: flex;
+                gap: 4px;
+                margin-left: 8px;
+                flex-wrap: wrap;
+            }
+            .m-divider {
+                border: none;
+                border-top: 1px solid var(--rule);
+                margin: 16px 28px;
+            }
+            .m-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 0;
+                padding: 0 28px;
+            }
+            .m-cell {
+                padding: 10px 0;
+            }
+            .m-cell-l {
+                font-size: 10px;
+                letter-spacing: 2.5px;
+                text-transform: uppercase;
+                color: var(--ink3);
+                margin-bottom: 3px;
+            }
+            .m-cell-v {
+                font-family: "Instrument Serif", serif;
+                font-size: 16px;
+                color: var(--ink2);
+            }
+            .m-cell-v.files {
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                color: var(--ink3);
+                line-height: 1.6;
+            }
+
+            /* Links section */
+            .m-links {
+                padding: 0 28px;
+                margin-bottom: 4px;
+            }
+            .m-link-label {
+                font-size: 10px;
+                letter-spacing: 2.5px;
+                text-transform: uppercase;
+                color: var(--ink3);
+                margin-bottom: 6px;
+            }
+            .m-link-item {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 11px;
+                color: var(--purple);
+                cursor: pointer;
+                margin-right: 12px;
+                border-bottom: 1px solid rgba(123, 107, 170, 0.2);
+                padding-bottom: 1px;
+            }
+            .m-link-item:hover {
+                border-color: var(--purple);
+            }
+
+            /* Markdown-ish body */
+            .m-body {
+                padding: 0 28px 20px;
+                font-size: 11.5px;
+                color: var(--ink2);
+                line-height: 1.75;
+            }
+            .m-body-label {
+                font-size: 10px;
+                letter-spacing: 2.5px;
+                text-transform: uppercase;
+                color: var(--ink3);
+                margin-bottom: 8px;
+            }
+            .m-body p {
+                margin-bottom: 8px;
+            }
+            .m-body code {
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                background: rgba(0, 0, 0, 0.04);
+                padding: 1px 5px;
+                border-radius: 2px;
+            }
+            .m-body ol {
+                padding-left: 18px;
+                margin: 8px 0;
+            }
+            .m-body ol li {
+                margin-bottom: 6px;
+            }
+            .m-body strong {
+                font-weight: 500;
+                color: var(--ink);
+            }
+
+            /* Resolution section */
+            .m-resolution {
+                padding: 0 28px 20px;
+            }
+            .m-res-wrap {
+                border-left: 2px solid var(--green);
+                padding-left: 14px;
+            }
+
+            /* Comments */
+            .m-comments {
+                padding: 0 28px 24px;
+            }
+            .m-comment {
+                padding: 10px 0;
+                border-top: 1px solid var(--rule);
+            }
+            .m-comment-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                margin-bottom: 4px;
+            }
+            .m-comment-author {
+                font-size: 10px;
+                font-weight: 500;
+                color: var(--ink2);
+            }
+            .m-comment-date {
+                font-size: 10px;
+                color: var(--ink3);
+            }
+            .m-comment-body {
+                font-size: 11px;
+                color: var(--ink2);
+                line-height: 1.6;
+            }
+            .m-comment-body code {
+                font-family: "DM Mono", monospace;
+                font-size: 10px;
+                background: rgba(0, 0, 0, 0.04);
+                padding: 1px 4px;
+                border-radius: 2px;
+            }
+
+            /* Nav hint in modal */
+            .m-nav {
+                display: flex;
+                justify-content: space-between;
+                padding: 0 28px 16px;
+                font-size: 10px;
+                color: var(--ink3);
+                letter-spacing: 1px;
+            }
+            .m-nav kbd {
+                font-family: inherit;
+                border: 1px solid var(--ink3);
+                padding: 1px 5px;
+                border-radius: 2px;
+            }
+
+            /* Legend */
+            .legend {
+                display: flex;
+                gap: 16px;
+                padding-top: 14px;
+                margin-top: 6px;
+            }
+            .lg {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 10px;
+                color: var(--ink3);
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            }
+            .lg .d {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app">
+            <div class="sb">
+                <div class="logo">
+                    <div class="logo-d"></div>
+                    Ishoo<button
+                        class="dm-toggle"
+                        id="dmToggle"
+                        title="Toggle dark mode"
+                    >
+                        &#9789;
+                    </button>
+                </div>
+                <div class="sl">Views</div>
+                <div class="vl">
+                    <button class="vb active">
+                        <span class="p"></span>Feed
+                    </button>
+                    <button class="vb"><span class="p"></span>Board</button>
+                    <button class="vb"><span class="p"></span>Heatmap</button>
+                    <button class="vb"><span class="p"></span>Graph</button>
+                    <button class="vb"><span class="p"></span>Timeline</button>
+                </div>
+
+                <div class="sl">Health</div>
+                <div class="health">
+                    <div class="health-top">
+                        <span class="health-pct">17%</span>
+                        <span class="health-lbl">resolved</span>
+                    </div>
+                    <div class="health-bar">
+                        <div class="health-fill" style="width: 17%"></div>
+                    </div>
+                    <div class="health-trend">
+                        <span>&#8599;</span>
+                        <div class="sparkline" id="spark"></div>
+                        <span>+3 this week</span>
+                    </div>
+                </div>
+
+                <div class="sl">Breakdown</div>
+                <div class="mr">
+                    <span class="l">Active</span
+                    ><span class="v" style="color: var(--orange)">1</span>
+                </div>
+                <div class="mr">
+                    <span class="l">Backlog</span
+                    ><span class="v" style="color: var(--blue)">33</span>
+                </div>
+                <div class="mr">
+                    <span class="l">Done</span
+                    ><span class="v" style="color: var(--green)">7</span>
+                </div>
+                <button class="btn-n">+ New Issue</button>
+                <div class="sy">&#10003; Synced</div>
+                <div class="kb-ref">
+                    <kbd>/</kbd> search<br />
+                    <kbd>j</kbd><kbd>k</kbd> navigate<br />
+                    <kbd>Enter</kbd> open<br />
+                    <kbd>Esc</kbd> close<br />
+                    <kbd>d</kbd> toggle density<br />
+                    <kbd>t</kbd> toggle theme
+                </div>
+            </div>
+
+            <div class="mn">
+                <div class="topbar">
+                    <input
+                        class="si"
+                        type="text"
+                        placeholder="Search issues..."
+                        id="searchInput"
+                    />
+                    <div class="density-toggle">
+                        <button class="dt-btn active" data-mode="comfortable">
+                            Comfortable
+                        </button>
+                        <button class="dt-btn" data-mode="compact">
+                            Compact
+                        </button>
+                    </div>
+                </div>
+                <div class="lens-row">
+                    <button class="lens active" data-lens="order">
+                        My Order
+                    </button>
+                    <button class="lens" data-lens="nextup">Next Up</button>
+                    <button class="lens" data-lens="hotpath">Hot Path</button>
+                    <button class="lens" data-lens="quickwins">
+                        Quick Wins
+                    </button>
+                </div>
+                <div id="feed"></div>
+                <div class="legend">
+                    <div class="lg">
+                        <div class="d" style="background: var(--orange)"></div>
+                        Active
+                    </div>
+                    <div class="lg">
+                        <div class="d" style="background: var(--blue)"></div>
+                        Backlog
+                    </div>
+                    <div class="lg">
+                        <div class="d" style="background: var(--green)"></div>
+                        Done
+                    </div>
+                    <div
+                        class="lg"
+                        style="
+                            margin-left: auto;
+                            opacity: 0.45;
+                            font-style: italic;
+                        "
+                    >
+                        <svg width="6" height="14" style="margin-right: 3px">
+                            <circle cx="3" cy="2" r="2" fill="var(--ink3)" />
+                            <line
+                                x1="3"
+                                y1="4"
+                                x2="3"
+                                y2="10"
+                                stroke="var(--ink3)"
+                                stroke-width="1"
+                            />
+                            <circle
+                                cx="3"
+                                cy="12"
+                                r="2"
+                                fill="var(--ink3)"
+                            /></svg
+                        >linked
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div class="modal-overlay" id="overlay">
+            <div class="modal" id="modal"></div>
+        </div>
+
+        <script>
+            const C = {
+                orange: "var(--orange)",
+                blue: "var(--blue)",
+                green: "var(--green)",
+            };
+            const SC = { active: C.orange, backlog: C.blue, done: C.green };
+            const SL = { active: "Active", backlog: "Backlog", done: "Done" };
+            const labelColors = {
+                frontend: "var(--blue)",
+                core: "var(--orange)",
+                performance: "var(--pink)",
+                cli: "var(--teal)",
+                testing: "var(--yellow)",
+                ux: "var(--purple)",
+                v2: "var(--ink3)",
+            };
+
+            const issues = [
+                {
+                    id: "BUG-47",
+                    title: "Fix drag-and-drop state corruption after first reorder",
+                    status: "done",
+                    section: "done",
+                    files: [
+                        "src/ui/views/physics.rs",
+                        "src/ui/views/feed.rs",
+                        "src/ui/views/feed/card.rs",
+                    ],
+                    labels: ["ux", "core"],
+                    links: ["FT-09"],
+                    age: "closed 2d ago",
+                    changed: false,
+                    desc: `Critical UX bug: drag-and-drop worked on the first attempt but broke progressively on subsequent drags due to stale <code>item_springs</code> HashMap entries leaking between drag sessions.`,
+                    resolution: `<strong>Four root causes fixed across three files, plus two follow-up fixes identified by manual testing:</strong>
+<ol>
+<li><code>physics.rs</code> — Added <code>DragState::reset()</code> that clears <code>item_springs</code> and zeroes all spring state atomically. Added <code>settle_ticks: u32</code>; <code>step_settle</code> hard-caps at 32 ticks (~500 ms) to force-clear springs that hover near the convergence threshold. Raised <code>done()</code> threshold 0.5 → 1.0 px.</li>
+<li><code>feed/card.rs</code> — <code>onpointerdown</code> calls <code>ds.reset()</code> first, replacing the partial <code>values_mut()</code> loop that left stale HashMap keys in place.</li>
+<li><code>feed.rs</code> — <code>onpointercancel</code> calls <code>ds.reset()</code> instead of only clearing 2 of ~12 fields.</li>
+<li><code>physics.rs</code> — <code>update_rotation</code>: <code>rot_spring.target</code> is now always 0.0 — cards no longer tilt on horizontal movement (matched prototype spec).</li>
+<li><code>feed/card.rs</code> — <code>nat_tops</code> anchored to actual screen coordinates at drag-start: virtual layout positions are shifted so <code>nat_tops[orig_idx] = start_y</code>, making slot detection work correctly regardless of CSS height mismatches or section header changes after a reorder.</li>
+</ol>
+Tests added: <code>reset_clears_item_springs_completely</code>, <code>step_settle_hard_cap_forces_clear_even_when_not_converged</code>, <code>second_drag_starts_with_clean_state</code>.<br>Verified: <code>neti check</code> → clean, clippy PASS, tests PASS.`,
+                    comments: [
+                        {
+                            author: "me",
+                            date: "2 days ago",
+                            body: "Finally nailed this. The stale HashMap keys were the real villain — the partial clear in <code>values_mut()</code> was leaving ghosts.",
+                        },
+                        {
+                            author: "me",
+                            date: "2 days ago",
+                            body: "Follow-up: the <code>nat_tops</code> anchoring fix also solved that weird snap-back on reorder after scrolling. Two birds.",
+                        },
+                    ],
+                },
+
+                {
+                    id: "FT-04",
+                    title: "Replace polling with OS file system events",
+                    status: "active",
+                    section: "active",
+                    files: ["src/watcher.rs", "src/model/workspace.rs"],
+                    labels: ["core", "performance"],
+                    links: [],
+                    age: "6 weeks",
+                    changed: false,
+                    desc: "Current file watching uses polling at 500ms intervals. Switch to fsevents/inotify for better performance and lower CPU usage.",
+                    resolution: "",
+                    comments: [
+                        {
+                            author: "me",
+                            date: "3 days ago",
+                            body: "notify crate v6 handles cross-platform fine. Spiking it now — the debounce window needs tuning though, getting double-fires on save.",
+                        },
+                    ],
+                },
+
+                {
+                    id: "FT-11",
+                    title: "Implement categorical issue IDs",
+                    status: "backlog",
+                    section: "backlog",
+                    files: [
+                        "src/model/mod.rs",
+                        "src/model/parse.rs",
+                        "src/model/workspace.rs",
+                        "src/ui/views/feed/card.rs",
+                    ],
+                    labels: ["core"],
+                    links: ["FT-28"],
+                    age: "4 weeks",
+                    changed: false,
+                    desc: "Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., <code>BUG-01</code>, <code>FT-12</code>). Current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.\n\nNew ID format: <code>&lt;CATEGORY&gt;-&lt;NUMBER&gt;</code> where category is 1-4 letter uppercase prefix, number is zero-padded and monotonically increasing per category, never reused.",
+                    resolution: "",
+                    comments: [
+                        {
+                            author: "me",
+                            date: "1 week ago",
+                            body: "Need to decide: store next-number-per-category in <code>.ishoo</code> metadata or derive from scanning? Metadata is faster but one more file to corrupt.",
+                        },
+                    ],
+                },
+
+                {
+                    id: "BUG-13",
+                    title: "Prevent silent data loss from discover_root ambiguity",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/workspace.rs"],
+                    labels: ["core"],
+                    links: ["BUG-42"],
+                    age: "4 weeks",
+                    changed: true,
+                    desc: "When multiple <code>.ishoo</code> directories exist in parent paths, the wrong root can be selected silently, causing edits to land in the wrong project.",
+                    resolution: "",
+                    comments: [
+                        {
+                            author: "me",
+                            date: "5 days ago",
+                            body: "Reproduced this on a nested monorepo. The walk-up heuristic grabs the first <code>.ishoo</code> it finds, which is wrong when you have subprojects.",
+                        },
+                    ],
+                },
+
+                {
+                    id: "BUG-42",
+                    title: "Protect against data loss on crash during save",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/workspace.rs"],
+                    labels: ["core"],
+                    links: ["BUG-13"],
+                    age: "2 days",
+                    changed: true,
+                    desc: "Write to temp file first, then atomic rename. Prevents corruption if process is killed mid-write.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-05",
+                    title: "Add conflict resolution for concurrent edits",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/workspace.rs", "src/model/merge.rs"],
+                    labels: ["core", "v2"],
+                    links: [],
+                    age: "5 weeks",
+                    changed: false,
+                    desc: "Two editing sessions on the same issue can cause data loss. Need merge strategy or lock mechanism.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "UI-30",
+                    title: "Render markdown in description and resolution fields",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/ui/views/feed/card.rs", "src/ui/markdown.rs"],
+                    labels: ["frontend", "ux"],
+                    links: ["UI-08"],
+                    age: "1 week",
+                    changed: false,
+                    desc: "Description and resolution fields contain markdown shown as raw text. Need to render inline formatting, code blocks, and lists.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "UI-08",
+                    title: "Switch to AST-based markdown parser",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/parse.rs"],
+                    labels: ["core"],
+                    links: ["UI-30"],
+                    age: "5 weeks",
+                    changed: false,
+                    desc: "Current regex-based parser mishandles nested structures. A proper AST parser would handle edge cases.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-07",
+                    title: "Implement issue deletion via CLI",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/cli/delete.rs"],
+                    labels: ["cli"],
+                    links: [],
+                    age: "3 weeks",
+                    changed: false,
+                    desc: "Allow users to delete issues from the command line with interactive confirmation and <code>--force</code> flag.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "UI-09",
+                    title: "Add global keyboard shortcuts",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/ui/keybinds.rs", "src/ui/app.rs"],
+                    labels: ["ux"],
+                    links: [],
+                    age: "5 weeks",
+                    changed: false,
+                    desc: "Support keyboard shortcuts for common actions: new issue, search, navigation between views.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-33",
+                    title: "Add issue linking and mentions",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/parse.rs", "src/ui/views/feed/card.rs"],
+                    labels: ["core", "v2"],
+                    links: ["FT-11"],
+                    age: "1 week",
+                    changed: false,
+                    desc: "The <code>**Depends on:**</code> field captures blocking relationships, but there's no way to express softer links. If a description mentions <code>#14</code> or <code>[14]</code>, it should render as a clickable link. The Graph view should pick up these references as edges.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-21",
+                    title: "Add labels/tags system",
+                    status: "backlog",
+                    section: "backlog",
+                    files: [
+                        "src/model/mod.rs",
+                        "src/model/parse.rs",
+                        "src/ui/views/feed/card.rs",
+                    ],
+                    labels: ["frontend", "core"],
+                    links: [],
+                    age: "3 weeks",
+                    changed: false,
+                    desc: "Freeform tags for categorization, filterable in all views. Stored as frontmatter. Color-coded label chips on cards.",
+                    resolution: "",
+                    comments: [
+                        {
+                            author: "me",
+                            date: "2 weeks ago",
+                            body: "Keep it simple: <code>**Labels:** frontend, performance, v2</code> in the markdown header. No taxonomy, no hierarchy, just strings.",
+                        },
+                    ],
+                },
+
+                {
+                    id: "DX-57",
+                    title: "Feed view lenses: Next Up, Hot Path, Quick Wins",
+                    status: "backlog",
+                    section: "backlog",
+                    files: [
+                        "src/ui/views/feed.rs",
+                        "src/ui/app.rs",
+                        "src/model/workspace.rs",
+                    ],
+                    labels: ["ux", "v2"],
+                    links: [],
+                    age: "3 days",
+                    changed: false,
+                    desc: "Add toggle pills for alternative sort lenses. Next Up: sorted by transitive unblock count. Hot Path: sorted by weighted heatmap scores. Quick Wins: fewest and coldest file touches.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-28",
+                    title: "Support arbitrary issue file names",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/workspace.rs"],
+                    labels: ["core"],
+                    links: ["FT-11"],
+                    age: "2 weeks",
+                    changed: false,
+                    desc: "Currently issue files must follow a strict naming convention. Allow user-defined filenames.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-31",
+                    title: "Status changes move issues between files automatically",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/workspace.rs"],
+                    labels: ["core"],
+                    links: [],
+                    age: "1 week",
+                    changed: false,
+                    desc: "When status changes, the backing file should relocate to the appropriate directory.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "FT-27",
+                    title: "Add comments per issue",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/model/comments.rs"],
+                    labels: ["core"],
+                    links: [],
+                    age: "2 weeks",
+                    changed: false,
+                    desc: "Issues should support threaded comments stored as separate files.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "DX-12",
+                    title: "Add round-trip save/parse tests",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["tests/roundtrip.rs"],
+                    labels: ["testing"],
+                    links: [],
+                    age: "4 weeks",
+                    changed: false,
+                    desc: "Ensure saving and re-parsing produces identical output.",
+                    resolution: "",
+                    comments: [],
+                },
+
+                {
+                    id: "DX-15",
+                    title: "Implement ishoo edit CLI command",
+                    status: "backlog",
+                    section: "backlog",
+                    files: ["src/cli/edit.rs"],
+                    labels: ["cli"],
+                    links: [],
+                    age: "4 weeks",
+                    changed: false,
+                    desc: "Open an issue in $EDITOR for inline editing.",
+                    resolution: "",
+                    comments: [],
+                },
+            ];
+
+            const sections = [
+                { key: "active", label: "Active", color: C.orange },
+                { key: "backlog", label: "Backlog", color: C.blue },
+                { key: "done", label: "Done", color: C.green },
+            ];
+
+            let compact = false,
+                focusIdx = -1,
+                currentIssues = [...issues];
+
+            function labelHTML(l) {
+                const c = labelColors[l] || "var(--ink3)";
+                return `<span class="label" style="color:${c};border-color:${c}">${l}</span>`;
+            }
+
+            // Track collapsed sections across re-renders
+            const collapsedSections = new Set();
+
+            function renderFeed() {
+                const feed = document.getElementById("feed");
+                feed.innerHTML = "";
+                sections.forEach((sec) => {
+                    const items = currentIssues.filter(
+                        (x) => x.section === sec.key,
+                    );
+                    if (!items.length) return;
+                    const s = document.createElement("div");
+                    s.className =
+                        "section" +
+                        (collapsedSections.has(sec.key) ? " collapsed" : "");
+                    s.innerHTML = `<div class="section-head"><span class="chevron">▼</span><div class="section-dot" style="background:${sec.color}"></div><span class="section-title">${sec.label}</span><span class="section-count">${items.length}</span><div class="section-line"></div></div>`;
+                    // Collapse toggle
+                    s.querySelector(".section-head").addEventListener(
+                        "click",
+                        () => {
+                            s.classList.toggle("collapsed");
+                            if (s.classList.contains("collapsed"))
+                                collapsedSections.add(sec.key);
+                            else collapsedSections.delete(sec.key);
+                            clearActiveBracket();
+                        },
+                    );
+                    const issueWrap = document.createElement("div");
+                    issueWrap.className = "section-issues";
+                    // Pre-build bracket SVG container (hidden by default)
+                    const svg = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "svg",
+                    );
+                    svg.classList.add("bracket-svg");
+                    svg.setAttribute("width", "22");
+                    issueWrap.appendChild(svg);
+
+                    items.forEach((issue) => {
+                        const gi = currentIssues.indexOf(issue);
+                        const parts = issue.id.split("-");
+                        const row = document.createElement("div");
+                        row.className = "issue-row";
+                        row.dataset.gi = gi;
+                        row.dataset.iid = issue.id;
+                        row.innerHTML = `
+        <div class="id-badge"><span class="id-cat">${parts[0]}-</span><span class="id-num">${parts[1]}</span></div>
+        <div class="issue-body">
+          <div class="issue-title">${issue.title}${issue.changed ? '<span class="ext-badge" title="Changed externally"></span>' : ""}</div>
+          <div class="issue-sub">
+            <span>${issue.files.length} file${issue.files.length !== 1 ? "s" : ""}</span>
+            <span class="sep">/</span>
+            <span>${issue.age}</span>
+            ${issue.comments.length ? `<span class="sep">/</span><span>${issue.comments.length} note${issue.comments.length !== 1 ? "s" : ""}</span>` : ""}
+          </div>
+          <div class="labels-row" style="display:flex;gap:4px;margin-top:4px;">${issue.labels.map(labelHTML).join("")}</div>
+        </div>
+        <div class="issue-right">${issue.links.some((l) => !items.find((x) => x.id === l)) ? '<span class="xlink" title="Linked to ' + issue.links.filter((l) => !items.find((x) => x.id === l)).join(", ") + ' (other section)">↗</span>' : ""}<div class="s-dot" style="background:${SC[issue.section]}"></div></div>`;
+                        row.addEventListener("click", () => openModal(gi));
+                        // Hover bracket reveal
+                        row.addEventListener("mouseenter", () =>
+                            showBracketFor(gi, issueWrap, svg),
+                        );
+                        row.addEventListener("mouseleave", () =>
+                            hideBracketFor(gi),
+                        );
+                        issueWrap.appendChild(row);
+                    });
+                    s.appendChild(issueWrap);
+                    feed.appendChild(s);
+                });
+                if (compact) feed.classList.add("compact");
+                else feed.classList.remove("compact");
+            }
+
+            // Bracket hover state
+            let activeBracketId = null;
+
+            function clearActiveBracket() {
+                document.querySelectorAll(".bracket-svg").forEach((s) => {
+                    s.classList.remove("visible");
+                    s.innerHTML = "";
+                });
+                document
+                    .querySelectorAll(".issue-row.link-hl")
+                    .forEach((r) => r.classList.remove("link-hl"));
+                activeBracketId = null;
+            }
+
+            function showBracketFor(gi, wrap, svg) {
+                const issue = currentIssues[gi];
+                if (!issue.links.length) return;
+                const rows = [...wrap.querySelectorAll(".issue-row")];
+                const sourceRow = rows.find((r) => r.dataset.iid === issue.id);
+                const targets = issue.links
+                    .map((lid) => rows.find((r) => r.dataset.iid === lid))
+                    .filter(Boolean);
+                if (!targets.length) return;
+                if (activeBracketId === issue.id) return;
+                clearActiveBracket();
+                activeBracketId = issue.id;
+
+                const wrapRect = wrap.getBoundingClientRect();
+                const srcY =
+                    sourceRow.getBoundingClientRect().top +
+                    sourceRow.getBoundingClientRect().height / 2 -
+                    wrapRect.top;
+                sourceRow.classList.add("link-hl");
+
+                svg.innerHTML = "";
+                svg.setAttribute("height", wrap.offsetHeight);
+                svg.style.height = wrap.offsetHeight + "px";
+
+                targets.forEach((targetRow) => {
+                    targetRow.classList.add("link-hl");
+                    const tgtY =
+                        targetRow.getBoundingClientRect().top +
+                        targetRow.getBoundingClientRect().height / 2 -
+                        wrapRect.top;
+                    const topY = Math.min(srcY, tgtY);
+                    const botY = Math.max(srcY, tgtY);
+                    const x = 14;
+                    const tickLen = 8;
+                    // Vertical line
+                    const line = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "line",
+                    );
+                    line.setAttribute("x1", x);
+                    line.setAttribute("y1", topY);
+                    line.setAttribute("x2", x);
+                    line.setAttribute("y2", botY);
+                    line.classList.add("bracket-line");
+                    svg.appendChild(line);
+                    // Top tick
+                    const t1 = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "line",
+                    );
+                    t1.setAttribute("x1", x);
+                    t1.setAttribute("y1", topY);
+                    t1.setAttribute("x2", x + tickLen);
+                    t1.setAttribute("y2", topY);
+                    t1.classList.add("bracket-tick");
+                    svg.appendChild(t1);
+                    // Bottom tick
+                    const t2 = document.createElementNS(
+                        "http://www.w3.org/2000/svg",
+                        "line",
+                    );
+                    t2.setAttribute("x1", x);
+                    t2.setAttribute("y1", botY);
+                    t2.setAttribute("x2", x + tickLen);
+                    t2.setAttribute("y2", botY);
+                    t2.classList.add("bracket-tick");
+                    svg.appendChild(t2);
+                });
+
+                svg.classList.add("visible");
+            }
+
+            function hideBracketFor(gi) {
+                if (activeBracketId === currentIssues[gi]?.id) {
+                    clearActiveBracket();
+                }
+            }
+
+            function openModal(i) {
+                focusIdx = i;
+                const issue = currentIssues[i];
+                const parts = issue.id.split("-");
+                const color = SC[issue.section];
+                const m = document.getElementById("modal");
+                m.innerHTML = `
+    <div class="m-accent" style="background:${color}"></div>
+    <div class="m-head">
+      <div><div class="m-id">${parts[0]}-</div><div class="m-id-num">${parts[1]}</div></div>
+      <div class="m-actions">
+        <button class="m-btn" title="Edit description">&#9998; Edit</button>
+        <button class="m-close" id="mc">&times;</button>
+      </div>
+    </div>
+    <div class="m-title">${issue.title}</div>
+    <div class="m-status-row">
+      <div class="m-dot" style="background:${color}"></div>
+      <span class="m-status-text">${SL[issue.section]}</span>
+      <div class="m-labels">${issue.labels.map(labelHTML).join("")}</div>
+    </div>
+    <hr class="m-divider">
+    <div class="m-grid">
+      <div class="m-cell"><div class="m-cell-l">Age</div><div class="m-cell-v">${issue.age}</div></div>
+      <div class="m-cell"><div class="m-cell-l">Files</div><div class="m-cell-v">${issue.files.length}</div></div>
+      <div class="m-cell"><div class="m-cell-l">Notes</div><div class="m-cell-v">${issue.comments.length}</div></div>
+    </div>
+    <div style="padding:0 28px;"><div class="m-cell-l" style="margin:8px 0 4px;">Files</div><div class="m-cell-v files">${issue.files.map((f) => `<code>${f}</code>`).join("<br>")}</div></div>
+    ${issue.links.length ? `<div class="m-links"><hr class="m-divider" style="margin:12px 0;"><div class="m-link-label">Linked Issues</div>${issue.links.map((l) => `<span class="m-link-item">&#8599; ${l}</span>`).join("")}</div>` : ""}
+    <hr class="m-divider">
+    <div class="m-body"><div class="m-body-label">Description</div>${issue.desc.replace(/\n/g, "<br>")}</div>
+    ${issue.resolution ? `<div class="m-resolution"><div class="m-body-label" style="padding:0;">Resolution</div><div class="m-res-wrap m-body">${issue.resolution}</div></div>` : ""}
+    ${issue.comments.length ? `<hr class="m-divider"><div class="m-comments"><div class="m-body-label">Notes</div>${issue.comments.map((c) => `<div class="m-comment"><div class="m-comment-head"><span class="m-comment-author">${c.author}</span><span class="m-comment-date">${c.date}</span></div><div class="m-comment-body">${c.body}</div></div>`).join("")}</div>` : ""}
+    <div class="m-nav"><span><kbd>&#8593;</kbd><kbd>&#8595;</kbd> prev / next</span><span><kbd>Esc</kbd> close</span></div>`;
+                m.querySelector("#mc").addEventListener("click", closeModal);
+                document.getElementById("overlay").classList.add("open");
+                m.scrollTop = 0;
+            }
+
+            function closeModal() {
+                document.getElementById("overlay").classList.remove("open");
+                focusIdx = -1;
+            }
+
+            document
+                .getElementById("overlay")
+                .addEventListener("click", (e) => {
+                    if (e.target === document.getElementById("overlay"))
+                        closeModal();
+                });
+
+            // Keyboard
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") closeModal();
+                if (
+                    e.key === "/" &&
+                    !document
+                        .getElementById("overlay")
+                        .classList.contains("open")
+                ) {
+                    e.preventDefault();
+                    document.getElementById("searchInput").focus();
+                }
+                if (
+                    e.key === "d" &&
+                    document.activeElement.tagName !== "INPUT"
+                ) {
+                    compact = !compact;
+                    document
+                        .querySelectorAll(".dt-btn")
+                        .forEach((b) => b.classList.toggle("active"));
+                    renderFeed();
+                }
+                if (
+                    e.key === "t" &&
+                    document.activeElement.tagName !== "INPUT"
+                ) {
+                    dmBtn.click();
+                }
+                const rows = [...document.querySelectorAll(".issue-row")];
+                if (
+                    document
+                        .getElementById("overlay")
+                        .classList.contains("open")
+                ) {
+                    const ci = rows.findIndex(
+                        (r) => parseInt(r.dataset.gi) === focusIdx,
+                    );
+                    if (e.key === "ArrowDown" && ci < rows.length - 1) {
+                        e.preventDefault();
+                        openModal(parseInt(rows[ci + 1].dataset.gi));
+                    }
+                    if (e.key === "ArrowUp" && ci > 0) {
+                        e.preventDefault();
+                        openModal(parseInt(rows[ci - 1].dataset.gi));
+                    }
+                } else {
+                    if (e.key === "j" || e.key === "k") {
+                        const dir = e.key === "j" ? 1 : -1;
+                        const ci = rows.findIndex((r) =>
+                            r.classList.contains("kb-focus"),
+                        );
+                        const ni =
+                            ci === -1
+                                ? 0
+                                : Math.max(
+                                      0,
+                                      Math.min(rows.length - 1, ci + dir),
+                                  );
+                        rows.forEach((r) => r.classList.remove("kb-focus"));
+                        rows[ni]?.classList.add("kb-focus");
+                        rows[ni]?.scrollIntoView({ block: "nearest" });
+                    }
+                    if (e.key === "Enter") {
+                        const f = rows.find((r) =>
+                            r.classList.contains("kb-focus"),
+                        );
+                        if (f) openModal(parseInt(f.dataset.gi));
+                    }
+                }
+            });
+
+            // Search
+            document
+                .getElementById("searchInput")
+                .addEventListener("input", (e) => {
+                    const q = e.target.value.toLowerCase();
+                    document.querySelectorAll(".issue-row").forEach((row) => {
+                        const i = currentIssues[row.dataset.gi];
+                        const match =
+                            i.title.toLowerCase().includes(q) ||
+                            i.id.toLowerCase().includes(q) ||
+                            i.labels.some((l) => l.includes(q));
+                        row.style.display = match ? "" : "none";
+                    });
+                });
+
+            // Density toggle
+            document.querySelectorAll(".dt-btn").forEach((b) =>
+                b.addEventListener("click", () => {
+                    document
+                        .querySelectorAll(".dt-btn")
+                        .forEach((x) => x.classList.remove("active"));
+                    b.classList.add("active");
+                    compact = b.dataset.mode === "compact";
+                    renderFeed();
+                }),
+            );
+
+            // Lens pills
+            document.querySelectorAll(".lens").forEach((l) =>
+                l.addEventListener("click", () => {
+                    document
+                        .querySelectorAll(".lens")
+                        .forEach((x) => x.classList.remove("active"));
+                    l.classList.add("active");
+                    // Sort logic (simulated)
+                    const lens = l.dataset.lens;
+                    if (lens === "order") currentIssues = [...issues];
+                    else if (lens === "nextup")
+                        currentIssues = [...issues].sort(
+                            (a, b) => b.links.length - a.links.length,
+                        );
+                    else if (lens === "hotpath")
+                        currentIssues = [...issues].sort(
+                            (a, b) => b.files.length - a.files.length,
+                        );
+                    else if (lens === "quickwins")
+                        currentIssues = [...issues].sort(
+                            (a, b) => a.files.length - b.files.length,
+                        );
+                    renderFeed();
+                }),
+            );
+
+            // Dark mode
+            const dmBtn = document.getElementById("dmToggle");
+            function setDark(on) {
+                document.documentElement.classList.toggle("dark", on);
+                dmBtn.textContent = on ? "☀" : "☽";
+            }
+            dmBtn.addEventListener("click", () => {
+                const on = document.documentElement.classList.toggle("dark");
+                dmBtn.textContent = on ? "☀" : "☽";
+            });
+
+            // View switching
+            document.querySelectorAll(".vb").forEach((b) =>
+                b.addEventListener("click", () => {
+                    document
+                        .querySelectorAll(".vb")
+                        .forEach((x) => x.classList.remove("active"));
+                    b.classList.add("active");
+                }),
+            );
+
+            // Sparkline
+            const spark = document.getElementById("spark");
+            [2, 3, 2, 4, 3, 5, 4, 6, 5, 7].forEach((v) => {
+                const s = document.createElement("span");
+                s.style.height = v * 1.5 + "px";
+                spark.appendChild(s);
+            });
+
+            renderFeed();
+        </script>
+    </body>
+</html>

@@ -13,48 +13,6 @@ Note: switching to `notify` alone does NOT fix the race condition in the current
 
 ---
 
-## [6] Move CSS to native asset files
-**Status:** DONE
-**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs` (deleted)
-
-**Resolution:** Migrated all CSS from Rust string literals into a standard `assets/style.css` file. Used the standard Rust `include_str!` macro to bundle the stylesheet directly into the binary at compile time. This preserves the "single executable" portability and `cargo install` compatibility while allowing for a proper CSS development experience with syntax highlighting and linting.
-
----
-
-## [7] Implement issue deletion via CLI
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
-
-**Resolution:** 
-
----
-
-## [31] Status changes move issues between files automatically
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
-
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
-
-**Resolution:** 
-
----
-
-## [30] Render markdown in description and resolution fields
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Depends on:** [8]
-
-Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
-After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
-
-**Resolution:** 
-
----
-
 ## [5] Add conflict resolution for concurrent edits
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/model/workspace.rs`
@@ -66,22 +24,6 @@ Resolution should include:
 - Content hash or generation counter comparison before overwriting
 - A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
 - Optionally, per-issue dirty tracking instead of a single global `dirty` flag
-
-**Resolution:** 
-
----
-
-## [8] Switch to AST-based markdown parser
-**Status:** OPEN
-**Files:** `src/model/parse.rs`
-
-The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
-Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
-- Make parsing robust against human typos
-- Enable round-tripping of unknown/custom fields
-- Simplify the accumulator state machine
-- Potentially support richer description content (inline code blocks, lists, etc.)
-This is the highest-impact backlog item.
 
 **Resolution:** 
 
@@ -107,6 +49,45 @@ This requires updating:
 
 ---
 
+## [7] Implement issue deletion via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
+
+**Resolution:** 
+
+---
+
+## [30] Render markdown in description and resolution fields
+**Status:** OPEN
+**Files:** `src/ui/views/feed/card.rs`
+**Depends on:** [8]
+
+Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
+After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
+
+**Resolution:** 
+
+---
+
+## [8] Switch to AST-based markdown parser
+**Status:** OPEN
+**Files:** `src/model/parse.rs`
+
+The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
+Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
+- Make parsing robust against human typos
+- Enable round-tripping of unknown/custom fields
+- Simplify the accumulator state machine
+- Potentially support richer description content (inline code blocks, lists, etc.)
+This is the highest-impact backlog item.
+
+**Resolution:** 
+
+---
+
 ## [42] Protect against data loss on crash during save
 **Status:** OPEN
 **Files:** `src/model/workspace.rs`
@@ -122,14 +103,6 @@ Fix:
 
 ---
 
-## [14] Fix re-render performance in physics loop
-**Status:** DONE
-**Files:** `src/ui/views/physics.rs` (deleted), `src/ui/views/feed.rs`
-
-**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
-
----
-
 ## [9] Add global keyboard shortcuts
 **Status:** OPEN
 **Files:** `src/ui/app.rs`
@@ -139,6 +112,17 @@ Essential keyboard shortcuts for the desktop app:
 - `Cmd/Ctrl + S` — Save All
 - `Esc` — Close modal or collapse active card
 Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
+
+**Resolution:** 
+
+---
+
+## [31] Status changes move issues between files automatically
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
 
 **Resolution:** 
 

@@ -2,6 +2,22 @@
 
 ---
 
+## [6] Move CSS to native asset files
+**Status:** DONE
+**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`
+
+**Resolution:** Migrated all CSS from Rust string literals into a standard `assets/style.css` file. Used the standard Rust `include_str!` macro to bundle the stylesheet directly into the binary at compile time. This preserves the "single executable" portability and `cargo install` compatibility while allowing for a proper CSS development experience with syntax highlighting and linting.
+
+---
+
+## [14] Fix re-render performance in physics loop
+**Status:** DONE
+**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
+
+**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
+
+---
+
 ## [47] Fix drag-and-drop state corruption after first reorder
 **Status:** DONE
 **Files:** `src/ui/views/physics.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
