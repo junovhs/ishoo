@@ -1,21 +1,17 @@
 mod card;
 
 use super::physics::{DragState, PendingReorder};
-use crate::model::Issue;
+use crate::model::{Issue, Status};
 use card::IssueCard;
 use dioxus::prelude::*;
-use std::collections::HashMap;
 
 const DRAG_THRESHOLD: f32 = 5.0;
 
 #[derive(Clone, PartialEq, Props)]
 pub struct FeedViewProps {
     pub issues: Vec<Issue>,
-    pub active_id: Option<u32>,
-    pub on_toggle: EventHandler<u32>,
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
-    pub on_collapse_all: EventHandler<()>,
     pub on_reorder: EventHandler<(u32, u32, bool)>,
 }
 
@@ -24,41 +20,16 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
     let issues_clone = props.issues.clone();
     let mut issues_for_layout = use_signal(|| issues_clone.clone());
-    let mut card_screen_tops: Signal<Vec<(u32, f32)>> = use_signal(Vec::new);
+    let mut modal_id: Signal<Option<u32>> = use_signal(|| None);
 
     // Keep layout signal in sync with props
     use_effect(move || {
         issues_for_layout.set(issues_clone.clone());
     });
 
-    // Measure real card positions after render
-    use_effect(move || {
-        let _ = issues_for_layout.read();
-        spawn(async move {
-            let js = "Array.from(document.querySelectorAll('[data-card-id]')).map(el => [parseInt(el.dataset.cardId), el.getBoundingClientRect().top])";
-            let ev = document::eval(js);
-            if let Ok(val) = ev.await {
-                if let Some(arr) = val.as_array() {
-                    let tops: Vec<(u32, f32)> = arr
-                        .iter()
-                        .filter_map(|v| {
-                            let pair = v.as_array()?;
-                            let id = pair.first()?.as_f64()? as u32;
-                            let top = pair.get(1)?.as_f64()? as f32;
-                            Some((id, top))
-                        })
-                        .collect();
-                    card_screen_tops.set(tops);
-                }
-            }
-        });
-    });
-
-    let (section_order, section_map) = group_by_section(&props.issues);
-
     let on_reorder = props.on_reorder;
 
-    // Physics loop — spawns ONCE per component mount via use_coroutine
+    // Physics loop — spawns ONCE per component mount
     use_coroutine(move |_rx: UnboundedReceiver<()>| async move {
         let mut last_time = tokio::time::Instant::now();
         loop {
@@ -104,9 +75,10 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 let mut ds = drag_state.write();
                 if let Some(id) = ds.dragging_id {
                     if !ds.is_dragging {
+                        // Tap, not drag — open modal
                         ds.reset();
                         drop(ds);
-                        props.on_toggle.call(id);
+                        modal_id.set(Some(id));
                     } else {
                         let dy = ds.cur_y - ds.start_y;
                         let dx = (ds.cur_x - ds.start_x) * 0.6;
@@ -134,53 +106,130 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             },
 
             div { class: "feed-inner",
-                for name in &section_order {
-                    {
-                        let items = &section_map[name];
-                        rsx! {
-                            div { class: "sec-hdr",
-                                span { "{name}" }
-                                div { class: "sec-line" }
-                                span { class: "sec-ct", "{items.len()}" }
-                            }
-                            for issue in items {
-                                IssueCard {
-                                    key: "{issue.id}",
-                                    issue: issue.clone(),
-                                    expanded: props.active_id == Some(issue.id),
-                                    drag_state: drag_state,
-                                    issues_for_layout: issues_for_layout,
-                                    card_screen_tops: card_screen_tops,
-                                    on_collapse_all: props.on_collapse_all,
-                                    on_status: props.on_status,
-                                    on_resolution: props.on_resolution,
-                                }
-                            }
-                        }
+                for issue in &props.issues {
+                    IssueCard {
+                        key: "{issue.id}",
+                        issue: issue.clone(),
+                        drag_state: drag_state,
+                        issues_for_layout: issues_for_layout,
+                        on_open: move |id| modal_id.set(Some(id)),
                     }
                 }
                 div { style: "height:200px;" }
             }
         }
-    }
-}
 
-fn group_by_section(issues: &[Issue]) -> (Vec<String>, HashMap<String, Vec<Issue>>) {
-    let mut section_order: Vec<String> = Vec::new();
-    let mut section_map: HashMap<String, Vec<Issue>> = HashMap::new();
-
-    for issue in issues {
-        if !section_map.contains_key(&issue.section) {
-            section_order.push(issue.section.clone());
+        // Detail modal
+        if let Some(id) = modal_id() {
+            if let Some(issue) = props.issues.iter().find(|i| i.id == id) {
+                IssueModal {
+                    issue: issue.clone(),
+                    on_close: move |_| modal_id.set(None),
+                    on_status: props.on_status,
+                    on_resolution: props.on_resolution,
+                }
+            }
         }
-        section_map
-            .entry(issue.section.clone())
-            .or_default()
-            .push(issue.clone());
     }
-
-    (section_order, section_map)
 }
+
+// ─── Modal ───────────────────────────────────────────────────────────────────
+
+#[derive(Clone, PartialEq, Props)]
+struct IssueModalProps {
+    issue: Issue,
+    on_close: EventHandler<()>,
+    on_status: EventHandler<(u32, String)>,
+    on_resolution: EventHandler<(u32, String)>,
+}
+
+#[component]
+fn IssueModal(props: IssueModalProps) -> Element {
+    let i = &props.issue;
+    let id = i.id;
+
+    rsx! {
+        div {
+            class: "modal-overlay",
+            onclick: move |_| props.on_close.call(()),
+
+            div {
+                class: "modal",
+                onclick: move |e| e.stop_propagation(),
+
+                div { class: "modal-header",
+                    h2 {
+                        span { class: "cid", style: "margin-right:12px;", "#{id}" }
+                        "{i.title}"
+                    }
+                    div { style: "display:flex;align-items:center;gap:12px;",
+                        span { class: "badge b-{i.status.css_class()}", "{i.status.label()}" }
+                        button {
+                            class: "modal-close",
+                            onclick: move |_| props.on_close.call(()),
+                            "×"
+                        }
+                    }
+                }
+
+                div { class: "modal-body",
+                    div { class: "detail-grid",
+                        div { class: "detail-l",
+                            if !i.description.is_empty() {
+                                div { class: "fgroup",
+                                    label { class: "flbl", "Description" }
+                                    div { class: "desc-block", "{i.description}" }
+                                }
+                            }
+                            div { class: "fgroup",
+                                label { class: "flbl", "Resolution Notes" }
+                                textarea {
+                                    class: "res-input",
+                                    rows: "5",
+                                    placeholder: "Log your solution…",
+                                    value: "{i.resolution}",
+                                    oninput: move |e| props.on_resolution.call((id, e.value())),
+                                }
+                            }
+                        }
+                        div { class: "detail-r",
+                            div { class: "fgroup",
+                                label { class: "flbl", "Status" }
+                                select {
+                                    class: "sel",
+                                    value: "{i.status.label()}",
+                                    onchange: move |e| props.on_status.call((id, e.value())),
+                                    option { value: "OPEN", selected: i.status == Status::Open, "Open" }
+                                    option { value: "IN PROGRESS", selected: i.status == Status::InProgress, "In Progress" }
+                                    option { value: "DONE", selected: i.status == Status::Done, "Done" }
+                                    option { value: "DESCOPED", selected: i.status == Status::Descoped, "Descoped" }
+                                }
+                            }
+                            if !i.files.is_empty() {
+                                div { class: "fgroup",
+                                    label { class: "flbl", "Files" }
+                                    div { class: "chips",
+                                        for f in &i.files { span { class: "chip-file", "{f}" } }
+                                    }
+                                }
+                            }
+                            if !i.depends_on.is_empty() {
+                                div { class: "fgroup",
+                                    label { class: "flbl", "Depends On" }
+                                    div { class: "chips",
+                                        for d in &i.depends_on { span { class: "chip-dep", "#{d}" } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn exceeds_threshold(ds: &DragState) -> bool {
     (ds.cur_x - ds.start_x).abs() > DRAG_THRESHOLD

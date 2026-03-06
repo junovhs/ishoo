@@ -2,17 +2,6 @@
 
 ---
 
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
-
-**Resolution:** 
-
----
-
 ## [11] Implement categorical issue IDs
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
@@ -28,20 +17,6 @@ This requires updating:
 - All ID comparisons, sorting, and display logic
 - The CLI `show`, `set`, and `new` commands to accept string IDs
 - The `new` command to accept `--category` or infer from a default
-
-**Resolution:** 
-
----
-
-## [13] Prevent silent data loss from discover_root ambiguity
-**Status:** OPEN
-**Files:** `src/model/mod.rs`
-
-`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
-Fix:
-- If multiple candidates contain issue files, print a warning listing all matches and which was selected
-- Default to the first match but make the choice visible
-- The `init` command should print the chosen path explicitly
 
 **Resolution:** 
 
@@ -65,16 +40,26 @@ Steps:
 
 ---
 
-## [42] Protect against data loss on crash during save
+## [13] Prevent silent data loss from discover_root ambiguity
 **Status:** OPEN
-**Files:** `src/model/workspace.rs`
+**Files:** `src/model/mod.rs`
 
-`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
+`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
 Fix:
-- Write to a temporary file in the same directory (`issues-active.md.tmp`)
-- `fsync` the temp file
-- Atomically rename the temp file to the target name
-- On startup, detect and clean up orphaned `.tmp` files
+- If multiple candidates contain issue files, print a warning listing all matches and which was selected
+- Default to the first match but make the choice visible
+- The `init` command should print the chosen path explicitly
+
+**Resolution:** 
+
+---
+
+## [4] Replace polling with OS file system events
+**Status:** IN PROGRESS
+**Files:** `src/ui/app.rs`, `Cargo.toml`
+
+The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
 
 **Resolution:** 
 
@@ -89,6 +74,21 @@ Options:
 - Derive or implement `PartialEq` on `DragState` (complex due to `HashMap<u32, Spring>`)
 - Split drag state into per-card signals so only affected cards re-render
 - Use CSS transforms driven by a single DOM manipulation pass instead of per-component state
+
+**Resolution:** 
+
+---
+
+## [42] Protect against data loss on crash during save
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`
+
+`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
+Fix:
+- Write to a temporary file in the same directory (`issues-active.md.tmp`)
+- `fsync` the temp file
+- Atomically rename the temp file to the target name
+- On startup, detect and clean up orphaned `.tmp` files
 
 **Resolution:** 
 

@@ -35,7 +35,6 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
 
     let mut issues = use_signal(|| initial.issues);
     let search = use_signal(String::new);
-    let active_id = use_signal(|| None::<u32>);
     let view = use_signal(|| View::Feed);
     let dirty = use_signal(|| false);
     let modal = use_signal(|| false);
@@ -92,7 +91,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
             {render_sidebar(view, stats.clone(), dirty, modal, reinit_modal, state)}
             main { class: "main",
                 {render_topbar(search, modal, &stats)}
-                {render_content(view, filtered, active_id, dirty, state)}
+                {render_content(view, filtered, dirty, state)}
             }
         }
     }
@@ -282,10 +281,12 @@ fn render_topbar(mut search: Signal<String>, mut modal: Signal<bool>, stats: &St
     }
 }
 
+// Replace render_content in app.rs with this.
+// Removed: active_id signal, on_toggle, on_collapse_all — all moved into FeedView.
+
 fn render_content(
     view: Signal<View>,
     filtered: Vec<Issue>,
-    mut active_id: Signal<Option<u32>>,
     mut dirty: Signal<bool>,
     state: AppState,
 ) -> Element {
@@ -295,8 +296,7 @@ fn render_content(
             match view() {
                 View::Feed => rsx! {
                     views::FeedView {
-                        issues: filtered.clone(), active_id: active_id(),
-                        on_toggle: move |id| active_id.set(if active_id() == Some(id) { None } else { Some(id) }),
+                        issues: filtered.clone(),
                         on_status: move |(id, s): (u32, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }
                             dirty.set(true);
@@ -305,7 +305,6 @@ fn render_content(
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.resolution = t; }
                             dirty.set(true);
                         },
-                        on_collapse_all: move |_| active_id.set(None),
                         on_reorder: move |(drag, target, after): (u32, u32, bool)| {
                             let mut all = issues();
                             if let Some(idx) = all.iter().position(|i| i.id == drag) {
