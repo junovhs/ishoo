@@ -1,60 +1,89 @@
 use crate::model::Issue;
-use crate::ui::views::physics::DragState;
+use crate::ui::views::feed::DragState;
 use dioxus::prelude::*;
 
-pub const CARD_HDR_HEIGHT: f32 = 54.0;
-pub const CARD_GAP: f32 = 9.0;
-pub const SLOT_SIZE: f32 = CARD_HDR_HEIGHT + CARD_GAP;
+pub const CARD_H: f32 = 54.0;
+pub const GAP: f32 = 9.0;
+pub const SLOT: f32 = CARD_H + GAP;
 
 #[derive(Clone, PartialEq, Props)]
 pub struct IssueCardProps {
     pub issue: Issue,
+    pub idx: usize,
     pub drag_state: Signal<DragState>,
-    pub all_issues: Vec<Issue>,
-    pub on_open: EventHandler<u32>,
 }
 
 #[component]
-pub fn IssueCard(mut props: IssueCardProps) -> Element {
+pub fn IssueCard(props: IssueCardProps) -> Element {
     let i = &props.issue;
     let id = i.id;
+    let idx = props.idx;
+    let ds = props.drag_state.read();
 
-    let (item_class, item_style, card_style) = compute_styles(id, &props.drag_state.read());
+    let is_dragging = ds.dragging_id == Some(id);
+
+    // Compute the effective index for where this card should visually sit right now
+    let mut target_idx = idx as i32;
+    if ds.dragging_id.is_some() && !is_dragging {
+        let start = ds.start_idx as i32;
+        let hover = ds.hover_idx as i32;
+        let curr = idx as i32;
+        
+        if curr > start && curr <= hover {
+            target_idx -= 1; // Shift up to make room for dragged card moving down
+        } else if curr < start && curr >= hover {
+            target_idx += 1; // Shift down to make room for dragged card moving up
+        }
+    }
+
+    let y_pos = if is_dragging && !ds.releasing {
+        // Free follow cursor relative to the starting slot
+        (ds.start_idx as f32 * SLOT) + ds.offset_y
+    } else if is_dragging && ds.releasing {
+        // Snap/suck into the final hover socket
+        ds.hover_idx as f32 * SLOT
+    } else {
+        // Displaced cards or resting cards sit strictly in their assigned socket
+        target_idx as f32 * SLOT
+    };
+
+    let transition = if is_dragging && !ds.releasing {
+        "none" // Instantly follow cursor
+    } else if is_dragging && ds.releasing {
+        "transform 200ms cubic-bezier(0.2, 0, 0, 1), box-shadow 200ms ease" // Suck into socket
+    } else {
+        "transform 200ms ease" // Displaced cards sliding around
+    };
+
+    let cls = if is_dragging && !ds.releasing {
+        "item dragging"
+    } else if is_dragging && ds.releasing {
+        "item settling"
+    } else {
+        "item"
+    };
+
+    let outer_style = format!(
+        "position: absolute; top: 0; left: 0; right: 0; transform: translate3d(0, {y_pos}px, 0); transition: {transition};"
+    );
+
+    let mut drag_state_signal = props.drag_state;
 
     rsx! {
-        div { class: "{item_class}", style: "{item_style}",
+        div { 
+            class: "{cls}", 
+            style: "{outer_style}",
             div {
                 class: "card",
-                style: "{card_style}",
                 onpointerdown: move |e| {
                     e.prevent_default();
-
-                    let coords = e.client_coordinates();
-                    let x = coords.x as f32;
-                    let y = coords.y as f32;
-
-                    let layout_ids: Vec<u32> = props.all_issues.iter().map(|i| i.id).collect();
-                    let orig_idx = layout_ids.iter().position(|&i| i == id).unwrap_or(0);
-
-                    let nat_tops: Vec<f32> = (0..layout_ids.len())
-                        .map(|i| y + (i as f32 - orig_idx as f32) * SLOT_SIZE)
-                        .collect();
-
-                    let mut ds = props.drag_state.write();
-                    ds.reset();
-                    ds.dragging_id = Some(id);
-                    ds.is_dragging = false;
-                    ds.start_x = x;
-                    ds.start_y = y;
-                    ds.cur_x = x;
-                    ds.cur_y = y;
-                    ds.nat_tops = nat_tops;
-                    ds.layout_ids = layout_ids;
-                    ds.orig_idx = orig_idx;
-                    ds.cur_idx = orig_idx;
-
-                    ds.scale_spring.set(1.0);
-                    ds.scale_spring.target = 1.05;
+                    let mut ds_write = drag_state_signal.write();
+                    ds_write.dragging_id = Some(id);
+                    ds_write.start_idx = idx;
+                    ds_write.hover_idx = idx;
+                    ds_write.start_y = e.client_coordinates().y as f32;
+                    ds_write.offset_y = 0.0;
+                    ds_write.releasing = false;
                 },
                 div { class: "card-hdr",
                     span { class: "cid", "#{id}" }
@@ -64,56 +93,4 @@ pub fn IssueCard(mut props: IssueCardProps) -> Element {
             }
         }
     }
-}
-
-fn compute_styles(id: u32, ds: &DragState) -> (String, String, String) {
-    let is_dragging = ds.is_dragging && ds.dragging_id == Some(id);
-    let is_settling = ds.settling_id == Some(id);
-
-    let mut item_class = "item".to_string();
-    if is_dragging {
-        item_class.push_str(" dragging");
-    }
-    if is_settling {
-        item_class.push_str(" settling");
-    }
-
-    let (item_style, card_style) = if is_dragging {
-        let dy = ds.cur_y - ds.start_y;
-        let dx = (ds.cur_x - ds.start_x) * 0.4;
-        (
-            format!("transform: translate3d(0,{}px,0); z-index: 500;", dy),
-            format!(
-                "transform: translate3d({}px,0,0) scale3d({s},{s},1);",
-                dx,
-                s = ds.scale_spring.pos
-            ),
-        )
-    } else if is_settling {
-        (
-            format!(
-                "transform: translate3d(0,{}px,0); z-index: 400;",
-                ds.y_return.pos
-            ),
-            format!(
-                "transform: translate3d({}px,0,0) scale3d({s},{s},1);",
-                ds.x_return.pos,
-                s = ds.scale_spring.pos
-            ),
-        )
-    } else if let Some(spring) = ds.item_springs.get(&id) {
-        // During drag only — item_springs are cleared on release.
-        if spring.pos.abs() > 0.1 {
-            (
-                format!("transform: translate3d(0,{}px,0);", spring.pos),
-                String::new(),
-            )
-        } else {
-            (String::new(), String::new())
-        }
-    } else {
-        (String::new(), String::new())
-    };
-
-    (item_class, item_style, card_style)
 }

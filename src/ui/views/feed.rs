@@ -1,11 +1,18 @@
 mod card;
 
-use super::physics::DragState;
 use crate::model::{Issue, Status};
-use card::IssueCard;
+use card::{IssueCard, SLOT};
 use dioxus::prelude::*;
 
-const DRAG_THRESHOLD: f32 = 5.0;
+#[derive(Clone, Default, PartialEq)]
+pub struct DragState {
+    pub dragging_id: Option<u32>,
+    pub start_idx: usize,
+    pub hover_idx: usize,
+    pub start_y: f32,
+    pub offset_y: f32,
+    pub releasing: bool,
+}
 
 #[derive(Clone, PartialEq, Props)]
 pub struct FeedViewProps {
@@ -19,124 +26,91 @@ pub struct FeedViewProps {
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
     let mut modal_id: Signal<Option<u32>> = use_signal(|| None);
-
     let on_reorder = props.on_reorder;
-
-    // Physics loop — spawns ONCE per component mount
-    use_coroutine(move |_rx: UnboundedReceiver<()>| async move {
-        let mut last_time = tokio::time::Instant::now();
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(8)).await;
-            let now = tokio::time::Instant::now();
-            let dt = now.duration_since(last_time).as_secs_f32();
-            last_time = now;
-
-            let is_active = drag_state.read().is_active();
-            if is_active {
-                let mut ds = drag_state.write();
-                if ds.is_dragging && ds.dragging_id.is_some() {
-                    ds.step_drag(dt);
-                } else if ds.settling_id.is_some() {
-                    let done = ds.step_settle(dt);
-                    if done {
-                        drop(ds);
-                        // Nothing to fire — reorder already happened on pointer-up.
-                    }
-                }
-            }
-        }
-    });
+    
+    // Captured for index lookups inside the event handlers
+    let issues_len = props.issues.len();
+    let issues_for_up = props.issues.clone();
+    
+    // Compute total absolute container height, plus the 200px scroll padding at the bottom
+    let total_height = (issues_len as f32 * SLOT) + 200.0;
 
     rsx! {
         div {
             class: "feed",
             onpointermove: move |e| {
-                let coords = e.client_coordinates();
-                let x = coords.x as f32;
-                let y = coords.y as f32;
-
                 let mut ds = drag_state.write();
-                if ds.dragging_id.is_some() {
-                    let dt = 1.0 / 60.0;
-                    ds.update_velocity(x, y, dt);
-
-                    if !ds.is_dragging && exceeds_threshold(&ds) {
-                        ds.is_dragging = true;
-                    }
+                if ds.dragging_id.is_some() && !ds.releasing {
+                    ds.offset_y = e.client_coordinates().y as f32 - ds.start_y;
+                    
+                    // What slot grid is the card currently dragged over?
+                    let raw_y = (ds.start_idx as f32 * SLOT) + ds.offset_y;
+                    let max_idx = issues_len.saturating_sub(1);
+                    ds.hover_idx = (raw_y / SLOT).round().clamp(0.0, max_idx as f32) as usize;
                 }
             },
             onpointerup: move |_| {
                 let mut ds = drag_state.write();
                 if let Some(id) = ds.dragging_id {
-                    if !ds.is_dragging {
-                        // Tap, not drag — open modal
-                        ds.reset();
+                    if ds.releasing { return; }
+
+                    // If it was just a tiny click/movement, clear drag and open the issue modal
+                    if ds.offset_y.abs() < 5.0 && ds.start_idx == ds.hover_idx {
+                        ds.dragging_id = None;
                         drop(ds);
                         modal_id.set(Some(id));
-                    } else {
-                        let dy = ds.cur_y - ds.start_y;
-                        let dx = (ds.cur_x - ds.start_x) * 0.6;
-                        let new_idx = ds.cur_idx;
-                        let orig_idx = ds.orig_idx;
-
-                        // FLIP: compute where the card visually is vs where it will
-                        // live after reorder. Spring from this delta → 0.
-                        let old_top = ds.nat_tops.get(orig_idx).copied().unwrap_or(0.0);
-                        let new_top = ds.nat_tops.get(new_idx).copied().unwrap_or(old_top);
-                        // Visual position = old_top + dy (where pointer released it).
-                        // New DOM position = new_top.
-                        // FLIP delta = visual - new_dom.
-                        let flip_delta_y = (old_top + dy) - new_top;
-
-                        // Fire reorder NOW, before settle, so DOM is in final state
-                        // when the spring animation plays.
-                        if new_idx != orig_idx {
-                            match ds.layout_ids.get(new_idx).copied() {
-                                Some(target_id) if target_id != 0 && target_id != id => {
-                                    let insert_after = new_idx > orig_idx;
-                                    drop(ds);
-                                    on_reorder.call((id, target_id, insert_after));
-                                    // Re-acquire to set settle state
-                                    let mut ds = drag_state.write();
-                                    ds.begin_settle(flip_delta_y, dx);
-                                    ds.settling_id = Some(id);
-                                    ds.dragging_id = None;
-                                }
-                                _ => {
-                                    // Out-of-bounds or sentinel — settle in place (delta=0)
-                                    ds.begin_settle(flip_delta_y, dx);
-                                    ds.settling_id = Some(id);
-                                    ds.dragging_id = None;
-                                }
-                            }
-                        } else {
-                            // No slot change — settle back to original position
-                            ds.begin_settle(flip_delta_y, dx);
-                            ds.settling_id = Some(id);
-                            ds.dragging_id = None;
-                        }
+                        return;
                     }
+
+                    // Otherwise, trigger the snap-to-socket animation on the card
+                    ds.releasing = true;
+                    
+                    let drag_id = id;
+                    let start_idx = ds.start_idx;
+                    let hover_idx = ds.hover_idx;
+                    
+                    // MUST drop the write lock before we can copy the drag_state signal
+                    // into the spawned future
+                    drop(ds);
+                    
+                    let issues_clone = issues_for_up.clone();
+                    let on_reorder_clone = on_reorder;
+                    let mut ds_signal = drag_state;
+
+                    spawn(async move {
+                        // Wait exactly the length of the 200ms CSS transition
+                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        
+                        if start_idx != hover_idx {
+                            if let Some(target) = issues_clone.get(hover_idx) {
+                                let target_id = target.id;
+                                let after = hover_idx > start_idx;
+                                on_reorder_clone.call((drag_id, target_id, after));
+                            }
+                        }
+                        ds_signal.set(DragState::default());
+                    });
                 }
             },
             onpointercancel: move |_| {
-                drag_state.write().reset();
+                drag_state.set(DragState::default());
             },
 
-            div { class: "feed-inner",
-                for issue in &props.issues {
+            div { 
+                class: "feed-inner",
+                // absolute container required so cards measure from the top
+                style: "position: relative; height: {total_height}px;",
+                for (idx, issue) in props.issues.iter().enumerate() {
                     IssueCard {
                         key: "{issue.id}",
                         issue: issue.clone(),
+                        idx: idx,
                         drag_state: drag_state,
-                        all_issues: props.issues.clone(),
-                        on_open: move |id| modal_id.set(Some(id)),
                     }
                 }
-                div { style: "height:200px;" }
             }
         }
 
-        // Detail modal
         if let Some(id) = modal_id() {
             if let Some(issue) = props.issues.iter().find(|i| i.id == id) {
                 IssueModal {
@@ -149,8 +123,6 @@ pub fn FeedView(props: FeedViewProps) -> Element {
         }
     }
 }
-
-// ─── Modal ───────────────────────────────────────────────────────────────────
 
 #[derive(Clone, PartialEq, Props)]
 struct IssueModalProps {
@@ -169,11 +141,9 @@ fn IssueModal(props: IssueModalProps) -> Element {
         div {
             class: "modal-overlay",
             onclick: move |_| props.on_close.call(()),
-
             div {
                 class: "modal",
                 onclick: move |e| e.stop_propagation(),
-
                 div { class: "modal-header",
                     h2 {
                         span { class: "cid", style: "margin-right:12px;", "#{id}" }
@@ -188,7 +158,6 @@ fn IssueModal(props: IssueModalProps) -> Element {
                         }
                     }
                 }
-
                 div { class: "modal-body",
                     div { class: "detail-grid",
                         div { class: "detail-l",
@@ -244,10 +213,4 @@ fn IssueModal(props: IssueModalProps) -> Element {
             }
         }
     }
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-fn exceeds_threshold(ds: &DragState) -> bool {
-    (ds.cur_x - ds.start_x).abs() > DRAG_THRESHOLD || (ds.cur_y - ds.start_y).abs() > DRAG_THRESHOLD
 }

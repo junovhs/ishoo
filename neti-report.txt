@@ -2,14 +2,12 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 28 files | 36741 tokens | 5 violations
+SCAN SUMMARY: 27 files | 34132 tokens | 2 violations
 
 ALL VIOLATING FILES:
     2 violations | src/model/workspace.rs
-    2 violations | src/ui/views/physics.rs
-    1 violations | src/ui/app.rs
 
-warn: [1 of 2] Class 'Workspace' is tightly coupled (CBO: 18)
+warn: Class 'Workspace' is tightly coupled (CBO: 18)
   --> src/model/workspace.rs:9
    |
      8 | #[derive(Debug, Clone)]
@@ -37,40 +35,7 @@ warn: Class 'Workspace' has high fan-out (SFOUT: 8)
    |
    = SUPPRESS: // neti:allow(SFOUT) on the line, or SFOUT = "warn" in neti.toml [rules]
 
-error: File size is 3343 tokens (Limit: 3300)
-  --> src/ui/app.rs:1
-   |
-     1 | use super::toast::{Toast, ToastContainer, ToastKind};
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     2 | use super::welcome::WelcomeScreen;
-   = LAW OF ATOMICITY: Fix required
-   |
-   = WHY: Files beyond the token limit are too large for a single unit of work, increasing cognitive load and merge conflict risk.
-   |
-   = FIX: Split the file into smaller, focused modules. Extract related functions into their own files.
-   |
-   = SUPPRESS: // neti:allow(LAW OF ATOMICITY) on the line, or LAW OF ATOMICITY = "warn" in neti.toml [rules]
-
-warn: Class 'DragState' exposes too much state (AHF: 0.0%)
-  --> src/ui/views/physics.rs:53
-   |
-    52 | #[derive(Clone)]
-    53 | pub struct DragState {
-   | ^^^^^^^^^^^^^^^^^^^^^^
-    54 |     pub dragging_id: Option<u32>,
-   = AHF: Review recommended — public fields may be intentional API surface (data structs, config)
-   |
-   = ANALYSIS:
-   |   AHF is 0.0% (min 60%)
-   |   0 of 17 fields are private.
-   |
-   = SUPPRESS: // neti:allow(AHF) on the line, or AHF = "warn" in neti.toml [rules]
-
-warn: [2 of 2] Class 'DragState' is tightly coupled (CBO: 16)
-  --> src/ui/views/physics.rs:53
-   = CBO: External dependencies: 16 — see first CBO above
-
-X Neti found 1 error, 4 warnings (268ms).
+~ Neti found 2 warnings (280ms).
 
 
 ========================================
@@ -78,7 +43,7 @@ NETI LOCALITY REPORT
 ========================================
 
 Mode: warn
-Edges analyzed: 16
+Edges analyzed: 15
 Violations: 0
 Cycles: 0
 Result: PASS
@@ -89,8 +54,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (1141ms)
+> PASS (1400ms)
 
 $ cargo test
-> PASS (1361ms)
+> PASS (1731ms)
 

@@ -2,45 +2,6 @@
 
 ---
 
-## [7] Implement issue deletion via CLI
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
-
-**Resolution:** 
-
----
-
-## [30] Render markdown in description and resolution fields
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Depends on:** [8]
-
-Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
-After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
-
-**Resolution:** 
-
----
-
-## [8] Switch to AST-based markdown parser
-**Status:** OPEN
-**Files:** `src/model/parse.rs`
-
-The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
-Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
-- Make parsing robust against human typos
-- Enable round-tripping of unknown/custom fields
-- Simplify the accumulator state machine
-- Potentially support richer description content (inline code blocks, lists, etc.)
-This is the highest-impact backlog item.
-
-**Resolution:** 
-
----
-
 ## [6] Move CSS to native asset files
 **Status:** OPEN
 **Files:** `src/ui/styles.rs`, `src/ui/styles_viz.rs`, `Dioxus.toml`, `assets/`
@@ -54,6 +15,28 @@ Steps:
 4. Replace the `@import url()` with local `@font-face` declarations
 5. Update `Dioxus.toml` to bundle the `assets/` directory
 6. Delete `styles.rs` and `styles_viz.rs`
+
+**Resolution:** 
+
+---
+
+## [31] Status changes move issues between files automatically
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
+
+**Resolution:** 
+
+---
+
+## [7] Implement issue deletion via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
 
 **Resolution:** 
 
@@ -75,26 +58,49 @@ Resolution should include:
 
 ---
 
-## [31] Status changes move issues between files automatically
+## [30] Render markdown in description and resolution fields
 **Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+**Files:** `src/ui/views/feed/card.rs`
+**Depends on:** [8]
 
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
+Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
+After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
 
 **Resolution:** 
 
 ---
 
-## [13] Prevent silent data loss from discover_root ambiguity
+## [11] Implement categorical issue IDs
 **Status:** OPEN
-**Files:** `src/model/mod.rs`
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
 
-`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
-Fix:
-- If multiple candidates contain issue files, print a warning listing all matches and which was selected
-- Default to the first match but make the choice visible
-- The `init` command should print the chosen path explicitly
+Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
+New ID format: `<CATEGORY>-<NUMBER>` where:
+- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
+- Number is zero-padded, monotonically increasing per category, never reused
+- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
+This requires updating:
+- The `Issue` struct (`id: u32` → `id: String`)
+- The parser heading regex (`## [47]` → `## [BUG-47]`)
+- All ID comparisons, sorting, and display logic
+- The CLI `show`, `set`, and `new` commands to accept string IDs
+- The `new` command to accept `--category` or infer from a default
+
+**Resolution:** 
+
+---
+
+## [8] Switch to AST-based markdown parser
+**Status:** OPEN
+**Files:** `src/model/parse.rs`
+
+The line-based parser breaks on minor formatting variations (e.g., `*Status:**` with a missing asterisk, or extra blank lines inside a field). It also cannot preserve unknown fields through a parse-save round-trip.
+Migrate to `pulldown-cmark` or a YAML frontmatter approach. This would:
+- Make parsing robust against human typos
+- Enable round-tripping of unknown/custom fields
+- Simplify the accumulator state machine
+- Potentially support richer description content (inline code blocks, lists, etc.)
+This is the highest-impact backlog item.
 
 **Resolution:** 
 
@@ -154,21 +160,15 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 ---
 
-## [11] Implement categorical issue IDs
+## [13] Prevent silent data loss from discover_root ambiguity
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+**Files:** `src/model/mod.rs`
 
-Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
-New ID format: `<CATEGORY>-<NUMBER>` where:
-- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
-- Number is zero-padded, monotonically increasing per category, never reused
-- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
-This requires updating:
-- The `Issue` struct (`id: u32` → `id: String`)
-- The parser heading regex (`## [47]` → `## [BUG-47]`)
-- All ID comparisons, sorting, and display logic
-- The CLI `show`, `set`, and `new` commands to accept string IDs
-- The `new` command to accept `--category` or infer from a default
+`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
+Fix:
+- If multiple candidates contain issue files, print a warning listing all matches and which was selected
+- Default to the first match but make the choice visible
+- The `init` command should print the chosen path explicitly
 
 **Resolution:** 
 

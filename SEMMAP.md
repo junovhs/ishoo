@@ -46,7 +46,7 @@ Implements App functionality.
 → Exports: App
 
 `src/ui/components.rs`
-Implements stat row.
+Implements nav btn.
 → Exports: NavBtn, StatRow
 
 `src/ui/styles.rs`
@@ -72,11 +72,11 @@ Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/physics.rs`
-Pending reorder to fire after settle completes.
-→ Exports: PendingReorder, calculate_shift, is_active, slot_size
+Implements step settle.
+→ Exports: calculate_shift, is_active, slot_size, update_velocity
 
 `src/ui/views/viz.rs`
-Implements timeline view.
+Implements heatmap view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -98,7 +98,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
+Creates workspace at. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`
