@@ -41,8 +41,6 @@ body {
     font-family: "DM Mono", monospace;
     color: var(--ink);
     min-height: 100vh;
-    display: flex;
-    justify-content: center;
     padding: 28px 20px;
 }
 .app {
@@ -411,25 +409,33 @@ body {
 }
 
 /* Feed View & Cards */
-.feed { touch-action: none; padding-bottom: 200px; }
+.feed { 
+    --card-h: 54px;
+    --gap: 9px;
+    touch-action: none; 
+    padding-bottom: 200px; 
+}
+.feed.compact {
+    --card-h: 36px;
+    --gap: 4px;
+}
 .feed-inner { position: relative; }
-.item { position: absolute; left: 0; right: 0; touch-action: none; will-change: transform; z-index: 1; height: 54px; }
+.item { position: absolute; left: 0; right: 0; touch-action: none; will-change: transform; z-index: 1; height: var(--card-h); }
 .item.dragging { z-index: 500; }
 .item.settling { z-index: 400; }
 .item.dragging .issue-row {
     cursor: grabbing;
     background: var(--bg);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    border: 1px solid var(--ink);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.4);
     border-radius: 5px;
     opacity: 1;
 }
 
 /* Issue rows */
 .issue-row {
-    height: 54px;
+    height: var(--card-h);
     display: grid;
-    grid-template-columns: 72px 1fr auto;
+    grid-template-columns: 72px minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
     padding: 0 12px;
@@ -616,7 +622,7 @@ html.dark .modal-overlay {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 0;
-    padding: 0 28px;
+    padding: 0 16px;
 }
 .m-cell {
     padding: 10px 0;

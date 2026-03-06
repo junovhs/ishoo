@@ -2,16 +2,13 @@ use crate::model::Issue;
 use crate::ui::views::feed::DragState;
 use dioxus::prelude::*;
 
-pub const CARD_H: f32 = 54.0;
-pub const GAP: f32 = 9.0;
-pub const SLOT: f32 = CARD_H + GAP;
-
 #[derive(Clone, PartialEq, Props)]
 pub struct IssueCardProps {
     pub issue: Issue,
     pub idx: usize,
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
     pub drag_state: Signal<DragState>,
+    pub is_compact: bool,
 }
 
 #[component]
@@ -25,15 +22,17 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
 
     // Compute the effective index for where this card should visually sit right now
     let mut virtual_y = props.virtual_y;
+    let slot_h = if props.is_compact { 40.0 } else { 63.0 };
+    
     if ds.dragging_id.is_some() && !is_dragging {
         let start = ds.start_idx as i32;
         let hover = ds.hover_idx as i32;
         let curr = idx as i32;
         
         if curr > start && curr <= hover {
-            virtual_y -= SLOT; // Shift up to make room for dragged card moving down
+            virtual_y -= slot_h; // Shift up to make room for dragged card moving down
         } else if curr < start && curr >= hover {
-            virtual_y += SLOT; // Shift down to make room for dragged card moving up
+            virtual_y += slot_h; // Shift down to make room for dragged card moving up
         }
     }
 
@@ -108,15 +107,17 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     div { class: "issue-title",
                         "{i.title}"
                     }
-                    div { class: "issue-sub",
-                        span { "{i.files.len()} file", if i.files.len() != 1 { "s" } }
-                        span { class: "sep", "/" }
-                        span { "2 days" }
-                    }
-                    div { class: "labels-row", style: "display:flex;gap:4px;margin-top:4px;",
-                        span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
-                        // Mock labels for now since model doesn't have them
-                        span { class: "label", style: "color:var(--ink3);border-color:var(--ink3)", "Core" }
+                    if !props.is_compact {
+                        div { class: "issue-sub",
+                            span { "{i.files.len()} file", if i.files.len() != 1 { "s" } }
+                            span { class: "sep", "/" }
+                            span { "2 days" }
+                        }
+                        div { class: "labels-row", style: "display:flex;gap:4px;margin-top:4px;",
+                            span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
+                            // Mock labels for now since model doesn't have them
+                            span { class: "label", style: "color:var(--ink3);border-color:var(--ink3)", "Core" }
+                        }
                     }
                 }
                 div { class: "issue-right", // Empty space on the right, matches the dot and links

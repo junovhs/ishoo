@@ -2,7 +2,7 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 27 files | 51620 tokens | 2 violations
+SCAN SUMMARY: 27 files | 51793 tokens | 2 violations
 
 ALL VIOLATING FILES:
     1 violations | src\ui\app.rs
@@ -22,11 +22,11 @@ error: [1 of 2] File size is 3844 tokens (Limit: 3300)
    |
    = SUPPRESS: // neti:allow(LAW OF ATOMICITY) on the line, or LAW OF ATOMICITY = "warn" in neti.toml [rules]
 
-error: [2 of 2] File size is 3469 tokens (Limit: 3300)
+error: [2 of 2] File size is 3605 tokens (Limit: 3300)
   --> src\ui\views\feed.rs:1
    = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
 
-X Neti found 2 errors (303ms).
+X Neti found 2 errors (299ms).
 
 
 ========================================
@@ -34,8 +34,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (1681ms)
+> PASS (540ms)
 
 $ cargo test
-> PASS (3556ms)
+> PASS (420ms)
 

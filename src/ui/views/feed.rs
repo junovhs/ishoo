@@ -2,7 +2,7 @@
 mod card;
 
 use crate::model::{Issue, Status};
-use card::{IssueCard, SLOT};
+use card::IssueCard;
 use dioxus::prelude::*;
 
 #[derive(Clone, Default, PartialEq)]
@@ -36,9 +36,11 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let issues_len = props.issues.len();
     let issues_for_up = props.issues.clone();
     
+    let slot_h = if props.is_compact { 40.0 } else { 63.0 };
+    
     // Compute total absolute container height, plus the 200px scroll padding at the bottom
-    // We add 1 SLOT worth of height for each of the 3 section headers
-    let total_height = (issues_len as f32 * SLOT) + (3.0 * SLOT) + 200.0;
+    // We add 1 slot_h worth of height for each of the 3 section headers
+    let total_height = (issues_len as f32 * slot_h) + (3.0 * slot_h) + 200.0;
     
     // We need to track which sections are currently collapsed
     let mut collapsed = use_signal(std::collections::HashSet::<String>::new);
@@ -52,6 +54,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     ds.offset_y = e.client_coordinates().y as f32 - ds.start_y;
                     
                     let logical_y = ds.start_virtual_y + ds.offset_y;
+                    let sl = if props.is_compact { 40.0 } else { 63.0 };
                     
                     let sections = [
                         ("Active", "active", "var(--orange)"),
@@ -82,7 +85,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         v_idx += 1;
                         if !collapsed.read().contains(key) {
                             for (idx, _) in section_items {
-                                let vy = v_idx as f32 * SLOT;
+                                let vy = v_idx as f32 * sl;
                                 let dist = (vy - logical_y).abs();
                                 if dist < min_dist {
                                     min_dist = dist;
@@ -135,12 +138,20 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                 on_reorder_clone.call((drag_id, target_id, after));
                             }
                         }
+                        
+                        // Critical logic: Wait 50ms for the workspace array mutation to propagate 
+                        // down into the FeedView properties AND re-render visually before we kill the 
+                        // hovering/settling transition CSS. This perfectly eliminates the origin snapback.
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         ds_signal.set(DragState::default());
                     });
                 }
             },
             onpointercancel: move |_| {
-                drag_state.set(DragState::default());
+                let mut ds = drag_state.write();
+                if !ds.releasing {
+                    *ds = DragState::default();
+                }
             },
 
             div { 
@@ -210,19 +221,18 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         }
                         
                         let is_collapsed = collapsed.read().contains(key);
-                        let _chevron_class = if is_collapsed { "chevron collapsed" } else { "chevron" };
-                        let y_pos = virtual_idx as f32 * SLOT;
+                        let y_pos = virtual_idx as f32 * slot_h;
                         
                         let key_clone = key.to_string();
                         let count = section_items.len();
                         
-                        // Push the header element into the container natively, taking up 1 SLOT.
+                        // Push the header element into the container natively, taking up 1 slot.
                         // For the section class, we append " collapsed" if true, though the CSS 
                         // handles the chevron separately via the outer class. We'll just style the chevron directly.
                         elements.push(rsx! {
                             div {
                                 class: "section-head",
-                                style: "position: absolute; top: {y_pos}px; left: 0; right: 0; height: {SLOT}px;",
+                                style: "position: absolute; top: {y_pos}px; left: 0; right: 0; height: {slot_h}px;",
                                 onclick: move |_| {
                                     let mut c = collapsed.write();
                                     if c.contains(&key_clone) {
@@ -251,8 +261,9 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                         key: "{issue.id}",
                                         issue: issue.clone(),
                                         idx: idx,
-                                        virtual_y: virtual_idx as f32 * SLOT, // We need to modify IssueCard to take `virtual_y`
+                                        virtual_y: virtual_idx as f32 * slot_h, // We need to modify IssueCard to take `virtual_y`
                                         drag_state: drag_state,
+                                        is_compact: props.is_compact,
                                     }
                                 });
                                 virtual_idx += 1;
