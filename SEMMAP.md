@@ -72,11 +72,11 @@ Real screen tops of all cards, measured by JS eval after each render.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/physics.rs`
-Fixed-timestep sub-step integration.
-→ Exports: anchor_nat_tops, calculate_shift, is_active, slot_size
+Pending reorder to fire after settle completes.
+→ Exports: PendingReorder, calculate_shift, is_active, slot_size
 
 `src/ui/views/viz.rs`
-Implements graph view.
+Implements timeline view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -92,13 +92,13 @@ Parses markdown. [UTIL]
 ## Layer 3 -- App / Entrypoints
 
 `dragging-prototype.html`
-Smooth Reorder
+Smooth Reorder (Engine-grade, no release jitter)
 
 `src/main.rs`
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
+Creates workspace at. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`

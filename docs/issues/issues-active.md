@@ -2,6 +2,17 @@
 
 ---
 
+## [4] Replace polling with OS file system events
+**Status:** IN PROGRESS
+**Files:** `src/ui/app.rs`, `Cargo.toml`
+
+The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+
+**Resolution:** 
+
+---
+
 ## [11] Implement categorical issue IDs
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
@@ -22,12 +33,15 @@ This requires updating:
 
 ---
 
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
+## [13] Prevent silent data loss from discover_root ambiguity
+**Status:** OPEN
+**Files:** `src/model/mod.rs`
 
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
+Fix:
+- If multiple candidates contain issue files, print a warning listing all matches and which was selected
+- Default to the first match but make the choice visible
+- The `init` command should print the chosen path explicitly
 
 **Resolution:** 
 
@@ -75,20 +89,6 @@ Options:
 - Derive or implement `PartialEq` on `DragState` (complex due to `HashMap<u32, Spring>`)
 - Split drag state into per-card signals so only affected cards re-render
 - Use CSS transforms driven by a single DOM manipulation pass instead of per-component state
-
-**Resolution:** 
-
----
-
-## [13] Prevent silent data loss from discover_root ambiguity
-**Status:** OPEN
-**Files:** `src/model/mod.rs`
-
-`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
-Fix:
-- If multiple candidates contain issue files, print a warning listing all matches and which was selected
-- Default to the first match but make the choice visible
-- The `init` command should print the chosen path explicitly
 
 **Resolution:** 
 

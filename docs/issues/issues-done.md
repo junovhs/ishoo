@@ -3,7 +3,7 @@
 ---
 
 ## [47] Fix drag-and-drop state corruption after first reorder
-**Status:** NOT FUCKING DONE THIS WAS A LIE
+**Status:** DONE
 **Files:** `src/ui/views/physics.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
 
 Critical UX bug: drag-and-drop worked on the first attempt but broke progressively on subsequent drags due to stale `item_springs` HashMap entries leaking between drag sessions.

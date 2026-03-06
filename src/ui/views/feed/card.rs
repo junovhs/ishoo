@@ -44,12 +44,13 @@ pub fn IssueCard(mut props: IssueCardProps) -> Element {
                         let layout_ids: Vec<u32> = issues.iter().map(|i| i.id).collect();
                         let orig_idx = layout_ids.iter().position(|&i| i == id).unwrap_or(0);
 
-                        // Estimate positions: assume ~62px card height + 9px margin = 71px per slot
-                        // This is a fallback; we'll refine it
-                        let slot_size = 71.0_f32;
-                        let base_top = y - (orig_idx as f32 * slot_size);
+                        // CSS: card header padding 16px top + 16px bottom + ~22px line-height
+                        // + 1px border top + 1px border bottom + 9px margin-bottom = 65px/slot.
+                        // Anchored so nat_tops[orig_idx] == start_y exactly, making slot
+                        // detection independent of where within the card the pointer lands.
+                        let slot_size = 65.0_f32;
                         let nat_tops: Vec<f32> = (0..layout_ids.len())
-                            .map(|i| base_top + (i as f32 * slot_size))
+                            .map(|i| y + (i as f32 - orig_idx as f32) * slot_size)
                             .collect();
 
                         let mut ds = props.drag_state.write();
