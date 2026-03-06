@@ -1,6 +1,6 @@
 mod card;
 
-use super::physics::{DragState, PendingReorder};
+use super::physics::DragState;
 use crate::model::{Issue, Status};
 use card::IssueCard;
 use dioxus::prelude::*;
@@ -18,14 +18,7 @@ pub struct FeedViewProps {
 #[component]
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
-    let issues_clone = props.issues.clone();
-    let mut issues_for_layout = use_signal(|| issues_clone.clone());
     let mut modal_id: Signal<Option<u32>> = use_signal(|| None);
-
-    // Keep layout signal in sync with props
-    use_effect(move || {
-        issues_for_layout.set(issues_clone.clone());
-    });
 
     let on_reorder = props.on_reorder;
 
@@ -44,9 +37,10 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 if ds.is_dragging && ds.dragging_id.is_some() {
                     ds.step_drag(dt);
                 } else if ds.settling_id.is_some() {
-                    if let Some(reorder) = ds.step_settle(dt) {
+                    let done = ds.step_settle(dt);
+                    if done {
                         drop(ds);
-                        on_reorder.call((reorder.drag_id, reorder.target_id, reorder.insert_after));
+                        // Nothing to fire — reorder already happened on pointer-up.
                     }
                 }
             }
@@ -85,19 +79,42 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         let new_idx = ds.cur_idx;
                         let orig_idx = ds.orig_idx;
 
-                        if new_idx != orig_idx {
-                            let target_id = ds.layout_ids.get(new_idx).copied().unwrap_or(0);
-                            let insert_after = new_idx > orig_idx;
-                            ds.pending_reorder = Some(PendingReorder {
-                                drag_id: id,
-                                target_id,
-                                insert_after,
-                            });
-                        }
+                        // FLIP: compute where the card visually is vs where it will
+                        // live after reorder. Spring from this delta → 0.
+                        let old_top = ds.nat_tops.get(orig_idx).copied().unwrap_or(0.0);
+                        let new_top = ds.nat_tops.get(new_idx).copied().unwrap_or(old_top);
+                        // Visual position = old_top + dy (where pointer released it).
+                        // New DOM position = new_top.
+                        // FLIP delta = visual - new_dom.
+                        let flip_delta_y = (old_top + dy) - new_top;
 
-                        ds.begin_settle(dy, dx, new_idx);
-                        ds.settling_id = Some(id);
-                        ds.dragging_id = None;
+                        // Fire reorder NOW, before settle, so DOM is in final state
+                        // when the spring animation plays.
+                        if new_idx != orig_idx {
+                            match ds.layout_ids.get(new_idx).copied() {
+                                Some(target_id) if target_id != 0 && target_id != id => {
+                                    let insert_after = new_idx > orig_idx;
+                                    drop(ds);
+                                    on_reorder.call((id, target_id, insert_after));
+                                    // Re-acquire to set settle state
+                                    let mut ds = drag_state.write();
+                                    ds.begin_settle(flip_delta_y, dx);
+                                    ds.settling_id = Some(id);
+                                    ds.dragging_id = None;
+                                }
+                                _ => {
+                                    // Out-of-bounds or sentinel — settle in place (delta=0)
+                                    ds.begin_settle(flip_delta_y, dx);
+                                    ds.settling_id = Some(id);
+                                    ds.dragging_id = None;
+                                }
+                            }
+                        } else {
+                            // No slot change — settle back to original position
+                            ds.begin_settle(flip_delta_y, dx);
+                            ds.settling_id = Some(id);
+                            ds.dragging_id = None;
+                        }
                     }
                 }
             },
@@ -111,7 +128,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         key: "{issue.id}",
                         issue: issue.clone(),
                         drag_state: drag_state,
-                        issues_for_layout: issues_for_layout,
+                        all_issues: props.issues.clone(),
                         on_open: move |id| modal_id.set(Some(id)),
                     }
                 }
@@ -232,6 +249,5 @@ fn IssueModal(props: IssueModalProps) -> Element {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn exceeds_threshold(ds: &DragState) -> bool {
-    (ds.cur_x - ds.start_x).abs() > DRAG_THRESHOLD
-        || (ds.cur_y - ds.start_y).abs() > DRAG_THRESHOLD
+    (ds.cur_x - ds.start_x).abs() > DRAG_THRESHOLD || (ds.cur_y - ds.start_y).abs() > DRAG_THRESHOLD
 }

@@ -281,9 +281,6 @@ fn render_topbar(mut search: Signal<String>, mut modal: Signal<bool>, stats: &St
     }
 }
 
-// Replace render_content in app.rs with this.
-// Removed: active_id signal, on_toggle, on_collapse_all — all moved into FeedView.
-
 fn render_content(
     view: Signal<View>,
     filtered: Vec<Issue>,
@@ -306,12 +303,29 @@ fn render_content(
                             dirty.set(true);
                         },
                         on_reorder: move |(drag, target, after): (u32, u32, bool)| {
+                            if drag == target || target == 0 {
+                                return;
+                            }
                             let mut all = issues();
                             if let Some(idx) = all.iter().position(|i| i.id == drag) {
                                 let mut iss = all.remove(idx);
                                 if let Some(tidx) = all.iter().position(|i| i.id == target) {
                                     iss.section = all[tidx].section.clone();
-                                    all.insert(if after { tidx + 1 } else { tidx }.min(all.len()), iss);
+                                    let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
+                                    all.insert(insert_at, iss);
+                                } else {
+                                    all.insert(idx.min(all.len()), iss);
+                                }
+                                #[cfg(debug_assertions)]
+                                {
+                                    let mut seen = std::collections::HashSet::new();
+                                    for i in all.iter() {
+                                        assert!(
+                                            seen.insert(i.id),
+                                            "on_reorder: duplicate id {} (drag={} target={} after={})",
+                                            i.id, drag, target, after
+                                        );
+                                    }
                                 }
                             }
                             issues.set(all);

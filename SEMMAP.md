@@ -68,7 +68,7 @@ Implements feed view props.
 → Exports: FeedViewProps, FeedView
 
 `src/ui/views/feed/card.rs`
-Real screen tops of all cards, measured by JS eval after each render.
+Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/physics.rs`
@@ -98,7 +98,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Creates workspace at. [TYPE]
+Implements status ord. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`

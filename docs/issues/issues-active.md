@@ -1,112 +1,15 @@
 # ACTIVE Issues
 
 ---
+[NEW] Displaced cards should be locked in place before release
+User's description:
+Cards occupy fixed slots in a deterministic grid. Each slot has a fixed height. When you drag a card and others move out of the way, that movement happens during the drag — those cards animate to their new grid positions while you are still holding. By the time you release, the displaced cards are already sitting exactly where they belong. They are done. They do not move on release. Only the dragged card itself needs to animate into its final slot on release.
+Current broken behaviour:
+Displaced cards animate or jump on release, causing visible gaps and overlaps. This is wrong because those cards should already be in their final positions before the user lets go.
+Desired behaviour:
 
-## [11] Implement categorical issue IDs
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+During drag: displaced cards move to their offset grid positions (this is already working)
+On release: displaced cards do not move at all — they are already correct
+On release: only the dragged card animates into its new slot
 
-Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
-New ID format: `<CATEGORY>-<NUMBER>` where:
-- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
-- Number is zero-padded, monotonically increasing per category, never reused
-- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
-This requires updating:
-- The `Issue` struct (`id: u32` → `id: String`)
-- The parser heading regex (`## [47]` → `## [BUG-47]`)
-- All ID comparisons, sorting, and display logic
-- The CLI `show`, `set`, and `new` commands to accept string IDs
-- The `new` command to accept `--category` or infer from a default
-
-**Resolution:** 
-
----
-
-## [6] Move CSS to native asset files
-**Status:** OPEN
-**Files:** `src/ui/styles.rs`, `src/ui/styles_viz.rs`, `Dioxus.toml`, `assets/`
-
-Dioxus supports standard CSS files served from an `assets/` directory. There is zero reason to embed 4KB+ of minified CSS inside Rust string literals — it kills syntax highlighting, linting, and auto-completion.
-Additionally, the current `@import url()` for Google Fonts (DM Sans, JetBrains Mono) fetches from the network at runtime, which silently degrades to system fonts when offline. This contradicts the local-first philosophy. The font files should be bundled in `assets/fonts/` and loaded via `@font-face`.
-Steps:
-1. Create `assets/base.css`, `assets/card.css`, `assets/drag.css`, `assets/modal.css`, `assets/viz.css`
-2. Move each `pub const` CSS block from `styles.rs` / `styles_viz.rs` into the corresponding file
-3. Download DM Sans and JetBrains Mono `.woff2` files into `assets/fonts/`
-4. Replace the `@import url()` with local `@font-face` declarations
-5. Update `Dioxus.toml` to bundle the `assets/` directory
-6. Delete `styles.rs` and `styles_viz.rs`
-
-**Resolution:** 
-
----
-
-## [13] Prevent silent data loss from discover_root ambiguity
-**Status:** OPEN
-**Files:** `src/model/mod.rs`
-
-`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
-Fix:
-- If multiple candidates contain issue files, print a warning listing all matches and which was selected
-- Default to the first match but make the choice visible
-- The `init` command should print the chosen path explicitly
-
-**Resolution:** 
-
----
-
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
-
-**Resolution:** 
-
----
-
-## [14] Fix re-render performance in physics loop
-**Status:** OPEN
-**Files:** `src/ui/views/physics.rs`, `src/ui/views/feed/card.rs`
-
-`Signal<DragState>` compares by pointer, not by value (DragState doesn't implement PartialEq). This means every physics tick (60fps) triggers a re-render of every `IssueCard`, even cards that aren't moving. With 50+ issues this will be visibly slow.
-Options:
-- Derive or implement `PartialEq` on `DragState` (complex due to `HashMap<u32, Spring>`)
-- Split drag state into per-card signals so only affected cards re-render
-- Use CSS transforms driven by a single DOM manipulation pass instead of per-component state
-
-**Resolution:** 
-
----
-
-## [42] Protect against data loss on crash during save
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`
-
-`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
-Fix:
-- Write to a temporary file in the same directory (`issues-active.md.tmp`)
-- `fsync` the temp file
-- Atomically rename the temp file to the target name
-- On startup, detect and clean up orphaned `.tmp` files
-
-**Resolution:** 
-
----
-
-## [12] Add round-trip save/parse tests
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/model/parse.rs`
-
-There are no tests that verify `parse → mutate → save → parse` produces equivalent results. This is where the real data-loss bugs hide. Specifically:
-1. Unknown fields (e.g., a user manually adds `**Priority:** HIGH`) are silently dropped on save because `write_section` only emits known fields
-2. Description whitespace and blank lines may not survive a round-trip
-3. Section assignment during save is asymmetric — DONE status forces migration to `issues-done.md`, but DESCOPED does not
-Write property-based or snapshot tests that:
-- Parse sample markdown, save it, parse again, and assert structural equality
-- Inject unknown fields and verify they survive (or explicitly document that they won't)
-- Mutate status and verify correct file routing
-
-**Resolution:** 
-
----
+user is extremely frustrated with the current ordering system being fundamentally broken.

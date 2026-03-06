@@ -15,7 +15,14 @@ pub struct Spring {
 
 impl Spring {
     pub fn new(stiffness: f32, damping: f32, mass: f32, initial: f32) -> Self {
-        Self { stiffness, damping, mass, pos: initial, target: initial, vel: 0.0 }
+        Self {
+            stiffness,
+            damping,
+            mass,
+            pos: initial,
+            target: initial,
+            vel: 0.0,
+        }
     }
 
     pub fn step(&mut self, dt: f32) {
@@ -42,14 +49,6 @@ impl Spring {
     }
 }
 
-/// Pending reorder to fire after settle completes
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PendingReorder {
-    pub drag_id: u32,
-    pub target_id: u32,
-    pub insert_after: bool,
-}
-
 #[derive(Clone)]
 pub struct DragState {
     pub dragging_id: Option<u32>,
@@ -59,20 +58,20 @@ pub struct DragState {
     pub start_x: f32,
     pub cur_y: f32,
     pub cur_x: f32,
-    // Smoothed velocity (prototype style)
     pub vx: f32,
     pub vy: f32,
     pub orig_idx: usize,
     pub cur_idx: usize,
     pub nat_tops: Vec<f32>,
     pub layout_ids: Vec<u32>,
-    // Springs tuned to match prototype exactly
-    pub scale_spring: Spring,  // k=650, c=28
-    pub x_return: Spring,      // k=420, c=34
-    pub y_return: Spring,      // k=560, c=40
-    pub item_springs: HashMap<u32, Spring>, // k=900, c=45
-    /// Reorder to commit after settle animation completes
-    pub pending_reorder: Option<PendingReorder>,
+    pub scale_spring: Spring,
+    pub x_return: Spring,
+    pub y_return: Spring,
+    // Keyed by card id → spring animating toward ±slot_size or 0.
+    // Used ONLY during drag for the spring-in animation.
+    // Cleared to empty on release — displaced cards need zero transform
+    // after on_reorder moves the DOM into final position.
+    pub item_springs: HashMap<u32, Spring>,
 }
 
 const VEL_SMOOTH: f32 = 0.35;
@@ -93,12 +92,10 @@ impl Default for DragState {
             cur_idx: 0,
             nat_tops: vec![],
             layout_ids: vec![],
-            // Match prototype spring constants exactly
             scale_spring: Spring::new(650.0, 28.0, 1.0, 1.0),
             x_return: Spring::new(420.0, 34.0, 1.0, 0.0),
             y_return: Spring::new(560.0, 40.0, 1.0, 0.0),
             item_springs: HashMap::new(),
-            pending_reorder: None,
         }
     }
 }
@@ -118,10 +115,8 @@ impl DragState {
         self.y_return.set(0.0);
         self.vx = 0.0;
         self.vy = 0.0;
-        self.pending_reorder = None;
     }
 
-    /// Update smoothed velocity (call each frame during drag)
     pub fn update_velocity(&mut self, new_x: f32, new_y: f32, dt: f32) {
         let dt = dt.max(1.0 / 120.0);
         let inst_vx = (new_x - self.cur_x) / dt;
@@ -160,47 +155,39 @@ impl DragState {
         let slot_size = self.slot_size();
         let ids = self.layout_ids.clone();
         for (i, &id) in ids.iter().enumerate() {
-            if i == orig { continue; }
-            let shift = calculate_shift(orig, cur, i, slot_size);
+            if i == orig {
+                continue;
+            }
+            let target = calculate_shift(orig, cur, i, slot_size);
             let spring = self
                 .item_springs
                 .entry(id)
-                // Match prototype: k=900, c=45
                 .or_insert_with(|| Spring::new(900.0, 45.0, 1.0, 0.0));
-            spring.target = shift;
+            spring.target = target;
             spring.step(dt);
         }
     }
 
-    /// Returns Some(pending_reorder) when settle is fully complete
-    pub fn step_settle(&mut self, dt: f32) -> Option<PendingReorder> {
+    pub fn step_settle(&mut self, dt: f32) -> bool {
         self.y_return.step(dt);
         self.x_return.step(dt);
         self.scale_spring.step(dt);
 
-        let mut all_done = self.y_return.done(0.25)
-            && self.x_return.done(0.25)
-            && self.scale_spring.done(0.002);
+        // item_springs are cleared on release — nothing to step here.
+        // Only the dragged card's y_return/x_return/scale need settling.
 
-        for spring in self.item_springs.values_mut() {
-            spring.step(dt);
-            if !spring.done(0.25) {
-                all_done = false;
-            }
-        }
-
-        if all_done {
-            let reorder = self.pending_reorder.take();
+        if self.y_return.done(0.25) && self.x_return.done(0.25) && self.scale_spring.done(0.002) {
             self.settling_id = None;
-            self.item_springs.clear();
-            return reorder;
+            return true;
         }
 
-        None
+        false
     }
 
     pub fn slot_size(&self) -> f32 {
-        if self.nat_tops.len() < 2 { return 62.0; }
+        if self.nat_tops.len() < 2 {
+            return 62.0;
+        }
         self.nat_tops[1] - self.nat_tops[0]
     }
 
@@ -208,13 +195,8 @@ impl DragState {
         self.slot_size() * 0.4
     }
 
-    /// Prepare settle springs after pointer-up.
-    /// Carries release velocity into the spring for momentum.
-    pub fn begin_settle(&mut self, dy: f32, dx: f32, new_idx: usize) {
-        let old_top = self.nat_tops.get(self.orig_idx).copied().unwrap_or(0.0);
-        let new_top = self.nat_tops.get(new_idx).copied().unwrap_or(old_top);
-
-        self.y_return.pos = old_top + dy - new_top;
+    pub fn begin_settle(&mut self, flip_delta_y: f32, dx: f32) {
+        self.y_return.pos = flip_delta_y;
         self.y_return.target = 0.0;
         self.y_return.vel = self.vy * 0.3;
 
@@ -224,18 +206,23 @@ impl DragState {
 
         self.scale_spring.target = 1.0;
 
-        for spring in self.item_springs.values_mut() {
-            spring.target = 0.0;
-        }
+        // Clear all item springs. on_reorder has already fired and moved
+        // every card to its correct DOM slot — their natural transform is
+        // zero. Any nonzero spring value here would cause a visible jump.
+        self.item_springs.clear();
 
         self.is_dragging = false;
     }
 }
 
 pub fn calculate_shift(orig: usize, cur: usize, i: usize, slot_size: f32) -> f32 {
-    if orig < cur && i > orig && i <= cur { -slot_size }
-    else if orig > cur && i >= cur && i < orig { slot_size }
-    else { 0.0 }
+    if orig < cur && i > orig && i <= cur {
+        -slot_size
+    } else if orig > cur && i >= cur && i < orig {
+        slot_size
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]

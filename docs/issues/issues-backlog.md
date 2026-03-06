@@ -2,17 +2,24 @@
 
 ---
 
-## [5] Add conflict resolution for concurrent edits
+## [7] Implement issue deletion via CLI
 **Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/model/workspace.rs`
-**Depends on:** [4]
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
 
-If the user modifies an issue in the UI (`dirty = true`) and an external process modifies the markdown simultaneously, "Save All" overwrites the external changes with no warning.
-The current poll handler also has an internal race: the `if !dirty()` check and `issues.set()` are not atomic, so a user edit between those two calls is silently dropped even without external interference.
-Resolution should include:
-- Content hash or generation counter comparison before overwriting
-- A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
-- Optionally, per-issue dirty tracking instead of a single global `dirty` flag
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
+
+**Resolution:** 
+
+---
+
+## [30] Render markdown in description and resolution fields
+**Status:** OPEN
+**Files:** `src/ui/views/feed/card.rs`
+**Depends on:** [8]
+
+Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
+After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
 
 **Resolution:** 
 
@@ -34,12 +41,100 @@ This is the highest-impact backlog item.
 
 ---
 
-## [7] Implement issue deletion via CLI
+## [6] Move CSS to native asset files
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+**Files:** `src/ui/styles.rs`, `src/ui/styles_viz.rs`, `Dioxus.toml`, `assets/`
 
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
+Dioxus supports standard CSS files served from an `assets/` directory. There is zero reason to embed 4KB+ of minified CSS inside Rust string literals — it kills syntax highlighting, linting, and auto-completion.
+Additionally, the current `@import url()` for Google Fonts (DM Sans, JetBrains Mono) fetches from the network at runtime, which silently degrades to system fonts when offline. This contradicts the local-first philosophy. The font files should be bundled in `assets/fonts/` and loaded via `@font-face`.
+Steps:
+1. Create `assets/base.css`, `assets/card.css`, `assets/drag.css`, `assets/modal.css`, `assets/viz.css`
+2. Move each `pub const` CSS block from `styles.rs` / `styles_viz.rs` into the corresponding file
+3. Download DM Sans and JetBrains Mono `.woff2` files into `assets/fonts/`
+4. Replace the `@import url()` with local `@font-face` declarations
+5. Update `Dioxus.toml` to bundle the `assets/` directory
+6. Delete `styles.rs` and `styles_viz.rs`
+
+**Resolution:** 
+
+---
+
+## [5] Add conflict resolution for concurrent edits
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/model/workspace.rs`
+**Depends on:** [4]
+
+If the user modifies an issue in the UI (`dirty = true`) and an external process modifies the markdown simultaneously, "Save All" overwrites the external changes with no warning.
+The current poll handler also has an internal race: the `if !dirty()` check and `issues.set()` are not atomic, so a user edit between those two calls is silently dropped even without external interference.
+Resolution should include:
+- Content hash or generation counter comparison before overwriting
+- A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
+- Optionally, per-issue dirty tracking instead of a single global `dirty` flag
+
+**Resolution:** 
+
+---
+
+## [31] Status changes move issues between files automatically
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
+
+**Resolution:** 
+
+---
+
+## [13] Prevent silent data loss from discover_root ambiguity
+**Status:** OPEN
+**Files:** `src/model/mod.rs`
+
+`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
+Fix:
+- If multiple candidates contain issue files, print a warning listing all matches and which was selected
+- Default to the first match but make the choice visible
+- The `init` command should print the chosen path explicitly
+
+**Resolution:** 
+
+---
+
+## [4] Replace polling with OS file system events
+**Status:** IN PROGRESS
+**Files:** `src/ui/app.rs`, `Cargo.toml`
+
+The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+
+**Resolution:** 
+
+---
+
+## [42] Protect against data loss on crash during save
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`
+
+`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
+Fix:
+- Write to a temporary file in the same directory (`issues-active.md.tmp`)
+- `fsync` the temp file
+- Atomically rename the temp file to the target name
+- On startup, detect and clean up orphaned `.tmp` files
+
+**Resolution:** 
+
+---
+
+## [14] Fix re-render performance in physics loop
+**Status:** OPEN
+**Files:** `src/ui/views/physics.rs`, `src/ui/views/feed/card.rs`
+
+`Signal<DragState>` compares by pointer, not by value (DragState doesn't implement PartialEq). This means every physics tick (60fps) triggers a re-render of every `IssueCard`, even cards that aren't moving. With 50+ issues this will be visibly slow.
+Options:
+- Derive or implement `PartialEq` on `DragState` (complex due to `HashMap<u32, Spring>`)
+- Split drag state into per-card signals so only affected cards re-render
+- Use CSS transforms driven by a single DOM manipulation pass instead of per-component state
 
 **Resolution:** 
 
@@ -59,39 +154,21 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 ---
 
-## [15] Implement ishoo edit CLI command
+## [11] Implement categorical issue IDs
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
 
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on [8] for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-
-**Resolution:** 
-
----
-
-## [16] Preserve unknown markdown fields through save
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
-**Depends on:** [8]
-
-If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
-After [8] lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
-
-**Resolution:** 
-
----
-
-## [21] Add labels/tags system
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
-
-Issues need lightweight categorization beyond status. A `**Labels:**` field with comma-separated tags (e.g., `frontend, performance, v2`) would enable:
-- Filtering the feed by label
-- Color-coded label chips on cards
-- CLI filtering: `ishoo list --label performance`
-Labels should be freeform strings, not from a fixed set.
+Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
+New ID format: `<CATEGORY>-<NUMBER>` where:
+- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
+- Number is zero-padded, monotonically increasing per category, never reused
+- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
+This requires updating:
+- The `Issue` struct (`id: u32` → `id: String`)
+- The parser heading regex (`## [47]` → `## [BUG-47]`)
+- All ID comparisons, sorting, and display logic
+- The CLI `show`, `set`, and `new` commands to accept string IDs
+- The `new` command to accept `--category` or infer from a default
 
 **Resolution:** 
 
@@ -104,6 +181,35 @@ Labels should be freeform strings, not from a fixed set.
 Issues have a description (immutable context) and a resolution (final outcome), but no way to log intermediate notes, decisions, or blockers.
 Add a `### Comments` subsection under each issue. The UI should render comments chronologically within the expanded card, with an input box to append new entries. Each comment gets an auto-timestamp.
 Keep it simple — no editing or deleting comments. Append-only log.
+
+**Resolution:** 
+
+---
+
+## [12] Add round-trip save/parse tests
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/model/parse.rs`
+
+There are no tests that verify `parse → mutate → save → parse` produces equivalent results. This is where the real data-loss bugs hide. Specifically:
+1. Unknown fields (e.g., a user manually adds `**Priority:** HIGH`) are silently dropped on save because `write_section` only emits known fields
+2. Description whitespace and blank lines may not survive a round-trip
+3. Section assignment during save is asymmetric — DONE status forces migration to `issues-done.md`, but DESCOPED does not
+Write property-based or snapshot tests that:
+- Parse sample markdown, save it, parse again, and assert structural equality
+- Inject unknown fields and verify they survive (or explicitly document that they won't)
+- Mutate status and verify correct file routing
+
+**Resolution:** 
+
+---
+
+## [15] Implement ishoo edit CLI command
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`
+
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on [8] for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
 
@@ -122,29 +228,6 @@ If a new issue is created and has no source file, default to `issues-active.md`.
 
 ---
 
-## [30] Render markdown in description and resolution fields
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Depends on:** [8]
-
-Descriptions and resolutions are displayed as raw text via `white-space: pre-wrap`. Any markdown formatting the user writes (bold, code blocks, links, lists) is shown literally rather than rendered.
-After [8] provides a proper markdown AST, render these fields as formatted HTML in the card body. The resolution textarea should ideally become a split-pane or toggle between edit and preview modes.
-
-**Resolution:** 
-
----
-
-## [31] Status changes move issues between files automatically
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
-
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
-
-**Resolution:** 
-
----
-
 ## [33] Add issue linking and mentions
 **Status:** OPEN
 **Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
@@ -156,14 +239,15 @@ More importantly, if a description or resolution mentions `#14` or `[14]`, it sh
 
 ---
 
-## [36] Validate and lint issue files
+## [21] Add labels/tags system
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/parse.rs`
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
 
-There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
-- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
-- `ishoo lint --strict` — treats warnings as errors (useful for CI)
-This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+Issues need lightweight categorization beyond status. A `**Labels:**` field with comma-separated tags (e.g., `frontend, performance, v2`) would enable:
+- Filtering the feed by label
+- Color-coded label chips on cards
+- CLI filtering: `ishoo list --label performance`
+Labels should be freeform strings, not from a fixed set.
 
 **Resolution:** 
 
@@ -184,6 +268,18 @@ Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and po
 
 ---
 
+## [16] Preserve unknown markdown fields through save
+**Status:** OPEN
+**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
+**Depends on:** [8]
+
+If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
+After [8] lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
+
+**Resolution:** 
+
+---
+
 ## [41] Add a compact/dense display mode
 **Status:** OPEN
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
@@ -192,6 +288,19 @@ The current card layout is spacious and readable for 10-20 issues but wastes ver
 - **Comfortable** (current) — full card with padding, badges, description preview
 - **Compact** — single-line rows with ID, title, status dot, and file count, similar to `ishoo list` CLI output
 The toggle should be a small button in the topbar.
+
+**Resolution:** 
+
+---
+
+## [36] Validate and lint issue files
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/parse.rs`
+
+There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
+- `ishoo lint --strict` — treats warnings as errors (useful for CI)
+This enables a pre-commit hook: `ishoo lint --strict || exit 1`
 
 **Resolution:** 
 
