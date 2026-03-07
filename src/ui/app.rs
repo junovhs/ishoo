@@ -389,33 +389,62 @@ fn render_content(
     // Animation loop: ticks physics at ~60fps, writes transforms via eval()
     use_effect(move || {
         spawn(async move {
+            let mut last_tick = tokio::time::Instant::now();
+            let mut frames = 0;
+            let mut total_time = 0.0;
+            let mut max_frame_time = 0.0;
+            let mut was_animating = false;
+
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(16)).await;
-
-                if !animating() {
-                    continue;
+                
+                let is_anim = animating();
+                
+                if is_anim && !was_animating {
+                    // Just started scrolling
+                    super::scroll::set_is_scrolling(true);
+                    last_tick = tokio::time::Instant::now();
+                    frames = 0;
+                    total_time = 0.0;
+                    max_frame_time = 0.0;
+                    
+                    // Measure geometry once at start of scroll to avoid IPC thrashing
+                    let ms = super::scroll::measure_max_scroll().await;
+                    if ms > 0.0 { max_scroll.set(ms); }
+                    
+                    let hys = super::scroll::measure_header_positions().await;
+                    if !hys.is_empty() { header_ys.set(hys); }
+                } else if !is_anim && was_animating {
+                    // Just stopped scrolling
+                    super::scroll::set_is_scrolling(false);
+                    if frames > 0 {
+                        let avg = total_time / (frames as f64);
+                        println!("[Scroll Metrics] Frames: {} | Avg: {:.1}ms | Max: {:.1}ms", frames, avg, max_frame_time);
+                    }
                 }
+                
+                was_animating = is_anim;
 
-                // Periodically re-measure content height
-                let ms = super::scroll::measure_max_scroll().await;
-                if ms > 0.0 {
-                    max_scroll.set(ms);
-                }
+                if !is_anim { continue; }
+
+                let now = tokio::time::Instant::now();
+                // Ensure dt is never 0 and capped to prevent tunneling spikes if loop sleeps too long
+                let dt = (now - last_tick).as_secs_f64().clamp(0.001, 0.050);
+                let dt_ms = dt * 1000.0;
+                
+                frames += 1;
+                total_time += dt_ms;
+                if dt_ms > max_frame_time { max_frame_time = dt_ms; }
+                
+                last_tick = now;
 
                 let still_moving = {
                     let mut p = physics.write();
-                    p.tick(0.016, max_scroll())
+                    p.tick(dt, max_scroll())
                 };
 
                 let vis = physics.read().visual_offset(max_scroll());
-                super::scroll::write_content_transform(vis);
-
-                // Re-measure header positions occasionally
-                let hys = super::scroll::measure_header_positions().await;
-                if !hys.is_empty() {
-                    header_ys.set(hys);
-                }
-                super::scroll::write_header_transforms(vis, &header_ys());
+                super::scroll::write_transforms(vis, &header_ys());
 
                 if !still_moving {
                     animating.set(false);

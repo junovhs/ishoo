@@ -44,6 +44,9 @@ body {
     color: var(--ink);
     min-height: 100vh;
     padding: 28px 20px;
+nbody.is-scrolling {
+    pointer-events: none;
+}
 }
 .app {
     max-width: 100%;

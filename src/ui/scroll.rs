@@ -73,16 +73,13 @@ impl ScrollPhysics {
     }
 }
 
-/// Write scroll transform to the DOM. One eval() call, one style property assignment.
-pub fn write_content_transform(visual_offset: f64) {
-    let _ = eval(&format!(
-        "document.getElementById('scroll-content').style.transform='translate3d(0,{}px,0)'",
+/// Write all scroll transforms in a single IPC call.
+pub fn write_transforms(visual_offset: f64, header_natural_ys: &[f64]) {
+    let mut script = format!(
+        "document.getElementById('scroll-content').style.transform='translate3d(0,{}px,0)';",
         -visual_offset
-    ));
-}
+    );
 
-/// Write sticky header transforms. Each header gets a single style.transform assignment.
-pub fn write_header_transforms(visual_offset: f64, header_natural_ys: &[f64]) {
     let ids = ["sh-active", "sh-backlog", "sh-done"];
     for (i, &natural_y) in header_natural_ys.iter().enumerate() {
         if i >= ids.len() || i >= STICK_HEIGHTS.len() { break; }
@@ -90,17 +87,23 @@ pub fn write_header_transforms(visual_offset: f64, header_natural_ys: &[f64]) {
         let stick_point = natural_y - stick_at;
         if visual_offset > stick_point {
             let ty = visual_offset - natural_y + stick_at;
-            let _ = eval(&format!(
+            script.push_str(&format!(
                 "var h=document.getElementById('{}');if(h){{h.style.transform='translate3d(0,{}px,0)';h.style.zIndex='99'}}",
                 ids[i], ty
             ));
         } else {
-            let _ = eval(&format!(
+            script.push_str(&format!(
                 "var h=document.getElementById('{}');if(h){{h.style.transform='';h.style.zIndex=''}}",
                 ids[i]
             ));
         }
     }
+    let _ = eval(&script);
+}
+
+/// Toggle the `.is-scrolling` class on the root body element to disable paint-heavy hover states.
+pub fn set_is_scrolling(scrolling: bool) {
+    let _ = eval(&format!("document.body.classList.toggle('is-scrolling', {})", scrolling));
 }
 
 /// Measure the max scrollable distance from the DOM. Returns a future.
@@ -120,4 +123,49 @@ pub async fn measure_header_positions() -> Vec<f64> {
          dioxus.send(ys)"
     );
     result.recv::<Vec<f64>>().await.unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn test_scroll_physics_timing() {
+        // Simulate the scroll loop locally to prove dt math and stable frame times don't stutter
+        let mut physics = ScrollPhysics::default();
+        
+        let mut last_tick = Instant::now();
+        let mut frames = 0;
+        let mut total_time = 0.0;
+        let mut max_frame_time = 0.0;
+
+        // Kick it off
+        physics.add_wheel_delta(-50.0);
+        let max_scroll = 1000.0;
+
+        let start = Instant::now();
+        while Instant::now() - start < Duration::from_millis(50) {
+            // We just sleep thread here for 16ms to simulate a frame
+            std::thread::sleep(Duration::from_millis(16));
+
+            let now = Instant::now();
+            let dt = (now - last_tick).as_secs_f64().clamp(0.001, 0.050);
+            let dt_ms = dt * 1000.0;
+            
+            frames += 1;
+            total_time += dt_ms;
+            if dt_ms > max_frame_time { max_frame_time = dt_ms; }
+            last_tick = now;
+
+            let _still_moving = physics.tick(dt, max_scroll);
+        }
+
+        let avg = total_time / (frames as f64);
+        println!("Test [Scroll Metrics] Frames: {} | Avg: {:.1}ms | Max: {:.1}ms", frames, avg, max_frame_time);
+        
+        // Assert we got at least 2 frames and max wasn't egregiously high (allowing OS variance, < 25ms is solid 60ish fps bounds)
+        assert!(frames >= 2);
+        assert!(max_frame_time < 30.0);
+    }
 }
