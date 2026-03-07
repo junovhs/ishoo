@@ -37,6 +37,8 @@ html.dark {
     box-sizing: border-box;
 }
 body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     background: var(--bg);
     font-family: "DM Mono", monospace;
     color: var(--ink);
@@ -63,7 +65,7 @@ body {
 }
 .logo {
     font-family: "Instrument Serif", serif;
-    font-size: 26px;
+    font-size: 31px;
     font-style: italic;
     margin-bottom: 40px;
     display: flex;
@@ -77,7 +79,7 @@ body {
     background: var(--ink);
 }
 .dm-toggle {
-    font-size: 20px;
+    font-size: 24px;
     background: none;
     border: none;
     color: var(--ink3);
@@ -93,7 +95,7 @@ body {
     color: var(--ink);
 }
 .sl {
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 3px;
     text-transform: uppercase;
     color: var(--ink3);
@@ -107,7 +109,7 @@ body {
     align-items: center;
     gap: 8px;
     font: inherit;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ink3);
     background: none;
     border: none;
@@ -151,11 +153,11 @@ body {
 }
 .health-pct {
     font-family: "Instrument Serif", serif;
-    font-size: 22px;
+    font-size: 26px;
     color: var(--green);
 }
 .health-lbl {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--ink3);
     letter-spacing: 1px;
 }
@@ -176,7 +178,7 @@ body {
     align-items: center;
     gap: 4px;
     margin-top: 6px;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--green);
 }
 .sparkline {
@@ -203,17 +205,17 @@ body {
     border-top: 1px solid var(--rule);
 }
 .mr .l {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--ink3);
 }
 .mr .v {
     font-family: "Instrument Serif", serif;
-    font-size: 18px;
+    font-size: 22px;
 }
 .btn-n {
     margin-top: 24px;
     font: inherit;
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 1px;
     padding: 8px 0;
     width: 100%;
@@ -230,16 +232,16 @@ body {
 }
 
 .sync-status {
-    text-align: center; margin-top: 12px; font-size: 10px; color: var(--ink3); border: 1px solid transparent; padding: 4px; border-radius: 3px;
+    text-align: center; margin-top: 12px; font-size: 12px; color: var(--ink3);  padding: 4px; border-radius: 3px;
 }
 .sync-status.dirty {
     color: var(--orange); border-color: var(--rule);
 }
 .sync-action {
-    background: var(--ink); color: var(--bg); font: inherit; font-size: 10px; padding: 5px 0; width: 100%; border: none; cursor: pointer; border-radius: 2px; margin-top: 6px;
+    background: var(--ink); color: var(--bg); font: inherit; font-size: 12px; padding: 5px 0; width: 100%; border: none; cursor: pointer; border-radius: 2px; margin-top: 6px;
 }
 .sy {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--green);
     text-align: center;
     margin-top: 6px;
@@ -247,7 +249,7 @@ body {
 }
 .kb-ref {
     margin-top: 24px;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--ink3);
     line-height: 1.9;
 }
@@ -256,7 +258,7 @@ body {
     border: 1px solid var(--ink3);
     padding: 1px 5px;
     border-radius: 2px;
-    font-size: 10px;
+    font-size: 12px;
 }
 
 /* Main */
@@ -287,7 +289,7 @@ body {
     border-bottom: 1px solid transparent;
     background: none;
     font: inherit;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ink);
     padding: 4px 0;
     outline: none;
@@ -307,7 +309,7 @@ body {
 }
 .lens {
     font: inherit;
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
     padding: 3px 10px;
@@ -338,7 +340,7 @@ body {
 }
 .dt-btn {
     font: inherit;
-    font-size: 10px;
+    font-size: 12px;
     padding: 3px 9px;
     border: 1px solid var(--rule);
     background: none;
@@ -372,7 +374,7 @@ body {
     user-select: none;
 }
 .section-head .chevron {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--ink3);
     transition: transform 0.2s;
     display: inline-block;
@@ -393,12 +395,12 @@ body {
 }
 .section-title {
     font-family: "Instrument Serif", serif;
-    font-size: 14px;
+    font-size: 17px;
     font-style: italic;
     color: var(--ink2);
 }
 .section-count {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--ink3);
     letter-spacing: 1px;
 }
@@ -410,19 +412,17 @@ body {
 
 /* Feed View & Cards */
 .feed { 
-    --card-h: 54px;
-    --gap: 9px;
+    --card-h: 85px;
     touch-action: none; 
     padding-bottom: 200px; 
 }
 .feed.compact {
     --card-h: 36px;
-    --gap: 4px;
 }
 .feed-inner { position: relative; }
 .item { position: absolute; left: 0; right: 0; touch-action: none; will-change: transform; z-index: 1; height: var(--card-h); }
 .item.dragging { z-index: 500; }
-.item.settling { z-index: 400; }
+.item.settling { z-index: 400; pointer-events: none; }
 .item.dragging .issue-row {
     cursor: grabbing;
     background: var(--bg);
@@ -435,17 +435,17 @@ body {
 .issue-row {
     height: var(--card-h);
     display: grid;
-    grid-template-columns: 72px minmax(0, 1fr) auto;
+    grid-template-columns: 72px 1fr auto;
     align-items: center;
     gap: 12px;
-    padding: 0 12px;
+    padding: 10px 8px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.035);
     background: var(--bg);
     cursor: grab;
     transition: background 0.12s, box-shadow 0.12s;
     position: relative;
     border-radius: 3px;
-    border: 1px solid transparent;
+    
 }
 .issue-row:hover {
     background: rgba(0, 0, 0, 0.018);
@@ -463,7 +463,7 @@ html.dark .item.dragging .issue-row:hover {
     display: flex;
     align-items: center;
     gap: 0;
-    font-size: 14px;
+    font-size: 17px;
     font-weight: 500;
     letter-spacing: 0.5px;
     color: var(--ink);
@@ -471,26 +471,38 @@ html.dark .item.dragging .issue-row:hover {
 }
 .id-cat {
     color: var(--ink3);
-    font-size: 12px;
+    font-size: 14px;
     letter-spacing: 1px;
 }
 .id-num {
     font-family: "Instrument Serif", serif;
-    font-size: 20px;
+    font-size: 24px;
     font-style: italic;
 }
 
+/* Compact mode IDs */
+.feed.compact .id-badge {
+    font-size: 14px;
+}
+.feed.compact .id-num {
+    font-size: 19px;
+}
+
 .issue-body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
 }
 .issue-title {
-    font-size: 13px;
+    font-size: 16px;
     color: var(--ink);
     line-height: 1.3;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     
     /* Truncate to ensure card doesn't wrap and change height */
     white-space: nowrap;
@@ -498,7 +510,7 @@ html.dark .item.dragging .issue-row:hover {
     text-overflow: ellipsis;
 }
 .issue-sub {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--ink3);
     display: flex;
     gap: 8px;
@@ -508,6 +520,21 @@ html.dark .item.dragging .issue-row:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Compact mode layout */
+.feed.compact .issue-row {
+    padding: 5px 8px;
+    grid-template-columns: 72px 1fr auto;
+}
+.feed.compact .issue-sub {
+    display: none;
+}
+.feed.compact .issue-title {
+    font-size: 14px;
+}
+.feed.compact .labels-row {
+    display: none;
 }
 .issue-sub .sep {
     color: var(--ink4);
@@ -520,14 +547,23 @@ html.dark .item.dragging .issue-row:hover {
 }
 
 /* Labels */
+.labels-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    margin-bottom: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+}
 .label {
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 1px;
     text-transform: uppercase;
     padding: 2px 7px;
     border-radius: 10px;
     border: 1px solid;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 .label.b-open { border-color: rgba(61, 126, 199, .3); color: var(--blue); }
 .label.b-in-progress { border-color: rgba(201, 106, 42, .3); color: var(--orange); }
@@ -568,20 +604,20 @@ html.dark .modal-overlay {
     justify-content: space-between;
 }
 .m-id {
-    font-size: 12px;
+    font-size: 14px;
     letter-spacing: 1px;
     color: var(--ink3);
 }
 .m-id-num {
     font-family: "Instrument Serif", serif;
-    font-size: 40px;
+    font-size: 48px;
     font-style: italic;
     color: var(--ink4);
     line-height: 1;
 }
 .m-close {
     font: inherit;
-    font-size: 20px;
+    font-size: 24px;
     background: none;
     border: none;
     color: var(--ink4);
@@ -594,7 +630,7 @@ html.dark .modal-overlay {
 }
 .m-title {
     font-family: "Instrument Serif", serif;
-    font-size: 22px;
+    font-size: 26px;
     padding: 6px 28px 0;
     line-height: 1.3;
 }
@@ -611,7 +647,7 @@ html.dark .modal-overlay {
     border-radius: 50%;
 }
 .m-status-text {
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--ink3);
@@ -632,7 +668,7 @@ html.dark .modal-overlay {
     padding: 10px 0;
 }
 .m-cell-l {
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 2.5px;
     text-transform: uppercase;
     color: var(--ink3);
@@ -640,17 +676,19 @@ html.dark .modal-overlay {
 }
 .m-cell-v {
     font-family: "Instrument Serif", serif;
-    font-size: 16px;
+    font-size: 19px;
     color: var(--ink2);
 }
 .m-cell-v.files {
     font-family: "DM Mono", monospace;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--ink3);
     line-height: 1.6;
 }
 /* Markdown-ish body */
 .m-body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     padding: 0 28px 20px;
     font-size: 11.5px;
     color: var(--ink2);
@@ -658,26 +696,26 @@ html.dark .modal-overlay {
 }
 
 .fgroup { margin-bottom: 14px; }
-.flbl { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink3); margin-bottom: 5px; display: block; }
-.res-input { width: 100%; padding: 8px 10px; background: none; border: 1px solid var(--rule); font-family: inherit; font-size: 12px; color: var(--ink); border-radius: 3px; resize: vertical; outline: none; }
+.flbl { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink3); margin-bottom: 5px; display: block; }
+.res-input { width: 100%; padding: 8px 10px; background: none; border: 1px solid var(--rule); font-family: inherit; font-size: 14px; color: var(--ink); border-radius: 3px; resize: vertical; outline: none; }
 .res-input:focus { border-color: var(--ink3); }
-.modal-input { width: 100%; padding: 8px 10px; background: none; border: 1px solid var(--rule); font-family: inherit; font-size: 12px; color: var(--ink); border-radius: 3px; outline: none; }
+.modal-input { width: 100%; padding: 8px 10px; background: none; border: 1px solid var(--rule); font-family: inherit; font-size: 14px; color: var(--ink); border-radius: 3px; outline: none; }
 .modal-input:focus { border-color: var(--ink3); }
-.sel { width: 100%; padding: 6px 8px; background: none; border: 1px solid var(--rule); font-family: inherit; font-size: 11px; color: var(--ink); border-radius: 3px; outline: none; }
-.btn-primary { padding: 8px 16px; background: var(--ink); color: var(--bg); border: none; font: inherit; font-size: 11px; cursor: pointer; border-radius: 3px; }
-.btn-secondary { padding: 8px 16px; background: none; color: var(--ink2); border: 1px solid var(--rule); font: inherit; font-size: 11px; cursor: pointer; border-radius: 3px; }
-.btn-danger { padding: 8px 16px; background: var(--pink); color: #fff; border: none; font: inherit; font-size: 11px; cursor: pointer; border-radius: 3px; }
+.sel { width: 100%; padding: 6px 8px; background: none; border: 1px solid var(--rule); font-family: inherit; font-size: 13px; color: var(--ink); border-radius: 3px; outline: none; }
+.btn-primary { padding: 8px 16px; background: var(--ink); color: var(--bg); border: none; font: inherit; font-size: 13px; cursor: pointer; border-radius: 3px; }
+.btn-secondary { padding: 8px 16px; background: none; color: var(--ink2); border: 1px solid var(--rule); font: inherit; font-size: 13px; cursor: pointer; border-radius: 3px; }
+.btn-danger { padding: 8px 16px; background: var(--pink); color: #fff; border: none; font: inherit; font-size: 13px; cursor: pointer; border-radius: 3px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 28px 20px; border-top: 1px solid var(--rule); margin-top: 20px;}
 
 .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.toast { padding: 12px 20px; border-radius: 3px; font-size: 12px; color: var(--bg); background: var(--ink); border: 1px solid var(--rule); pointer-events: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, .1); }
+.toast { padding: 12px 20px; border-radius: 3px; font-size: 14px; color: var(--bg); background: var(--ink); border: 1px solid var(--rule); pointer-events: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, .1); }
 .toast-success { border-left: 3px solid var(--green); }
 .toast-error { border-left: 3px solid var(--pink); }
 
 .detail-grid { display: grid; grid-template-columns: 1fr 200px; gap: 24px; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chip-file { padding: 2px 6px; font-size: 10px; background: rgba(0,0,0,0.05); border-radius: 3px; }
-.chip-dep { padding: 2px 6px; font-size: 10px; background: rgba(123, 107, 170, 0.1); color: var(--purple); border-radius: 3px; }
+.chip-file { padding: 2px 6px; font-size: 12px; background: rgba(0,0,0,0.05); border-radius: 3px; }
+.chip-dep { padding: 2px 6px; font-size: 12px; background: rgba(123, 107, 170, 0.1); color: var(--purple); border-radius: 3px; }
 
 /* Temporary fallbacks for unsupported views */
 .board, .viz { padding: 20px; text-align: center; color: var(--ink3); }

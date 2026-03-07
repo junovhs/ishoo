@@ -25,7 +25,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
 
     // Compute the effective index for where this card should visually sit right now
     let mut virtual_y = props.virtual_y;
-    let slot_h = if props.is_compact { 40.0 } else { 63.0 };
+    let slot_h = if props.is_compact { 36.0 } else { 85.0 };
     
     if ds.dragging_id.is_some() && !is_dragging && !array_reordered {
         let start = ds.start_idx as i32;
@@ -71,7 +71,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     };
 
     let outer_style = format!(
-        "position: absolute; top: 0; left: 0; right: 0; transform: translate3d(0, {y_pos}px, 0); transition: {transition};"
+        "position: absolute; top: 0; left: 24px; right: 0; transform: translate3d(0, {y_pos}px, 0); transition: {transition};"
     );
 
     let mut drag_state_signal = props.drag_state;

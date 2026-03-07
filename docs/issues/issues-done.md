@@ -2,6 +2,20 @@
 
 ---
 
+## [102] UI: Dark Mode Toggle & Stats Breakdown
+**Status:** DONE
+**Files:** `src/ui/app.rs`
+
+The UI spike includes a dark mode toggle and a clean breakdown of stats.
+
+1. Add the `.dm-toggle` button (`☽`) to the sidebar and implement a click handler to toggle the `dark` class on the `html` element.
+2. Restore the Active/Backlog/Done stat breakdown in the sidebar using the existing `stats` signal, but styled with `.mr` and `.v` classes from the spike instead of `.stat-list`.
+Pure UI implementation, no backend needed.
+
+**Resolution:** 
+
+---
+
 ## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
@@ -86,6 +100,19 @@ Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo te
 
 ---
 
+## [48] Fix pre-existing neti violations in viz.rs and workspace.rs
+**Status:** DONE
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+
+7 pre-existing P04 violations (nested loops flagged as quadratic). Rather than suppress with `neti:allow`, the logic was refactored to be genuinely better:
+
+- `viz.rs` — Deleted the `compute_overlaps` / `extract_pairs` pair-enumeration path (O(k²) issue-pairs per file). `GraphView` now calls `shared_file_overlaps` which builds a file→issues map via `flat_map` (O(n)), rendering "file: #A #B #C" instead of "A ⟷ B". More information, less work.
+- `workspace.rs` — `file_heatmap` nested for-loops replaced with `flat_map` iterator chain. Removed the stale `neti:allow(P04)` comment that was failing to suppress the violation anyway.
+
+**Resolution:** Refactored to eliminate violations by genuinely improving the algorithms, not suppressing them. `neti check` → clean (0 violations). Clippy ✅ Tests ✅. Commands: `neti check`
+
+---
+
 ## [6] Move CSS to native asset files
 **Status:** DONE
 **Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`
@@ -118,19 +145,6 @@ Critical UX bug: drag-and-drop worked on the first attempt but broke progressive
 Tests added in `physics.rs`: `reset_clears_item_springs_completely`, `step_settle_hard_cap_forces_clear_even_when_not_converged`, `second_drag_starts_with_clean_state`.
 Verified: `neti check` → clean, clippy PASS, tests PASS. All 3 new tests pass.
 Commands: `neti check`
-
----
-
-## [48] Fix pre-existing neti violations in viz.rs and workspace.rs
-**Status:** DONE
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-
-7 pre-existing P04 violations (nested loops flagged as quadratic). Rather than suppress with `neti:allow`, the logic was refactored to be genuinely better:
-
-- `viz.rs` — Deleted the `compute_overlaps` / `extract_pairs` pair-enumeration path (O(k²) issue-pairs per file). `GraphView` now calls `shared_file_overlaps` which builds a file→issues map via `flat_map` (O(n)), rendering "file: #A #B #C" instead of "A ⟷ B". More information, less work.
-- `workspace.rs` — `file_heatmap` nested for-loops replaced with `flat_map` iterator chain. Removed the stale `neti:allow(P04)` comment that was failing to suppress the violation anyway.
-
-**Resolution:** Refactored to eliminate violations by genuinely improving the algorithms, not suppressing them. `neti check` → clean (0 violations). Clippy ✅ Tests ✅. Commands: `neti check`
 
 ---
 

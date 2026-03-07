@@ -20,6 +20,7 @@ pub struct DragState {
 #[derive(Clone, PartialEq, Props)]
 pub struct FeedViewProps {
     pub is_compact: bool,
+    pub zoom: f32,
     pub issues: Vec<Issue>,
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
@@ -35,8 +36,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     // Captured for index lookups inside the event handlers
     let issues_len = props.issues.len();
     let issues_for_up = props.issues.clone();
-    
-    let slot_h = if props.is_compact { 40.0 } else { 63.0 };
+    let is_compact = props.is_compact;
+    let slot_h = if is_compact { 36.0 } else { 85.0 };
     
     // Compute total absolute container height, plus the 200px scroll padding at the bottom
     // We add 1 slot_h worth of height for each of the 3 section headers
@@ -51,10 +52,10 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             onpointermove: move |e| {
                 let mut ds = drag_state.write();
                 if ds.dragging_id.is_some() && !ds.releasing {
-                    ds.offset_y = e.client_coordinates().y as f32 - ds.start_y;
+                    ds.offset_y = (e.client_coordinates().y as f32 - ds.start_y) / props.zoom;
                     
                     let logical_y = ds.start_virtual_y + ds.offset_y;
-                    let sl = if props.is_compact { 40.0 } else { 63.0 };
+                    let sl = if props.is_compact { 36.0 } else { 85.0 };
                     
                     let sections = [
                         ("Active", "active", "var(--orange)"),

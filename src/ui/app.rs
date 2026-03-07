@@ -12,6 +12,7 @@ struct AppState {
     toasts: Signal<Vec<Toast>>,
     toast_id: Signal<u64>,
     is_compact: Signal<bool>,
+    zoom: Signal<f32>,
 }
 
 const STYLESHEET: &str = include_str!("../../assets/style.css");
@@ -47,11 +48,24 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let toast_id = use_signal(|| 0u64);
     let is_compact = use_signal(|| false);
 
+    let zoom = use_signal(|| {
+        let p = ws_path.join(".ishoo/zoom");
+        std::fs::read_to_string(&p).unwrap_or_else(|_| "1.0".to_string()).parse::<f32>().unwrap_or(1.0)
+    });
+
+    use_effect(move || {
+        let z = zoom();
+        let _ = eval(&format!("document.body.style.zoom = '{}';", z));
+        let p = get_workspace_path().join(".ishoo/zoom");
+        let _ = std::fs::write(&p, z.to_string());
+    });
+
     let state = AppState {
         issues,
         toasts,
         toast_id,
         is_compact,
+        zoom,
     };
 
     let _poll = {
@@ -300,6 +314,7 @@ fn render_sidebar(
 
 fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stats, state: AppState) -> Element {
     let mut is_compact = state.is_compact;
+    let mut zoom = state.zoom;
     let mut active_lens = use_signal(|| "My Order".to_string());
     
     rsx! {
@@ -307,6 +322,12 @@ fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stat
             div { class: "topbar",
                 input { class: "si", placeholder: "Search…", value: "{search}", oninput: move |e| search.set(e.value()) }
                 
+                div { class: "density-toggle", style: "margin-right: 12px;",
+                    button { class: "dt-btn", onclick: move |_| zoom.set((zoom() - 0.25).max(1.0)), "-" }
+                    button { class: "dt-btn active", "{zoom() * 100.0}%" }
+                    button { class: "dt-btn", onclick: move |_| zoom.set((zoom() + 0.25).min(2.5)), "+" }
+                }
+
                 div { class: "density-toggle",
                     button { 
                         class: if !is_compact() { "dt-btn active" } else { "dt-btn" }, 
@@ -359,6 +380,7 @@ fn render_content(
                 View::Feed => rsx! {
                     views::FeedView {
                         is_compact: (state.is_compact)(),
+                        zoom: (state.zoom)(),
                         issues: filtered.clone(),
                         on_status: move |(id, s): (u32, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }
