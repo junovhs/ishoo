@@ -2,20 +2,6 @@
 
 ---
 
-## [102] UI: Dark Mode Toggle & Stats Breakdown
-**Status:** DONE
-**Files:** `src/ui/app.rs`
-
-The UI spike includes a dark mode toggle and a clean breakdown of stats.
-
-1. Add the `.dm-toggle` button (`☽`) to the sidebar and implement a click handler to toggle the `dark` class on the `html` element.
-2. Restore the Active/Backlog/Done stat breakdown in the sidebar using the existing `stats` signal, but styled with `.mr` and `.v` classes from the spike instead of `.stat-list`.
-Pure UI implementation, no backend needed.
-
-**Resolution:** 
-
----
-
 ## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
@@ -74,13 +60,17 @@ Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-c
 
 ---
 
-## [41] Add a compact/dense display mode
+## [102] UI: Dark Mode Toggle & Stats Breakdown
 **Status:** DONE
-**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+**Files:** `src/ui/app.rs`
 
-The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Added a toggle between Comfortable and Compact.
+The UI spike includes a dark mode toggle and a clean breakdown of stats.
 
-**Resolution:** Added an `is_compact` boolean signal to `AppState` and passed it down to `FeedViewProps` so the class could be injected into the root `.feed` container. Connected the button toggles to the signal state in `app.rs`. Verified visually using standard testing to ensure transitions trigger with zero delays. Verified via `cargo test` and `neti check`.
+1. Add the `.dm-toggle` button (`☽`) to the sidebar and implement a click handler to toggle the `dark` class on the `html` element.
+2. Restore the Active/Backlog/Done stat breakdown in the sidebar using the existing `stats` signal, but styled with `.mr` and `.v` classes from the spike instead of `.stat-list`.
+Pure UI implementation, no backend needed.
+
+**Resolution:** 
 
 ---
 
@@ -145,6 +135,16 @@ Critical UX bug: drag-and-drop worked on the first attempt but broke progressive
 Tests added in `physics.rs`: `reset_clears_item_springs_completely`, `step_settle_hard_cap_forces_clear_even_when_not_converged`, `second_drag_starts_with_clean_state`.
 Verified: `neti check` → clean, clippy PASS, tests PASS. All 3 new tests pass.
 Commands: `neti check`
+
+---
+
+## [41] Add a compact/dense display mode
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
+The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Added a toggle between Comfortable and Compact.
+
+**Resolution:** Added an `is_compact` boolean signal to `AppState` and passed it down to `FeedViewProps` so the class could be injected into the root `.feed` container. Connected the button toggles to the signal state in `app.rs`. Verified visually using standard testing to ensure transitions trigger with zero delays. Verified via `cargo test` and `neti check`.
 
 ---
 
