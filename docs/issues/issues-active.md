@@ -2,17 +2,6 @@
 
 ---
 
-## [30] Render markdown in description and resolution fields
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Depends on:** [8]
-
-Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
-
-**Resolution:** 
-
----
-
 ## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** OPEN
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`

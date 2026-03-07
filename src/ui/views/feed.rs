@@ -297,6 +297,15 @@ struct IssueModalProps {
     on_resolution: EventHandler<(u32, String)>,
 }
 
+fn render_markdown(text: &str) -> String {
+    let mut options = pulldown_cmark::Options::empty();
+    options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
+    let parser = pulldown_cmark::Parser::new_ext(text, options);
+    let mut html_output = String::new();
+    pulldown_cmark::html::push_html(&mut html_output, parser);
+    html_output
+}
+
 #[component]
 fn IssueModal(props: IssueModalProps) -> Element {
     let i = &props.issue;
@@ -311,6 +320,8 @@ fn IssueModal(props: IssueModalProps) -> Element {
     // We don't have age or comments on the backend yet, use placeholders
     let age = "2 days";
     let comments_len = 0;
+    
+    let html_desc = render_markdown(&i.description);
 
     rsx! {
         div {
@@ -372,7 +383,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
                 hr { class: "m-divider" }
                 div { class: "m-body",
                     div { class: "m-body-label", "Description" }
-                    div { "{i.description}" }
+                    div { dangerous_inner_html: "{html_desc}" }
                     
                     div { style: "margin-top: 16px;",
                         div { class: "m-body-label", "Resolution" }

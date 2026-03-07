@@ -2,6 +2,17 @@
 
 ---
 
+## [30] Render markdown in description and resolution fields
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`
+**Depends on:** [8]
+
+Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
+
+**Resolution:** Injected `pulldown_cmark::html::push_html` into a new `render_markdown` helper inside `feed.rs`. Modified `IssueModal` to use Dioxus's `dangerous_inner_html` to emit the parsed HTML string directly into the `.m-body` DOM element. Added rigor tests inside a new `mod tests` block in `feed.rs` checking output tags exactly. Verified via `neti check`.
+
+---
+
 ## [8] Switch to AST-based markdown parser
 **Status:** DONE
 **Files:** `src/model/parse.rs`, `Cargo.toml`
