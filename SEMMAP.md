@@ -46,7 +46,7 @@ Implements App functionality.
 → Exports: App
 
 `src/ui/components.rs`
-Implements nav btn.
+Implements stat row.
 → Exports: NavBtn, StatRow
 
 `src/ui/toast.rs`
@@ -60,6 +60,10 @@ Implements board view.
 `src/ui/views/feed.rs`
 Implements feed view props.
 → Exports: DragState, FeedViewProps, FeedView
+
+`src/ui/views/feed/card.rs`
+Implements issue card props.
+→ Exports: IssueCardProps, IssueCard
 
 `src/ui/views/viz.rs`
 Implements timeline view.
@@ -75,10 +79,6 @@ Implements welcome screen.
 Parses markdown. [UTIL]
 → Exports: parse_markdown
 
-`src/ui/views/feed/card.rs`
-Implements issue card props. [CORE]
-→ Exports: IssueCardProps, IssueCard
-
 ## Layer 3 -- App / Entrypoints
 
 `assets/style.css`
@@ -91,7 +91,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Creates workspace at. [TYPE]
+Implements status ord. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`

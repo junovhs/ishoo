@@ -2,6 +2,21 @@
 
 ---
 
+## [108] Fix sticky section/category headers in feed view
+**Status:** DONE
+**Files:** `assets/style.css`
+
+Section headers ("Active", "Backlog", "Done") in the feed view do not stick at the top of the scroll area as the user scrolls. They scroll away with the content despite having `position: sticky` in CSS.
+
+**Resolution:** Root cause: `.app` had no height constraint, so `.mn` and `.content` (which has `overflow-y: auto`) grew unbounded to fit all content. The page scrolled at the body/viewport level instead of inside `.content`. Since `position: sticky` scopes to the nearest scroll ancestor and `.content` never actually scrolled, the headers never stuck.
+
+Fix (CSS-only in `style.css`):
+1. Added `height: calc(100vh - 56px)` to `.app` to constrain the grid to viewport height.
+2. Added `min-height: 0; overflow: hidden` to `.mn` so the flex column respects the grid height constraint.
+3. Added `padding-top: 20px` to `.content` so the first section header has visual breathing room below the topbar.
+
+With these changes, `.content` becomes the actual scroll container, `position: sticky` activates on the section headers, and they stack correctly at `top: 0/45/90px` as the user scrolls. Verified via `neti check` (clippy PASS, tests PASS, 0 new violations). User confirmed visually.
+
 ## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
