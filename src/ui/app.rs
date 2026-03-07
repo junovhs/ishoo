@@ -457,7 +457,7 @@ fn render_content(
         div {
             class: "content",
             onwheel: move |evt: Event<WheelData>| {
-                physics.write().add_wheel_delta(evt.delta().strip_units().y);
+                physics.write().add_wheel_delta(evt.delta().strip_units().y, max_scroll());
                 if !animating() {
                     animating.set(true);
                 }

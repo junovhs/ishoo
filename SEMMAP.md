@@ -38,7 +38,7 @@ Implements cli set status. [TYPE]
 → Exports: cli_set_status, cli_heatmap, cli_list, cli_show
 
 `src/model/workspace.rs`
-Implements Workspace functionality. [TYPE]
+Implements file heatmap. [TYPE]
 → Exports: dependency_edges, file_heatmap, Workspace, load
 
 `src/ui/app.rs`
@@ -48,6 +48,10 @@ Implements App functionality.
 `src/ui/components.rs`
 Implements stat row.
 → Exports: NavBtn, StatRow
+
+`src/ui/scroll.rs`
+Scroll physics engine — pure Rust.
+→ Exports: add_wheel_delta, set_is_scrolling, ScrollPhysics, visual_offset
 
 `src/ui/toast.rs`
 Implements toast container.
@@ -66,7 +70,7 @@ Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/viz.rs`
-Implements timeline view.
+Implements heatmap view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -91,7 +95,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
+Creates workspace at. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`

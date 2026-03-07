@@ -11,8 +11,8 @@ use dioxus::document::eval;
 pub const TAU: f64 = 0.35;           // Friction time constant (seconds). Lower = snappier.
 pub const ACCEL: f64 = 4.5;          // Wheel delta → velocity multiplier.
 pub const MAX_V: f64 = 15000.0;      // Velocity cap (px/s).
-pub const R_K: f64 = 120.0;          // Rubber-band spring stiffness at bounds.
-pub const R_DAMP: f64 = 15.0;        // Rubber-band damping.
+pub const R_K: f64 = 250.0;          // Rubber-band spring stiffness at bounds.
+pub const R_DAMP: f64 = 30.0;        // Rubber-band damping.
 pub const R_VIS_MAX: f64 = 60.0;     // Max visual overscroll (px).
 pub const STICK_HEIGHTS: [f64; 3] = [0.0, 45.0, 90.0]; // Sticky header stack offsets.
 
@@ -30,8 +30,13 @@ impl Default for ScrollPhysics {
 
 impl ScrollPhysics {
     /// Accumulate a wheel delta into current velocity (compounds during rapid scrolling).
-    pub fn add_wheel_delta(&mut self, delta_y: f64) {
-        self.velocity += delta_y * ACCEL;
+    pub fn add_wheel_delta(&mut self, delta_y: f64, max_scroll: f64) {
+        let mut d = delta_y * ACCEL;
+        // Dampen input if we are pushing further into the overscroll rubber-band
+        if (self.offset < 0.0 && d < 0.0) || (self.offset > max_scroll && d > 0.0) {
+            d *= 0.1;
+        }
+        self.velocity += d;
         self.velocity = self.velocity.clamp(-MAX_V, MAX_V);
     }
 
@@ -60,9 +65,17 @@ impl ScrollPhysics {
         true
     }
 
-    /// Clamp offset for visual display (allows slight rubber-band overscroll).
+    /// Calculate soft offset for visual display (asymptotic rubber-band mapping).
     pub fn visual_offset(&self, max_scroll: f64) -> f64 {
-        self.offset.clamp(-R_VIS_MAX, max_scroll + R_VIS_MAX)
+        if self.offset < 0.0 {
+            let over = -self.offset;
+            -R_VIS_MAX * (1.0 - (-over / R_VIS_MAX).exp())
+        } else if self.offset > max_scroll {
+            let over = self.offset - max_scroll;
+            max_scroll + R_VIS_MAX * (1.0 - (-over / R_VIS_MAX).exp())
+        } else {
+            self.offset
+        }
     }
 
     /// Reset scroll to top.
@@ -141,7 +154,7 @@ mod tests {
         let mut max_frame_time = 0.0;
 
         // Kick it off
-        physics.add_wheel_delta(-50.0);
+        physics.add_wheel_delta(-50.0, 1000.0);
         let max_scroll = 1000.0;
 
         let start = Instant::now();
@@ -167,5 +180,30 @@ mod tests {
         // Assert we got at least 2 frames and max wasn't egregiously high (allowing OS variance, < 25ms is solid 60ish fps bounds)
         assert!(frames >= 2);
         assert!(max_frame_time < 30.0);
+    }
+
+    #[test]
+    fn test_exponential_rubber_banding() {
+        let mut physics = ScrollPhysics::default();
+        let max_scroll = 1000.0;
+        
+        // Test 1: Normal bounds tracking
+        physics.offset = 500.0;
+        assert_eq!(physics.visual_offset(max_scroll), 500.0);
+
+        // Test 2: Negative overscroll (top rubber band)
+        // Push offset way past bounds
+        physics.offset = -1000.0;
+        let top_visual = physics.visual_offset(max_scroll);
+        // It must never exceed -R_VIS_MAX (-60) but should be very close to it
+        assert!(top_visual >= -R_VIS_MAX);
+        assert!(top_visual < -59.9);
+
+        // Test 3: Positive overscroll (bottom rubber band)
+        physics.offset = 2000.0;
+        let bottom_visual = physics.visual_offset(max_scroll);
+        // It must never exceed max_scroll + R_VIS_MAX (1060)
+        assert!(bottom_visual <= max_scroll + R_VIS_MAX);
+        assert!(bottom_visual > max_scroll + 59.9);
     }
 }

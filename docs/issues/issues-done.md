@@ -205,3 +205,15 @@ Add support for storing issues in a local `issues.db` SQLite file for faster que
 **Resolution:** Descoped. Violates the core philosophy of Ishoo. The whole point is to keep issues as portable, human-readable markdown files that can be version-controlled natively with Git. A database is an anti-goal.
 
 ---
+
+## [110] Fix scroll stutter and physics bounds math
+**Status:** DONE
+**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `assets/style.css`
+
+The feed scrolling stutters terribly because hover effects (`mouseenter`/`mouseleave`) trigger rapid shadow repaints, and the physics `animating` loop was IPC blocking on `eval().await` twice per frame to poll sticky header heights. Furthermore, visual rubber banding hit a hard clamp and "paused" when snapping to the extremes. 
+
+**Resolution:** 
+1. **IPC Fix:** Abstracted DOM polling (`measure_max_scroll`, `measure_header_positions`) out of the 60fps spin loop into a one-time operation on gestures. Batched all DOM transforms into a single IPC pipe (`write_transforms`).
+2. **Hover Fix:** Implemented `body.is-scrolling .item { pointer-events: none !important; }` synced with the physics loop state to strip tracking listeners during motion.
+3. **Physics Maths Fix:** Removed visual hard clamps on overscroll bounds and replaced them with an exponential smoothing curve (`1.0 - exp(-over / R_VIS_MAX)`).
+4. Verified: Added rigorous edge-case testing `test_exponential_rubber_banding` proving extreme `offset` values gracefully converge at visual asymptotes without wrapping. Passed `cargo test` and `neti check`.

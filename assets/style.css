@@ -44,9 +44,15 @@ body {
     color: var(--ink);
     min-height: 100vh;
     padding: 28px 20px;
-nbody.is-scrolling {
-    pointer-events: none;
 }
+
+body.is-scrolling .item {
+    pointer-events: none !important;
+}
+
+body.is-scrolling .issue-row {
+    transition: none !important;
+    pointer-events: none !important;
 }
 .app {
     max-width: 100%;
