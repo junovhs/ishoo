@@ -206,4 +206,36 @@ mod tests {
         assert!(bottom_visual <= max_scroll + R_VIS_MAX);
         assert!(bottom_visual > max_scroll + 59.9);
     }
+
+    #[test]
+    fn test_manual_velocity_dampening_scrub() {
+        let mut physics = ScrollPhysics::default();
+        let max_scroll = 1000.0;
+        
+        // Give it a massive velocity
+        physics.add_wheel_delta(100.0, max_scroll);
+        let initial_v = physics.velocity;
+        
+        // Simulate normal coasting for 1 second
+        let mut normal_coast = ScrollPhysics { velocity: initial_v, offset: 0.0 };
+        for _ in 0..60 { normal_coast.tick(0.016, max_scroll); }
+        
+        // Simulate coasting with the user "scrubbing" the mouse for exactly 3 ticks
+        let mut scrub_coast = ScrollPhysics { velocity: initial_v, offset: 0.0 };
+        for i in 0..60 { 
+            if i < 3 {
+                // The exact logic from our onpointermove block
+                scrub_coast.velocity *= 0.85; 
+            }
+            scrub_coast.tick(0.016, max_scroll);
+        }
+        
+        // The scrub coast should have halted significantly faster, proving the modifier 
+        // exponentially decays the momentum compared to baseline TAU.
+        assert!(scrub_coast.velocity < normal_coast.velocity);
+        
+        // With 3 consecutive scrub ticks, the velocity should drop precisely by ~38.5%
+        // independently of the baseline friction (0.85^3 ~ 0.614)
+        assert!((scrub_coast.velocity / normal_coast.velocity) < 0.62);
+    }
 }

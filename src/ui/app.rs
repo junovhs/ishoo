@@ -461,6 +461,13 @@ fn render_content(
                     physics.write().velocity = 0.0;
                 }
             },
+            onpointermove: move |_| {
+                if animating() {
+                    // Every mouse movement tick drains 15% of the current velocity,
+                    // creating an organic, dynamic braking sensation.
+                    physics.write().velocity *= 0.85;
+                }
+            },
             onwheel: move |evt: Event<WheelData>| {
                 physics.write().add_wheel_delta(evt.delta().strip_units().y, max_scroll());
                 if !animating() {
