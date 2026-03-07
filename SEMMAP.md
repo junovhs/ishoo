@@ -38,7 +38,7 @@ Implements cli set status. [TYPE]
 → Exports: cli_set_status, cli_heatmap, cli_list, cli_show
 
 `src/model/workspace.rs`
-Implements file heatmap. [TYPE]
+Implements Workspace functionality. [TYPE]
 → Exports: dependency_edges, file_heatmap, Workspace, load
 
 `src/ui/app.rs`
@@ -46,7 +46,7 @@ Implements App functionality.
 → Exports: App
 
 `src/ui/components.rs`
-Implements stat row.
+Implements nav btn.
 → Exports: NavBtn, StatRow
 
 `src/ui/scroll.rs`
@@ -70,7 +70,7 @@ Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/viz.rs`
-Implements heatmap view.
+Implements timeline view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`

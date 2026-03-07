@@ -25,6 +25,7 @@ pub struct FeedViewProps {
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
     pub on_reorder: EventHandler<(u32, u32, bool)>,
+    pub on_section_toggle: EventHandler<()>,
 }
 
 #[component]
@@ -32,6 +33,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
     let mut modal_id: Signal<Option<u32>> = use_signal(|| None);
     let on_reorder = props.on_reorder;
+    let on_section_toggle = props.on_section_toggle;
     
     // Captured for index lookups inside the event handlers
     let issues_len = props.issues.len();
@@ -50,11 +52,19 @@ pub fn FeedView(props: FeedViewProps) -> Element {
         div {
             class: if props.is_compact { "feed compact" } else { "feed" },
             onpointermove: move |e| {
+                // BUG FIX: Do not unconditionally call drag_state.write() here!
+                // Calling .write() dirties the signal and forces every single IssueCard
+                // to re-render on *every single mouse move*. Read first, write only if dragging.
+                let ds_read = drag_state.read();
+                if ds_read.dragging_id.is_none() || ds_read.releasing {
+                    return;
+                }
+                drop(ds_read);
+
                 let mut ds = drag_state.write();
-                if ds.dragging_id.is_some() && !ds.releasing {
-                    ds.offset_y = (e.client_coordinates().y as f32 - ds.start_y) / props.zoom;
-                    
-                    let logical_y = ds.start_virtual_y + ds.offset_y;
+                ds.offset_y = (e.client_coordinates().y as f32 - ds.start_y) / props.zoom;
+                
+                let logical_y = ds.start_virtual_y + ds.offset_y;
                     let sl = if props.is_compact { 44.0 } else { 93.0 };
                     
                     let sections = [
@@ -99,7 +109,6 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         }
                     }
                     ds.hover_idx = closest_idx;
-                }
             },
             onpointerup: move |_| {
                 let mut ds = drag_state.write();
@@ -255,6 +264,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                     } else {
                                         c.insert(key_clone.clone());
                                     }
+                                    on_section_toggle.call(());
                                 },
                                 span { 
                                     class: if is_collapsed { "chevron collapsed" } else { "chevron" }, 

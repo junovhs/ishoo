@@ -45,14 +45,16 @@ body {
     min-height: 100vh;
     padding: 28px 20px;
 }
-
-body.is-scrolling .item {
+body.is-scrolling .feed-inner {
     pointer-events: none !important;
+}
+
+body.is-scrolling .section-head {
+    pointer-events: auto !important;
 }
 
 body.is-scrolling .issue-row {
     transition: none !important;
-    pointer-events: none !important;
 }
 .app {
     max-width: 100%;

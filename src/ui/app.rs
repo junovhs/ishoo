@@ -456,6 +456,11 @@ fn render_content(
     rsx! {
         div {
             class: "content",
+            onpointerdown: move |_| {
+                if animating() {
+                    physics.write().velocity = 0.0;
+                }
+            },
             onwheel: move |evt: Event<WheelData>| {
                 physics.write().add_wheel_delta(evt.delta().strip_units().y, max_scroll());
                 if !animating() {
@@ -504,6 +509,10 @@ fn render_content(
                             }
                             issues.set(all);
                             save_workspace(state, "");
+                        },
+                        on_section_toggle: move |_| {
+                            physics.write().reset();
+                            animating.set(true);
                         },
                     }
                 },

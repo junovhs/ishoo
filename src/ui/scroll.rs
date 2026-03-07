@@ -8,7 +8,7 @@
 use dioxus::document::eval;
 
 // ── Physics constants ────────────────────────────────────────────────────
-pub const TAU: f64 = 0.35;           // Friction time constant (seconds). Lower = snappier.
+pub const TAU: f64 = 0.22;           // Friction time constant (seconds). Lower = snappier.
 pub const ACCEL: f64 = 4.5;          // Wheel delta → velocity multiplier.
 pub const MAX_V: f64 = 15000.0;      // Velocity cap (px/s).
 pub const R_K: f64 = 250.0;          // Rubber-band spring stiffness at bounds.
