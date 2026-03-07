@@ -2,6 +2,16 @@
 
 ---
 
+## [27] Add comments per issue
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+
+Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
+
+**Resolution:** 
+
+---
+
 ## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
 **Status:** OPEN
 **Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
@@ -13,11 +23,12 @@ Note: The HTML UI buttons have been added to the Topbar. Still requires wiring u
 
 ---
 
-## [27] Add comments per issue
+## [33] Add issue linking, mentions, and hover brackets
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+**Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
 
-Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
+Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
+Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
 
 **Resolution:** 
 
@@ -29,17 +40,6 @@ Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to
 
 The issue modal is missing the top colored accent bar (`.m-accent`), properly styled header layout, and keyboard navigation hints.
 Note: The UI HTML layout has been completed. Keyboard `ArrowUp`/`ArrowDown` navigation logic still needs to be implemented.
-
-**Resolution:** 
-
----
-
-## [33] Add issue linking, mentions, and hover brackets
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
-
-Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
-Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
 
 **Resolution:** 
 

@@ -88,6 +88,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let stats = compute_stats(&(state.issues)());
     let filtered = filter_issues(&(state.issues)(), &search());
 
+
     rsx! {
         style { "{STYLESHEET}" }
         
@@ -378,8 +379,60 @@ fn render_content(
     state: AppState,
 ) -> Element {
     let mut issues = state.issues;
+
+    // ── Scroll physics (pure Rust) ──────────────────────────────
+    let mut physics = use_signal(super::scroll::ScrollPhysics::default);
+    let mut animating = use_signal(|| false);
+    let mut max_scroll = use_signal(|| 0.0f64);
+    let mut header_ys = use_signal(Vec::<f64>::new);
+
+    // Animation loop: ticks physics at ~60fps, writes transforms via eval()
+    use_effect(move || {
+        spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+
+                if !animating() {
+                    continue;
+                }
+
+                // Periodically re-measure content height
+                let ms = super::scroll::measure_max_scroll().await;
+                if ms > 0.0 {
+                    max_scroll.set(ms);
+                }
+
+                let still_moving = {
+                    let mut p = physics.write();
+                    p.tick(0.016, max_scroll())
+                };
+
+                let vis = physics.read().visual_offset(max_scroll());
+                super::scroll::write_content_transform(vis);
+
+                // Re-measure header positions occasionally
+                let hys = super::scroll::measure_header_positions().await;
+                if !hys.is_empty() {
+                    header_ys.set(hys);
+                }
+                super::scroll::write_header_transforms(vis, &header_ys());
+
+                if !still_moving {
+                    animating.set(false);
+                }
+            }
+        });
+    });
+
     rsx! {
-        div { class: "content",
+        div {
+            class: "content",
+            onwheel: move |evt: Event<WheelData>| {
+                physics.write().add_wheel_delta(evt.delta().strip_units().y);
+                if !animating() {
+                    animating.set(true);
+                }
+            },
             match view() {
                 View::Feed => rsx! {
                     views::FeedView {

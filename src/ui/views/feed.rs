@@ -163,6 +163,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             },
 
             div { 
+                id: "scroll-content",
                 class: "feed-inner",
                 // absolute container required so cards measure from the top
                 style: "position: relative; height: {total_height}px;",
@@ -245,6 +246,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         elements.push(rsx! {
                             div {
                                 key: "header-{key}",
+                                id: "sh-{key}",
                                 class: "section-head s-{key}",
                                 onclick: move |_| {
                                     let mut c = collapsed.write();

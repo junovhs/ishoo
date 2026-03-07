@@ -1,5 +1,6 @@
 mod app;
 mod components;
+pub(crate) mod scroll;
 mod toast;
 mod views;
 mod welcome;
