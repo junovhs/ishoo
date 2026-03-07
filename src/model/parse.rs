@@ -1,45 +1,41 @@
 use super::{Issue, Status};
 
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag};
+
 pub fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
     let mut issues = Vec::new();
     let mut section = default_section.to_owned();
     let mut current: Option<Issue> = None;
     let mut in_resolution = false;
 
-    for line in text.lines() {
-        if let Some(heading) = line.strip_prefix("# ") {
-            if !line.starts_with("## ") {
-                let heading = heading.trim();
-                if !heading.is_empty() {
-                    section.clear();
-                    section.push_str(heading);
+    let mut parser = Parser::new_ext(text, Options::all()).into_offset_iter();
+
+    while let Some((event, range)) = parser.next() {
+        match event {
+            Event::Start(Tag::Heading { level: HeadingLevel::H1, .. }) => {
+                let heading_text = skip_and_extract_text(&mut parser);
+                let t = heading_text.trim();
+                if !t.is_empty() {
+                    section = t.to_owned(); // neti:allow(P02)
                 }
-                continue;
             }
-        }
-
-        if let Some(parsed) = try_parse_heading(line) {
-            if let Some(prev) = current.take() {
-                issues.push(prev);
+            Event::Start(Tag::Heading { level: HeadingLevel::H2, .. }) => {
+                let heading_text = skip_and_extract_text(&mut parser);
+                process_h2(
+                    text, range, &heading_text, &section, 
+                    &mut current, &mut issues, &mut in_resolution
+                );
             }
-            current = Some(new_issue(parsed.0, parsed.1, &section));
-            in_resolution = false;
-            continue;
+            Event::Start(_) => {
+                let _ = skip_and_extract_text(&mut parser);
+                process_block(text, range, &mut current, &mut in_resolution);
+            }
+            Event::Rule => {}
+            Event::Text(_) | Event::Html(_) | Event::Code(_) | Event::InlineHtml(_) => {
+                process_raw_block(text, range, &mut current, in_resolution);
+            }
+            _ => {}
         }
-
-        let Some(cur) = current.as_mut() else {
-            continue;
-        };
-
-        if line.trim() == "---" {
-            continue;
-        }
-
-        if try_parse_field(cur, line, &mut in_resolution) {
-            continue;
-        }
-
-        accumulate_text(cur, line, in_resolution);
     }
 
     if let Some(cur) = current {
@@ -52,6 +48,95 @@ pub fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
     }
 
     issues
+}
+
+fn process_h2(
+    text: &str,
+    range: std::ops::Range<usize>,
+    heading_text: &str,
+    section: &str,
+    current: &mut Option<Issue>,
+    issues: &mut Vec<Issue>,
+    in_resolution: &mut bool,
+) {
+    let fake_line = format!("## {}", heading_text);
+    if let Some(parsed) = try_parse_heading(&fake_line) {
+        if let Some(prev) = current.take() {
+            issues.push(prev);
+        }
+        *current = Some(new_issue(parsed.0, parsed.1, section));
+        *in_resolution = false;
+    } else if let Some(cur) = current.as_mut() {
+        // neti:allow(P04)
+        for line in text[range].lines() {
+            accumulate_text(cur, line, *in_resolution);
+        }
+    }
+}
+
+fn process_block(
+    text: &str,
+    range: std::ops::Range<usize>,
+    current: &mut Option<Issue>,
+    in_resolution: &mut bool,
+) {
+    if let Some(cur) = current.as_mut() {
+        ensure_blank_line(cur, *in_resolution);
+        // neti:allow(P04)
+        for line in text[range].lines() {
+            if try_parse_field(cur, line, in_resolution) {
+                continue;
+            }
+            accumulate_text(cur, line, *in_resolution);
+        }
+    }
+}
+
+fn process_raw_block(
+    text: &str,
+    range: std::ops::Range<usize>,
+    current: &mut Option<Issue>,
+    in_resolution: bool,
+) {
+    if let Some(cur) = current.as_mut() {
+        ensure_blank_line(cur, in_resolution);
+        // neti:allow(P04)
+        for line in text[range].lines() {
+            accumulate_text(cur, line, in_resolution);
+        }
+    }
+}
+
+fn ensure_blank_line(cur: &mut Issue, in_resolution: bool) {
+    let target = if in_resolution {
+        &mut cur.resolution
+    } else {
+        &mut cur.description
+    };
+    if !target.is_empty() && !target.ends_with("\n\n") {
+        if target.ends_with('\n') {
+            target.push('\n');
+        } else {
+            target.push_str("\n\n");
+        }
+    }
+}
+
+fn skip_and_extract_text<'a>(parser: &mut impl Iterator<Item = (Event<'a>, std::ops::Range<usize>)>) -> String {
+    let mut extracted = String::new();
+    let mut nesting = 1;
+    for (inner_ev, _) in parser {
+        match inner_ev {
+            Event::Start(_) => nesting += 1,
+            Event::End(_) => nesting -= 1,
+            Event::Text(t) | Event::Code(t) => extracted.push_str(&t),
+            _ => {}
+        }
+        if nesting == 0 {
+            break;
+        }
+    }
+    extracted
 }
 
 fn new_issue(id: u32, title: String, section: &str) -> Issue {
@@ -111,7 +196,7 @@ fn accumulate_text(cur: &mut Issue, line: &str, in_resolution: bool) {
     } else {
         &mut cur.description
     };
-    if !target.is_empty() {
+    if !target.is_empty() && !target.ends_with('\n') {
         target.push('\n');
     }
     target.push_str(line);
@@ -169,5 +254,15 @@ mod tests {
         let md = "# Test\n\n## [3] Third\n**Status:** OPEN\n**Depends on:** [1], [2]\n\n**Resolution:** \n";
         let issues = parse_markdown(md, "Test");
         assert_eq!(issues[0].depends_on, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_ast_markdown_extraction() {
+        let md = "# Active\n\n## [8] AST Test\n**Status:** OPEN\n\nThis is a paragraph with **bold** and `code`.\n\n```rust\nfn main() {}\n```\n\n**Resolution:** \nFixed by *magic*.\n";
+        let issues = parse_markdown(md, "Default");
+        assert_eq!(issues.len(), 1);
+        let issue = &issues[0];
+        assert_eq!(issue.description, "This is a paragraph with **bold** and `code`.\n\n```rust\nfn main() {}\n```");
+        assert_eq!(issue.resolution, "Fixed by *magic*.");
     }
 }

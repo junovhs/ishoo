@@ -2,22 +2,25 @@
 
 ---
 
-## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
+## [30] Render markdown in description and resolution fields
 **Status:** OPEN
-**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
+**Files:** `src/ui/views/feed/card.rs`
+**Depends on:** [8]
 
-Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
-Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
+Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
 
 **Resolution:** 
 
 ---
 
-## [8] Switch to AST-based markdown parser
+## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** OPEN
-**Files:** `src/model/parse.rs`
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
 
-Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-cmark`.
+Remaining issues from the V2 Spike integration:
+1. **Snapback Bug:** Drag-and-drop snapback is still present. The card jumps to its original slot immediately upon release before moving to the target.
+2. **Dark Mode Drag Opacity:** Dragging cards in dark mode is still transparent, allowing lower cards to be seen through them.
+3. **Missing Color Dots:** Some issues in the Backlog section are still entirely missing their tracking color dots. These skip rendering somewhat arbitrarily and may be linked to the collapsible section loop logic.
 
 **Resolution:** 
 
@@ -43,26 +46,12 @@ Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to
 
 ---
 
-## [30] Render markdown in description and resolution fields
+## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
 **Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Depends on:** [8]
+**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
 
-Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
-
-**Resolution:** 
-
----
-
-## [101] UI: Fix layout, scrolling, button styles, and card titles
-**Status:** OPEN
-**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/views/feed.rs`
-
-The V2 UI styling is partially applied but missing critical polish:
-1. `overflow: hidden` on the body prevents scrolling entirely.
-2. Button styling (`+ New Issue`) doesn't match the spike's `.btn-n` rules.
-3. Card titles don't truncate gracefully because `.issue-body` lacks `min-width: 0`.
-Can be done immediately with pure CSS and minor markup tweaks.
+Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
+Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
 
 **Resolution:** 
 
@@ -108,19 +97,6 @@ Once parsed, the UI must implement the `.bracket-svg` hover effect bridging link
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
 
 Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
-
-**Resolution:** 
-
----
-
-## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
-**Status:** OPEN
-**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
-
-Remaining issues from the V2 Spike integration:
-1. **Snapback Bug:** Drag-and-drop snapback is still present. The card jumps to its original slot immediately upon release before moving to the target.
-2. **Dark Mode Drag Opacity:** Dragging cards in dark mode is still transparent, allowing lower cards to be seen through them.
-3. **Missing Color Dots:** Some issues in the Backlog section are still entirely missing their tracking color dots. These skip rendering somewhat arbitrarily and may be linked to the collapsible section loop logic.
 
 **Resolution:** 
 

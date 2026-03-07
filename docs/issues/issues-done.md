@@ -2,6 +2,16 @@
 
 ---
 
+## [8] Switch to AST-based markdown parser
+**Status:** DONE
+**Files:** `src/model/parse.rs`, `Cargo.toml`
+
+Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-cmark`.
+
+**Resolution:** Replaced manual array splits with `pulldown_cmark` event iteration inside `parse_markdown`. Implemented token extraction that consumes `Text[range]` cleanly across paragraph blocks. Tested via `cargo test parse` and passed `neti check`.
+
+---
+
 ## [103] UI: Feed Collapsible Sections
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`

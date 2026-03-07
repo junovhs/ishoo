@@ -62,7 +62,7 @@ Implements feed view props.
 → Exports: DragState, FeedViewProps, FeedView
 
 `src/ui/views/viz.rs`
-Implements graph view.
+Implements timeline view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -91,7 +91,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
+Creates workspace at. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`
