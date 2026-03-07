@@ -43,16 +43,6 @@ Relies on the AST parser to generate HTML for the modal descriptions, replacing 
 
 ---
 
-## [8] Switch to AST-based markdown parser
-**Status:** DONE
-**Files:** `src/model/parse.rs`, `Cargo.toml`
-
-Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-cmark`.
-
-**Resolution:** Replaced manual array splits with `pulldown_cmark` event iteration inside `parse_markdown`. Implemented token extraction that consumes `Text[range]` cleanly across paragraph blocks. Tested via `cargo test parse` and passed `neti check`.
-
----
-
 ## [103] UI: Feed Collapsible Sections
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
@@ -71,6 +61,16 @@ The spike groups issues into sections (Active, Backlog, Done) with collapsible h
 2. The sidebar is missing the `.kb-ref` keyboard shortcut guide.
 
 **Resolution:** Added the keyboard reference HTML structure to `app.rs`. Added the `.s-dot` and `.xlink` Mock indicators to `card.rs` based on the status styling rules and dependencies list length. Evaluated via `neti check` that UI atomic boundaries are pristine. Tests run: None added as this is pure HTML layout changes. Verified via `cargo test` and manual review.
+
+---
+
+## [8] Switch to AST-based markdown parser
+**Status:** DONE
+**Files:** `src/model/parse.rs`, `Cargo.toml`
+
+Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-cmark`.
+
+**Resolution:** Replaced manual array splits with `pulldown_cmark` event iteration inside `parse_markdown`. Implemented token extraction that consumes `Text[range]` cleanly across paragraph blocks. Tested via `cargo test parse` and passed `neti check`.
 
 ---
 

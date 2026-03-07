@@ -37,11 +37,11 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let issues_len = props.issues.len();
     let issues_for_up = props.issues.clone();
     let is_compact = props.is_compact;
-    let slot_h = if is_compact { 36.0 } else { 85.0 };
+    let slot_h = if is_compact { 44.0 } else { 93.0 };
     
     // Compute total absolute container height, plus the 200px scroll padding at the bottom
-    // We add 1 slot_h worth of height for each of the 3 section headers
-    let total_height = (issues_len as f32 * slot_h) + (3.0 * slot_h) + 200.0;
+    // We add 45.0 px worth of height for each of the 3 section headers
+    let total_height = (issues_len as f32 * slot_h) + (3.0 * 45.0) + 200.0;
     
     // We need to track which sections are currently collapsed
     let mut collapsed = use_signal(std::collections::HashSet::<String>::new);
@@ -55,7 +55,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     ds.offset_y = (e.client_coordinates().y as f32 - ds.start_y) / props.zoom;
                     
                     let logical_y = ds.start_virtual_y + ds.offset_y;
-                    let sl = if props.is_compact { 36.0 } else { 85.0 };
+                    let sl = if props.is_compact { 44.0 } else { 93.0 };
                     
                     let sections = [
                         ("Active", "active", "var(--orange)"),
@@ -65,7 +65,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     
                     let mut closest_idx = ds.start_idx;
                     let mut min_dist = f32::MAX;
-                    let mut v_idx = 0;
+                    let mut current_y = 0.0;
                     
                     for (_label, key, _color) in sections {
                         let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
@@ -83,17 +83,18 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                             .collect();
                             
                         if section_items.is_empty() { continue; }
-                        v_idx += 1;
+                        
+                        current_y += 45.0; // Header height natively integrated
+                        
                         if !collapsed.read().contains(key) {
                             for (idx, _) in section_items {
-                                let vy = v_idx as f32 * sl;
-                                let dist = (vy - logical_y).abs();
+                                let dist = (current_y - logical_y).abs();
                                 if dist < min_dist {
                                     min_dist = dist;
                                     closest_idx = idx;
-                                    ds.hover_y = vy;
+                                    ds.hover_y = current_y;
                                 }
-                                v_idx += 1;
+                                current_y += sl;
                             }
                         }
                     }
@@ -129,8 +130,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     let mut ds_signal = drag_state;
 
                     spawn(async move {
-                        // Wait exactly the length of the 200ms CSS transition
-                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        // Wait exactly the length of the 400ms CSS transition
+                        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
                         
                         if start_idx != hover_idx {
                             if let Some(target) = issues_clone.get(hover_idx) {
@@ -175,11 +176,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         ("Backlog", "backlog", "var(--blue)"),
                         ("Done", "done", "var(--green)"),
                     ];
-                    
-                    // We must track the `virtual_idx` which is the actual vertical slot.
-                    // Every section header takes up 1 slot. Cards take up 1 slot each.
-                    let mut virtual_idx = 0;
-                    
+                    // We use `current_y` iterators further down to calculate precise vertical offsets.
                     let mut array_reordered = false;
                     {
                         let ds_read = drag_state.read();
@@ -215,9 +212,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                             .collect();
                     }
                     
-                    // Rewrite this logic properly:
-                    // In `workspace.rs`, `Issue` has `pub section: String`. We should use that!
-                    // Let's iterate the sections and pull out items where `i.section.to_lowercase() == key`
+                    let mut current_y = 0.0;
+                    
                     for (label, key, color) in sections {
                         let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
                             .filter(|(_, i)| {
@@ -240,8 +236,6 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         }
                         
                         let is_collapsed = collapsed.read().contains(key);
-                        let y_pos = virtual_idx as f32 * slot_h;
-                        
                         let key_clone = key.to_string();
                         let count = section_items.len();
                         
@@ -251,8 +245,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         elements.push(rsx! {
                             div {
                                 key: "header-{key}",
-                                class: "section-head",
-                                style: "position: absolute; top: {y_pos}px; left: 0; right: 0; height: {slot_h}px;",
+                                class: "section-head s-{key}",
                                 onclick: move |_| {
                                     let mut c = collapsed.write();
                                     if c.contains(&key_clone) {
@@ -272,22 +265,26 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                             }
                         });
                         
-                        virtual_idx += 1;
+                        current_y += 45.0; // Math matched to the 45px section-head constraint.
                         
                         if !is_collapsed {
                             for (idx, issue) in section_items {
+                                let target_y = current_y;
+                                elements.push(rsx! {
+                                    div { key: "spacer-{issue.id}", style: "height: {slot_h}px; width: 100%;" }
+                                });
                                 elements.push(rsx! {
                                     IssueCard {
                                         key: "card-{issue.id}",
                                         issue: issue.clone(),
                                         idx: idx,
-                                        virtual_y: virtual_idx as f32 * slot_h, // We need to modify IssueCard to take `virtual_y`
+                                        virtual_y: target_y, // We need to modify IssueCard to take `virtual_y`
                                         drag_state: drag_state,
                                         is_compact: props.is_compact,
                                         array_reordered: array_reordered,
                                     }
                                 });
-                                virtual_idx += 1;
+                                current_y += slot_h;
                             }
                         }
                     }

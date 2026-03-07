@@ -25,7 +25,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
 
     // Compute the effective index for where this card should visually sit right now
     let mut virtual_y = props.virtual_y;
-    let slot_h = if props.is_compact { 36.0 } else { 85.0 };
+    let slot_h = if props.is_compact { 44.0 } else { 93.0 };
     
     if ds.dragging_id.is_some() && !is_dragging && !array_reordered {
         let start = ds.start_idx as i32;
@@ -39,9 +39,22 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
         }
     }
 
+    let mut actually_dragging = is_dragging;
+    let mut effective_offset = ds.offset_y;
+    let deadzone = 8.0; // Buttery 8px deadzone for sloppy clicks
+    
+    if actually_dragging && !ds.releasing {
+        if effective_offset.abs() < deadzone {
+            actually_dragging = false; 
+            effective_offset = 0.0;
+        } else {
+            effective_offset = effective_offset - (effective_offset.signum() * deadzone);
+        }
+    }
+
     let y_pos = if is_dragging && !ds.releasing {
         // Free follow cursor relative to the starting slot
-        props.virtual_y + ds.offset_y
+        props.virtual_y + effective_offset
     } else if is_dragging && ds.releasing {
         // Snap/suck into the final hover socket
         if array_reordered {
@@ -54,24 +67,22 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
         virtual_y
     };
 
-    let transition = if is_dragging && !ds.releasing {
-        "none" // Instantly follow cursor
-    } else if is_dragging && ds.releasing {
-        "transform 200ms cubic-bezier(0.2, 0, 0, 1), box-shadow 200ms ease" // Suck into socket
+    let transition = if actually_dragging && !ds.releasing {
+        "none" // Instantly follow cursor once deadzone broke
     } else {
-        "transform 200ms ease" // Displaced cards sliding around
+        "transform 400ms cubic-bezier(0.25, 1, 0.5, 1)" // Match the 0.4s box-shadow / scale release
     };
 
-    let cls = if is_dragging && !ds.releasing {
-        "item dragging"
-    } else if is_dragging && ds.releasing {
-        "item settling"
-    } else {
-        "item"
-    };
+    let mut cls = "item".to_string();
+    if actually_dragging && !ds.releasing {
+        cls.push_str(" dragging");
+    }
+    if ds.releasing && is_dragging {
+        cls.push_str(" settling");
+    }
 
     let outer_style = format!(
-        "position: absolute; top: 0; left: 24px; right: 0; transform: translate3d(0, {y_pos}px, 0); transition: {transition};"
+        "position: absolute; top: 0; left: 0px; right: 0px; transform: translate3d(0, {y_pos}px, 0); transition: {transition};"
     );
 
     let mut drag_state_signal = props.drag_state;
@@ -107,7 +118,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     ds_write.releasing = false;
                 },
                 div { class: "id-badge",
-                    span { class: "id-cat", "ISSUE-" }
+                    span { class: "id-cat", "ISS-" }
                     span { class: "id-num", "{id}" }
                 }
                 div { class: "issue-body",

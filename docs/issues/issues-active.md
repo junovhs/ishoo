@@ -2,32 +2,12 @@
 
 ---
 
-## [21] Add labels/tags system
+## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
 
-Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
-
-**Resolution:** 
-
----
-
-## [33] Add issue linking, mentions, and hover brackets
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
-
-Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
-Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
-
-**Resolution:** 
-
----
-
-## [61] Project health pulse & Issue Age
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
-
-Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
+Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
+Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
 
 **Resolution:** 
 
@@ -54,12 +34,32 @@ Note: The UI HTML layout has been completed. Keyboard `ArrowUp`/`ArrowDown` navi
 
 ---
 
-## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
+## [33] Add issue linking, mentions, and hover brackets
 **Status:** OPEN
-**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
+**Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
 
-Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
-Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
+Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
+Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
+
+**Resolution:** 
+
+---
+
+## [21] Add labels/tags system
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
+Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
+
+**Resolution:** 
+
+---
+
+## [61] Project health pulse & Issue Age
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
+
+Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
 
 **Resolution:** 
 

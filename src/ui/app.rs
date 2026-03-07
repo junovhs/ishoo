@@ -130,7 +130,11 @@ fn save_workspace(state: AppState, msg: &str) {
         issues: (state.issues)(),
     };
     match ws.save() {
-        Ok(()) => add_toast(state, msg.to_string(), ToastKind::Success),
+        Ok(()) => {
+            if !msg.is_empty() {
+                add_toast(state, msg.to_string(), ToastKind::Success);
+            }
+        },
         Err(e) => add_toast(state, format!("Save failed: {e}"), ToastKind::Error),
     }
 }
@@ -318,13 +322,13 @@ fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stat
     let mut active_lens = use_signal(|| "My Order".to_string());
     
     rsx! {
-        div {
+        div { class: "sticky-header",
             div { class: "topbar",
                 input { class: "si", placeholder: "Search…", value: "{search}", oninput: move |e| search.set(e.value()) }
                 
                 div { class: "density-toggle", style: "margin-right: 12px;",
                     button { class: "dt-btn", onclick: move |_| zoom.set((zoom() - 0.25).max(1.0)), "-" }
-                    button { class: "dt-btn active", "{zoom() * 100.0}%" }
+                    button { class: "dt-btn active", style: "width: 50px; text-align: center; pointer-events: none;", "{zoom() * 100.0}%" }
                     button { class: "dt-btn", onclick: move |_| zoom.set((zoom() + 0.25).min(2.5)), "+" }
                 }
 
@@ -417,7 +421,7 @@ fn render_content(
                                 }
                             }
                             issues.set(all);
-                            save_workspace(state, "Reordered");
+                            save_workspace(state, "");
                         },
                     }
                 },
