@@ -2,12 +2,24 @@
 
 ---
 
+## [7] Implement issue deletion via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
+
+**Resolution:** 
+
+---
+
 ## [11] Implement categorical issue IDs
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
 
 Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
 New ID format: `<CATEGORY>-<NUMBER>` where:
+
 - Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
 - Number is zero-padded, monotonically increasing per category, never reused
 - A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
@@ -17,17 +29,6 @@ This requires updating:
 - All ID comparisons, sorting, and display logic
 - The CLI `show`, `set`, and `new` commands to accept string IDs
 - The `new` command to accept `--category` or infer from a default
-
-**Resolution:** 
-
----
-
-## [7] Implement issue deletion via CLI
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
 
 **Resolution:** 
 
@@ -52,6 +53,7 @@ Note: switching to `notify` alone does NOT fix the race condition in the current
 If the user modifies an issue in the UI (`dirty = true`) and an external process modifies the markdown simultaneously, "Save All" overwrites the external changes with no warning.
 The current poll handler also has an internal race: the `if !dirty()` check and `issues.set()` are not atomic, so a user edit between those two calls is silently dropped even without external interference.
 Resolution should include:
+
 - Content hash or generation counter comparison before overwriting
 - A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
 - Optionally, per-issue dirty tracking instead of a single global `dirty` flag
@@ -79,6 +81,7 @@ If a new issue is created and has no source file, default to `issues-active.md`.
 
 `write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
 Fix:
+
 - Write to a temporary file in the same directory (`issues-active.md.tmp`)
 - `fsync` the temp file
 - Atomically rename the temp file to the target name
@@ -105,6 +108,7 @@ Currently this only happens on explicit "Save All" and only for the DONE→done-
 
 `discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
 Fix:
+
 - If multiple candidates contain issue files, print a warning listing all matches and which was selected
 - Default to the first match but make the choice visible
 - The `init` command should print the chosen path explicitly
@@ -118,10 +122,12 @@ Fix:
 **Files:** `src/model/workspace.rs`, `src/model/parse.rs`
 
 There are no tests that verify `parse → mutate → save → parse` produces equivalent results. This is where the real data-loss bugs hide. Specifically:
+
 1. Unknown fields (e.g., a user manually adds `**Priority:** HIGH`) are silently dropped on save because `write_section` only emits known fields
 2. Description whitespace and blank lines may not survive a round-trip
 3. Section assignment during save is asymmetric — DONE status forces migration to `issues-done.md`, but DESCOPED does not
 Write property-based or snapshot tests that:
+
 - Parse sample markdown, save it, parse again, and assert structural equality
 - Inject unknown fields and verify they survive (or explicitly document that they won't)
 - Mutate status and verify correct file routing
@@ -136,6 +142,7 @@ Write property-based or snapshot tests that:
 **Depends on:** [6]
 
 Essential keyboard shortcuts for the desktop app:
+
 - `Cmd/Ctrl + S` — Save All
 - `Esc` — Close modal or collapse active card
 Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
@@ -162,6 +169,7 @@ Also support field-level updates for scripting: `ishoo edit <id> --title "New ti
 **Depends on:** [36]
 
 Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
+
 - Duplicate issue IDs introduced by a bad merge
 - Dangling dependency references
 - Issues left in IN PROGRESS on a branch that's being merged to main
@@ -188,6 +196,7 @@ After [8] lands (AST parser), the parser should capture unknown `**Key:** Value`
 **Files:** `src/main.rs`, `src/model/parse.rs`
 
 There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+
 - `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
 - `ishoo lint --strict` — treats warnings as errors (useful for CI)
 This enables a pre-commit hook: `ishoo lint --strict || exit 1`
@@ -224,6 +233,7 @@ After reload, diff the old and new issue lists. For any issue that changed, show
 **Files:** `src/model/mod.rs`, `src/model/workspace.rs`
 
 Development is on Pop!_OS Linux and Windows 11. PathBuf operations should be cross-platform, but there are untested risks:
+
 - Backslash vs forward slash in `**Files:**` field values parsed on Windows vs displayed on Linux
 - Case sensitivity differences (Windows NTFS is case-insensitive, Linux ext4 is not) — could cause duplicate file entries in the heatmap
 - Line ending normalization: if a Windows user commits with CRLF and a Linux user opens the same file, does the parser handle `\r\n` correctly? The `lines()` iterator strips `\r` but the `accumulate_text` function may re-introduce inconsistencies
@@ -234,7 +244,7 @@ Add integration tests that exercise `init → new → save → load` with both f
 
 ---
 
-## [48] Add issue count badges per section in sidebar
+## [109] Add issue count badges per section in sidebar
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`
 
@@ -249,6 +259,7 @@ The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break 
 **Files:** `src/ui/views/viz.rs`
 
 The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue [5] depends on [4], and [4] is still OPEN, then [5] is effectively blocked. Visually distinguish:
+
 - Satisfied dependencies (dependency is DONE) — green edge
 - Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
 The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
@@ -291,10 +302,10 @@ This answers "what's stalled and why am I pretending it isn't?"
 Add a view mode (or a tab within Heatmap) that groups issues by file overlap rather than by status or section. Issues that share 2+ files get clustered together.
 
 Output something like:
+
 ```
 Cluster: parse.rs + workspace.rs
   → [8] AST parser, [12] round-trip tests, [16] preserve unknown fields, [27] comments
-
 Cluster: card.rs + feed.rs
   → [47] drag fix, [14] physics performance, [41] compact mode, [43] description editing
 ```
@@ -305,7 +316,7 @@ This answers "if I'm already in these files, what else can I batch?" Reduces con
 
 ---
 
-## [62] "Cost" lens for ruthless scoping
+## [62] “Cost” lens for ruthless scoping
 **Status:** OPEN
 **Files:** `src/ui/views/feed.rs`, `src/model/workspace.rs`
 
@@ -336,6 +347,7 @@ Doesn't need to be fancy — even a stepped line that goes up by one each time a
 **Files:** `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
 
 Add a "Focus" action on any issue card (click a target icon, or double-click the card). The UI strips away everything except:
+
 - The focused issue, fully expanded
 - Its `**Files:**` list with heatmap scores for each
 - Its direct dependencies and their status (blocked? done?)
@@ -356,6 +368,7 @@ This answers "I've decided what to work on, now show me everything I need to kno
 The graph and heatmap views currently compute overlap indices, pair intersections, and layout data inline during rendering. This causes the P02/P04 violations in `viz.rs` and will get worse as the issue count grows.
 
 Move all graph computation into `Workspace`:
+
 - `file_overlap_index: HashMap<(IssueId, IssueId), Vec<String>>` — precomputed at load time
 - `transitive_dependents: HashMap<IssueId, usize>` — for bottleneck highlighting ([58])
 - `issue_heat_score: HashMap<IssueId, usize>` — weighted file touch count for feed lenses ([57])

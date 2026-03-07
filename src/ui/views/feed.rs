@@ -148,8 +148,14 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 }
             },
             onpointercancel: move |_| {
+                // BUG FIX: Window managers (especially X11/Wayland via winit) frequently fire 
+                // PointerCancel immediately after PointerUp if the cursor moves slightly 
+                // during the physical button release, or if the window loses exact grab focus.
+                // We MUST NOT clear the drag state if we are currently animating the release
+                // drop sequence (`ds.releasing == true`), otherwise the state zeros out instantly
+                // and the card snaps back to origin, breaking the 200ms easing transition.
                 let mut ds = drag_state.write();
-                if !ds.releasing {
+                if ds.dragging_id.is_some() && !ds.releasing {
                     *ds = DragState::default();
                 }
             },
@@ -172,6 +178,18 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     // We must track the `virtual_idx` which is the actual vertical slot.
                     // Every section header takes up 1 slot. Cards take up 1 slot each.
                     let mut virtual_idx = 0;
+                    
+                    let mut array_reordered = false;
+                    {
+                        let ds_read = drag_state.read();
+                        if let Some(drag_id) = ds_read.dragging_id {
+                            if let Some(curr) = props.issues.iter().position(|i| i.id == drag_id) {
+                                if curr != ds_read.start_idx {
+                                    array_reordered = true;
+                                }
+                            }
+                        }
+                    }
                     
                     for (_label, key, _color) in sections {
                         // Find all issues belonging to this section, preserving their original index in `props.issues`
@@ -231,6 +249,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         // handles the chevron separately via the outer class. We'll just style the chevron directly.
                         elements.push(rsx! {
                             div {
+                                key: "header-{key}",
                                 class: "section-head",
                                 style: "position: absolute; top: {y_pos}px; left: 0; right: 0; height: {slot_h}px;",
                                 onclick: move |_| {
@@ -258,12 +277,13 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                             for (idx, issue) in section_items {
                                 elements.push(rsx! {
                                     IssueCard {
-                                        key: "{issue.id}",
+                                        key: "card-{issue.id}",
                                         issue: issue.clone(),
                                         idx: idx,
                                         virtual_y: virtual_idx as f32 * slot_h, // We need to modify IssueCard to take `virtual_y`
                                         drag_state: drag_state,
                                         is_compact: props.is_compact,
+                                        array_reordered: array_reordered,
                                     }
                                 });
                                 virtual_idx += 1;

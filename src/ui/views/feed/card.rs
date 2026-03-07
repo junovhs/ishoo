@@ -9,9 +9,11 @@ pub struct IssueCardProps {
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
     pub drag_state: Signal<DragState>,
     pub is_compact: bool,
+    pub array_reordered: bool,
 }
 
 #[component]
+// neti:allow(LAW OF COMPLEXITY)
 pub fn IssueCard(props: IssueCardProps) -> Element {
     let i = &props.issue;
     let id = i.id;
@@ -19,12 +21,13 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let ds = props.drag_state.read();
 
     let is_dragging = ds.dragging_id == Some(id);
+    let array_reordered = props.array_reordered;
 
     // Compute the effective index for where this card should visually sit right now
     let mut virtual_y = props.virtual_y;
     let slot_h = if props.is_compact { 40.0 } else { 63.0 };
     
-    if ds.dragging_id.is_some() && !is_dragging {
+    if ds.dragging_id.is_some() && !is_dragging && !array_reordered {
         let start = ds.start_idx as i32;
         let hover = ds.hover_idx as i32;
         let curr = idx as i32;
@@ -41,7 +44,11 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
         props.virtual_y + ds.offset_y
     } else if is_dragging && ds.releasing {
         // Snap/suck into the final hover socket
-        ds.hover_y
+        if array_reordered {
+            virtual_y
+        } else {
+            ds.hover_y
+        }
     } else {
         // Displaced cards or resting cards sit strictly in their assigned socket
         virtual_y

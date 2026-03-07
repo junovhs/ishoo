@@ -2,6 +2,22 @@
 
 ---
 
+## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+
+Remaining issues from the V2 Spike integration:
+
+1. **Snapback Bug:** Drag-and-drop snapback is still present. The card jumps to its original slot immediately upon release before moving to the target.
+2. **Dark Mode Drag Opacity:** Dragging cards in dark mode is still transparent, allowing lower cards to be seen through them.
+3. **Missing Color Dots:** Some issues in the Backlog section are still entirely missing their tracking color dots.
+
+**Resolution:** 1. The snapback was identified mathematically to be caused by pointercancel wiping the DragState zero prematurely. Re-writing `onpointercancel` to only wipe states if dragging is strictly zero zero, removing the pointer event leak on X11/Wayland.
+2. Dark mode opacity was fixed via explicitly resetting `.item.dragging .issue-row` hover styles back to solid `var(--bg)` within `style.css`.
+3. Missing color dots and disappearing elements were traced to a missing `key` attribute in the custom Dioxus loop generating `section-head`, causing list re-renders to wrongly diff the virtual DOM. Added unique `key: "header-{key}"` prefixes. All `neti check` verify passed.
+
+---
+
 ## [30] Render markdown in description and resolution fields
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`
@@ -61,6 +77,7 @@ The current card layout is spacious and readable for 10-20 issues but wastes ver
 Replaces the base UI application with the improved styling logic from the docs/UI Concepts/ui-v2-spike.html spike.
 
 **Resolution:** The task to migrate styling and layout components was completed successfully.
+
 1. `style.css` was fully replaced with the `<style>` block content inside the provided spike file.
 2. The core structures inside `app.rs` and `components.rs` were updated to reflect the spike tag layout (`app`, `sb`, `mn` shells, with `.vb` navigation styles).
 3. The `.issue-title` and `.issue-sub` tags were assigned standard ellipsis truncation CSS (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`) as requested by the user, specifically to preserve a static `54px` card height during window resizing, protecting the stability of the custom physics loop math.
@@ -92,6 +109,7 @@ Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo te
 Critical UX bug: drag-and-drop worked on the first attempt but broke progressively on subsequent drags due to stale `item_springs` HashMap entries leaking between drag sessions.
 
 **Resolution:** Four root causes fixed across three files, plus two follow-up fixes identified by manual testing:
+
 1. `physics.rs` — Added `DragState::reset()` that clears `item_springs` and zeroes all spring state atomically. Added `settle_ticks: u32`; `step_settle` hard-caps at 32 ticks (~500 ms) to force-clear springs that hover near the convergence threshold. Raised `done()` threshold 0.5 → 1.0 px.
 2. `feed/card.rs` — `onpointerdown` calls `ds.reset()` first, replacing the partial `values_mut()` loop that left stale HashMap keys in place.
 3. `feed.rs` — `onpointercancel` calls `ds.reset()` instead of only clearing 2 of ~12 fields.
@@ -108,6 +126,7 @@ Commands: `neti check`
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
 
 7 pre-existing P04 violations (nested loops flagged as quadratic). Rather than suppress with `neti:allow`, the logic was refactored to be genuinely better:
+
 - `viz.rs` — Deleted the `compute_overlaps` / `extract_pairs` pair-enumeration path (O(k²) issue-pairs per file). `GraphView` now calls `shared_file_overlaps` which builds a file→issues map via `flat_map` (O(n)), rendering "file: #A #B #C" instead of "A ⟷ B". More information, less work.
 - `workspace.rs` — `file_heatmap` nested for-loops replaced with `flat_map` iterator chain. Removed the stale `neti:allow(P04)` comment that was failing to suppress the violation anyway.
 
