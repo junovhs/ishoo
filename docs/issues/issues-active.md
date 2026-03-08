@@ -2,14 +2,6 @@
 
 ---
 
-## [116] Gotta take a shit
-**Status:** OPEN
-**Labels:** ux, frontend, compiler, ux, backend, business logic
-
-**Resolution:** 
-
----
-
 ## [11] Implement categorical issue IDs
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
@@ -26,6 +18,14 @@ This requires updating:
 - All ID comparisons, sorting, and display logic
 - The CLI `show`, `set`, and `new` commands to accept string IDs
 - The `new` command to accept `--category` or infer from a default
+
+**Resolution:** 
+
+---
+
+## [116] Gotta take a shit
+**Status:** OPEN
+**Labels:** ux, frontend, compiler, ux, backend, business logic
 
 **Resolution:** 
 
