@@ -140,6 +140,15 @@ Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-c
 
 ---
 
+## [14] Fix re-render performance in physics loop
+**Status:** DONE
+**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
+**Labels:** feed, drag, performance
+
+**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
+
+---
+
 ## [102] UI: Dark Mode Toggle & Stats Breakdown
 **Status:** DONE
 **Files:** `src/ui/app.rs`
@@ -152,24 +161,6 @@ The UI spike includes a dark mode toggle and a clean breakdown of stats.
 Pure UI implementation, no backend needed.
 
 **Resolution:** 
-
----
-
-## [6] Move CSS to native asset files
-**Status:** DONE
-**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`
-**Labels:** feed
-
-**Resolution:** Migrated all CSS from Rust string literals into a standard `assets/style.css` file. Used the standard Rust `include_str!` macro to bundle the stylesheet directly into the binary at compile time. This preserves the "single executable" portability and `cargo install` compatibility while allowing for a proper CSS development experience with syntax highlighting and linting.
-
----
-
-## [14] Fix re-render performance in physics loop
-**Status:** DONE
-**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
-**Labels:** feed, drag, performance
-
-**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
 
 ---
 
@@ -193,6 +184,17 @@ Commands: `neti check`
 
 ---
 
+## [2] Basic Dioxus desktop UI layout
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/styles.rs`
+**Labels:** feed
+
+Create the main shell, sidebar navigation, and a feed view. Ensure it matches a clean, dark-mode aesthetic with DM Sans and JetBrains Mono.
+
+**Resolution:** Built the shell and injected CSS variables for consistent theming across the app.
+
+---
+
 ## [48] Fix pre-existing neti violations in viz.rs and workspace.rs
 **Status:** DONE
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
@@ -207,25 +209,12 @@ Commands: `neti check`
 
 ---
 
-## [1] Setup initial workspace parsing
+## [6] Move CSS to native asset files
 **Status:** DONE
-**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
-**Labels:** markdown, save-load
-
-Build the core engine to read/write issues from markdown files. Needs to handle custom sections, parse metadata (Status, Files, Depends on), and cleanly separate the Description text from the Resolution text.
-
-**Resolution:** Implemented a robust line-based parser and `Workspace::save` logic that correctly maps Issue structs back to properly formatted Markdown files.
-
----
-
-## [2] Basic Dioxus desktop UI layout
-**Status:** DONE
-**Files:** `src/ui/app.rs`, `src/ui/styles.rs`
+**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`
 **Labels:** feed
 
-Create the main shell, sidebar navigation, and a feed view. Ensure it matches a clean, dark-mode aesthetic with DM Sans and JetBrains Mono.
-
-**Resolution:** Built the shell and injected CSS variables for consistent theming across the app.
+**Resolution:** Migrated all CSS from Rust string literals into a standard `assets/style.css` file. Used the standard Rust `include_str!` macro to bundle the stylesheet directly into the binary at compile time. This preserves the "single executable" portability and `cargo install` compatibility while allowing for a proper CSS development experience with syntax highlighting and linting.
 
 ---
 
@@ -286,6 +275,17 @@ The feed scrolling stutters terribly because hover effects (`mouseenter`/`mousel
 Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
 
 **Resolution:** Added `Issue.labels: Vec<String>` to the model, parsed and persisted `**Labels:**` lines in markdown, and rendered real label chips in the feed card and issue modal instead of the placeholder mock tag. Verified with `cargo test labels_parsing`, `cargo test save_and_load_preserves_labels`, `cargo test test_roundtrip`, and `neti check` (verification commands passed; static analysis still reports the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [1] Setup initial workspace parsing
+**Status:** DONE
+**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
+**Labels:** markdown, save-load
+
+Build the core engine to read/write issues from markdown files. Needs to handle custom sections, parse metadata (Status, Files, Depends on), and cleanly separate the Description text from the Resolution text.
+
+**Resolution:** Implemented a robust line-based parser and `Workspace::save` logic that correctly maps Issue structs back to properly formatted Markdown files.
 
 ---
 

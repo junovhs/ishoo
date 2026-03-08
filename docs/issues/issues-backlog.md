@@ -14,23 +14,6 @@ Should prompt for confirmation unless `--force` is passed. After deletion, the i
 
 ---
 
-## [42] Protect against data loss on crash during save
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`
-**Labels:** save-load, bugs, test-coverage
-
-`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
-Fix:
-
-- Write to a temporary file in the same directory (`issues-active.md.tmp`)
-- `fsync` the temp file
-- Atomically rename the temp file to the target name
-- On startup, detect and clean up orphaned `.tmp` files
-
-**Resolution:** 
-
----
-
 ## [27] Add comments per issue
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
@@ -107,6 +90,23 @@ Write property-based or snapshot tests that:
 
 ---
 
+## [42] Protect against data loss on crash during save
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`
+**Labels:** save-load, bugs, test-coverage
+
+`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
+Fix:
+
+- Write to a temporary file in the same directory (`issues-active.md.tmp`)
+- `fsync` the temp file
+- Atomically rename the temp file to the target name
+- On startup, detect and clean up orphaned `.tmp` files
+
+**Resolution:** 
+
+---
+
 ## [36] Validate and lint issue files
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/parse.rs`
@@ -131,18 +131,6 @@ The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.
 Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
 This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
 If a new issue is created and has no source file, default to `issues-active.md`.
-
-**Resolution:** 
-
----
-
-## [31] Status changes move issues between files automatically
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
-**Labels:** save-load
-
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land (#28), the routing rules should be configurable or at least documented.
 
 **Resolution:** 
 
@@ -208,6 +196,18 @@ Add integration tests that exercise `init → new → save → load` with both f
 
 ---
 
+## [31] Status changes move issues between files automatically
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+**Labels:** save-load
+
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land (#28), the routing rules should be configurable or at least documented.
+
+**Resolution:** 
+
+---
+
 ## [60] Issue clustering by shared files
 **Status:** OPEN
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
@@ -225,6 +225,19 @@ Cluster: card.rs + feed.rs
 ```
 
 This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
+
+**Resolution:** 
+
+---
+
+## [63] Velocity visualization in Timeline view
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+**Labels:** viz, git
+
+The Timeline view should show completed issues plotted over time (derived from git history of when issues moved to DONE status). A simple cumulative line or bar chart showing resolved issues per week/month.
+
+Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
 
 **Resolution:** 
 
@@ -275,19 +288,6 @@ Add a "Focus" action on any issue card (click a target icon, or double-click the
 A single-issue view with full context and zero noise. Press Esc or click "Back to Feed" to return.
 
 This answers "I've decided what to work on, now show me everything I need to know about just this one thing."
-
-**Resolution:** 
-
----
-
-## [63] Velocity visualization in Timeline view
-**Status:** OPEN
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-**Labels:** viz, git
-
-The Timeline view should show completed issues plotted over time (derived from git history of when issues moved to DONE status). A simple cumulative line or bar chart showing resolved issues per week/month.
-
-Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
 
 **Resolution:** 
 
@@ -438,6 +438,27 @@ This should eventually plug into the same CI/pre-commit story as issues.
 
 ---
 
+## [72] Add Brief editing via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+**Labels:** brief, cli
+**Depends on:** [71]
+
+Like issues (#15), Briefs need a terminal editing flow. `ishoo brief edit <id>` should open `$EDITOR` with the rendered markdown artifact and parse it back on save.
+
+Also support field-level edits for scripting:
+
+* `--title`
+* `--status`
+* `--related-issues`
+* `--related-briefs`
+
+This should not be a separate bespoke system if issue edit infra can be reused.
+
+**Resolution:** 
+
+---
+
 ## [71] Add Brief creation via CLI
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
@@ -460,27 +481,6 @@ Should support:
 * generated starter template per brief kind
 
 The command should scaffold the correct markdown shape instead of creating blank freeform docs.
-
-**Resolution:** 
-
----
-
-## [72] Add Brief editing via CLI
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-**Labels:** brief, cli
-**Depends on:** [71]
-
-Like issues (#15), Briefs need a terminal editing flow. `ishoo brief edit <id>` should open `$EDITOR` with the rendered markdown artifact and parse it back on save.
-
-Also support field-level edits for scripting:
-
-* `--title`
-* `--status`
-* `--related-issues`
-* `--related-briefs`
-
-This should not be a separate bespoke system if issue edit infra can be reused.
 
 **Resolution:** 
 

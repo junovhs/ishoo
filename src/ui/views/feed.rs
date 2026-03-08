@@ -61,7 +61,6 @@ pub struct DragState {
     pub hover_y: f32,
     pub start_y: f32,
     pub start_virtual_y: f32,
-    pub offset_y: f32,
     pub releasing: bool,
 }
 
@@ -107,23 +106,26 @@ fn modal_neighbor_id(issues: &[Issue], current_id: &str, delta: isize) -> Option
 #[component]
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
+    let mut drag_offset = use_signal(|| 0.0f32);
     let mut recent_drop = use_signal(RecentDropState::default);
     let mut modal_id: Signal<Option<String>> = use_signal(|| None);
     let on_reorder = props.on_reorder;
     let on_section_toggle = props.on_section_toggle;
-    
     // Captured for index lookups inside the event handlers
     let issues_len = props.issues.len();
     let issues_for_up = props.issues.clone();
     let is_compact = props.is_compact;
     let slot_h = if is_compact { 44.0 } else { 93.0 };
-    
     // Compute total absolute container height, plus the 200px scroll padding at the bottom
     // We add 45.0 px worth of height for each of the 3 section headers
     let total_height = (issues_len as f32 * slot_h) + (3.0 * 45.0) + 200.0;
-    
     // We need to track which sections are currently collapsed
     let mut collapsed = use_signal(std::collections::HashSet::<String>::new);
+    let allow_link_hover = {
+        let ds = drag_state.read();
+        let rd = recent_drop.read();
+        ds.dragging_id.is_none() && !ds.releasing && (rd.id.is_none() || rd.hover_armed)
+    };
     let mentioned_by = reverse_links(&props.issues);
     let active_modal = modal_id().and_then(|id| {
         props.issues.iter().find(|issue| issue.id == id).cloned().map(|issue| {
@@ -162,10 +164,11 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 if ds_read.dragging_id.is_none() || ds_read.releasing {
                     return;
                 }
+                let next_offset = (e.client_coordinates().y as f32 - ds_read.start_y) / props.zoom;
                 drop(ds_read);
+                drag_offset.set(next_offset);
 
-                let mut ds = drag_state.write();
-                ds.offset_y = (e.client_coordinates().y as f32 - ds.start_y) / props.zoom;
+                let ds = drag_state.read();
 
                 let sections = [
                     ("Active", "active", "var(--orange)"),
@@ -220,17 +223,25 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 let hover = compute_hover_target(
                     ds.start_idx,
                     ds.start_virtual_y,
-                    ds.offset_y,
+                    next_offset,
                     &insertion_slots.iter().map(|(idx, y, _)| (*idx, *y)).collect::<Vec<_>>(),
                 );
 
-                ds.hover_idx = hover.idx;
-                ds.hover_y = hover.y;
-                ds.hover_after = insertion_slots
+                let hover_after = insertion_slots
                     .iter()
                     .find(|(idx, y, _)| *idx == hover.idx && (*y - hover.y).abs() < f32::EPSILON)
                     .map(|(_, _, after)| *after)
                     .unwrap_or(false);
+                let needs_layout_update =
+                    ds.hover_idx != hover.idx || ds.hover_y != hover.y || ds.hover_after != hover_after;
+                drop(ds);
+
+                if needs_layout_update {
+                    let mut ds = drag_state.write();
+                    ds.hover_idx = hover.idx;
+                    ds.hover_y = hover.y;
+                    ds.hover_after = hover_after;
+                }
             },
             onpointerup: move |e| {
                 let mut ds = drag_state.write();
@@ -238,8 +249,9 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     if ds.releasing { return; }
 
                     // If it was just a tiny click/movement, clear drag and open the issue modal
-                    if ds.offset_y.abs() < 5.0 && ds.start_idx == ds.hover_idx {
+                    if drag_offset() .abs() < 5.0 && ds.start_idx == ds.hover_idx {
                         ds.dragging_id = None;
+                        drag_offset.set(0.0);
                         drop(ds);
                         modal_id.set(Some(id));
                         return;
@@ -247,7 +259,6 @@ pub fn FeedView(props: FeedViewProps) -> Element {
 
                     // Otherwise, trigger the snap-to-socket animation on the card
                     ds.releasing = true;
-                    
                     let drag_id = id.clone();
                     let start_idx = ds.start_idx;
                     let hover_idx = ds.hover_idx;
@@ -258,26 +269,24 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         release_y: e.client_coordinates().y as f32,
                         hover_armed: false,
                     });
-                    
                     // MUST drop the write lock before we can copy the drag_state signal
                     // into the spawned future
                     drop(ds);
-                    
                     let issues_clone = issues_for_up.clone();
                     let on_reorder_clone = on_reorder;
                     let mut ds_signal = drag_state;
+                    let mut drag_offset_signal = drag_offset;
 
                     spawn(async move {
                         // Wait exactly the length of the 400ms CSS transition
                         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-                        
                         if start_idx != hover_idx {
                             if let Some(target) = issues_clone.get(hover_idx) {
                                 let target_id = target.id.clone();
                                 on_reorder_clone.call((drag_id, Some(target_id), hover_after, None));
                             }
                         }
-                        
+                        drag_offset_signal.set(0.0);
                         ds_signal.set(DragState::default());
                     });
                 }
@@ -291,6 +300,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 // and the card snaps back to origin, breaking the 200ms easing transition.
                 let mut ds = drag_state.write();
                 if ds.dragging_id.is_some() && !ds.releasing {
+                    drag_offset.set(0.0);
                     *ds = DragState::default();
                 }
             },
@@ -304,13 +314,11 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     // Group issues into sections in the exact order they appear in the array
                     // so that `idx` strictly maps 1:1 with `props.issues[idx]`.
                     let mut elements = vec![];
-                    
                     let sections = [
                         ("Active", "active", "var(--orange)"),
                         ("Backlog", "backlog", "var(--blue)"),
                         ("Done", "done", "var(--green)"),
                     ];
-                    
                     let array_reordered = false;
                     
                     let mut current_y = 0.0;
@@ -367,7 +375,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                 div { class: "section-line" }
                             }
                         });
-                        
+
                         current_y += 45.0; // Math matched to the 45px section-head constraint.
                         
                         for (idx, issue) in section_items {
@@ -387,7 +395,9 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                     idx: idx,
                                     virtual_y: target_y,
                                     drag_state: drag_state,
+                                    drag_offset: drag_offset,
                                     recent_drop: recent_drop,
+                                    allow_link_hover: allow_link_hover,
                                     is_compact: props.is_compact,
                                     array_reordered: array_reordered,
                                     is_hidden: is_collapsed,

@@ -2,17 +2,6 @@
 
 ---
 
-## [61] Project health pulse & Issue Age
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
-**Labels:** viz, git
-
-Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
-
-**Resolution:** 
-
----
-
 ## [9] Add global keyboard shortcuts
 **Status:** OPEN
 **Files:** `src/ui/app.rs`
@@ -36,6 +25,17 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
 Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
+
+**Resolution:** 
+
+---
+
+## [61] Project health pulse & Issue Age
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
+**Labels:** viz, git
+
+Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
 
 **Resolution:** 
 

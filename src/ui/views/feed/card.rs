@@ -11,11 +11,24 @@ pub struct IssueCardProps {
     pub idx: usize,
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
     pub drag_state: Signal<DragState>,
+    pub drag_offset: Signal<f32>,
     pub recent_drop: Signal<RecentDropState>,
+    pub allow_link_hover: bool,
     pub is_compact: bool,
     pub array_reordered: bool,
     pub is_hidden: bool,
 }
+
+const CLEAR_LINK_BRACKETS_SCRIPT: &str = r#"
+(() => {
+  document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
+  const svg = document.getElementById('link-bracket-overlay');
+  if (svg) {
+    svg.classList.remove('visible');
+    svg.innerHTML = '';
+  }
+})();
+"#;
 
 #[component]
 // neti:allow(LAW OF COMPLEXITY)
@@ -51,11 +64,15 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     }
 
     let mut actually_dragging = is_dragging;
-    let mut effective_offset = ds.offset_y;
-    
+    let mut effective_offset = if is_dragging && !ds.releasing {
+        (props.drag_offset)()
+    } else {
+        0.0
+    };
+
     if actually_dragging && !ds.releasing {
         if effective_offset.abs() < DRAG_DEADZONE_PX {
-            actually_dragging = false; 
+            actually_dragging = false;
             effective_offset = 0.0;
         } else {
             effective_offset = apply_drag_deadzone(effective_offset);
@@ -107,12 +124,14 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     );
 
     let mut drag_state_signal = props.drag_state;
+    let mut drag_offset_signal = props.drag_offset;
     let mut recent_drop_signal = props.recent_drop;
 
-    let is_done = i.status == crate::model::Status::Done || i.status == crate::model::Status::Descoped;
+    let is_done =
+        i.status == crate::model::Status::Done || i.status == crate::model::Status::Descoped;
     let sec_lower = i.section.to_lowercase();
     let is_backlog = !is_done && sec_lower.contains("backlog");
-    
+
     let section_color = if is_done {
         "var(--green)"
     } else if is_backlog {
@@ -120,23 +139,27 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     } else {
         "var(--orange)"
     };
-    let mut related_links = i.links.clone();
-    for incoming in &props.incoming_links {
-        if !related_links.contains(incoming) {
-            related_links.push(incoming.clone());
-        }
-    }
-    let link_ids = related_links.join(",");
     let outgoing_count = i.links.len();
     let incoming_count = props.incoming_links.len();
-    let link_count = related_links.len();
+    let link_count = outgoing_count + incoming_count;
+    let link_ids = if props.allow_link_hover && link_count > 0 {
+        let mut related_links = i.links.clone();
+        for incoming in &props.incoming_links {
+            if !related_links.contains(incoming) {
+                related_links.push(incoming.clone());
+            }
+        }
+        related_links.join(",")
+    } else {
+        String::new()
+    };
     let row_dom_id = format!("issue-row-{id}");
     let section_dom_key = i.section.to_ascii_lowercase().replace(' ', "-");
     let (id_category, id_number) = split_issue_id(&id);
 
     rsx! {
-        div { 
-            class: "{cls}", 
+        div {
+            class: "{cls}",
             style: "{outer_style}",
             div {
                 id: "{row_dom_id}",
@@ -145,6 +168,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                 "data-section-key": "{section_dom_key}",
                 onpointerdown: move |e| {
                     e.prevent_default();
+                    let _ = eval(CLEAR_LINK_BRACKETS_SCRIPT);
                     recent_drop_signal.set(RecentDropState::default());
                     let mut ds_write = drag_state_signal.write();
                     ds_write.dragging_id = Some(id.clone());
@@ -153,12 +177,12 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     ds_write.hover_after = false;
                     ds_write.start_y = e.client_coordinates().y as f32;
                     ds_write.start_virtual_y = props.virtual_y;
-                    ds_write.offset_y = 0.0;
+                    drag_offset_signal.set(0.0);
                     ds_write.hover_y = props.virtual_y;
                     ds_write.releasing = false;
                 },
                 onmouseenter: move |_| {
-                    if link_count == 0 {
+                    if !props.allow_link_hover || link_count == 0 {
                         return;
                     }
                     let script = format!(
@@ -239,18 +263,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     let _ = eval(&script);
                 },
                 onmouseleave: move |_| {
-                    let _ = eval(
-                        r#"
-(() => {
-  document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
-  const svg = document.getElementById('link-bracket-overlay');
-  if (svg) {
-    svg.classList.remove('visible');
-    svg.innerHTML = '';
-  }
-})();
-"#,
-                    );
+                    let _ = eval(CLEAR_LINK_BRACKETS_SCRIPT);
                 },
                 div { class: "id-badge",
                     span { class: "id-cat", "{id_category}-" }
