@@ -219,10 +219,6 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                             }
                         }
                         
-                        // Critical logic: Wait 50ms for the workspace array mutation to propagate 
-                        // down into the FeedView properties AND re-render visually before we kill the 
-                        // hovering/settling transition CSS. This perfectly eliminates the origin snapback.
-                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         ds_signal.set(DragState::default());
                     });
                 }

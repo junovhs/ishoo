@@ -67,12 +67,13 @@ Resolution should include:
 
 ---
 
-## [31] Status changes move issues between files automatically
+## [15] Implement ishoo edit CLI command
 **Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+**Files:** `src/main.rs`, `src/model/cli.rs`
 
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on [8] for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
 
@@ -88,6 +89,20 @@ Fix:
 - If multiple candidates contain issue files, print a warning listing all matches and which was selected
 - Default to the first match but make the choice visible
 - The `init` command should print the chosen path explicitly
+
+**Resolution:** 
+
+---
+
+## [36] Validate and lint issue files
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/parse.rs`
+
+There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+
+- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
+- `ishoo lint --strict` — treats warnings as errors (useful for CI)
+This enables a pre-commit hook: `ishoo lint --strict || exit 1`
 
 **Resolution:** 
 
@@ -140,43 +155,12 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 ---
 
-## [15] Implement ishoo edit CLI command
+## [31] Status changes move issues between files automatically
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
 
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on [8] for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-
-**Resolution:** 
-
----
-
-## [37] Add CI/pre-commit hook integration
-**Status:** OPEN
-**Files:** `src/main.rs`, `docs/`
-**Depends on:** [36]
-
-Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
-
-- Duplicate issue IDs introduced by a bad merge
-- Dangling dependency references
-- Issues left in IN PROGRESS on a branch that's being merged to main
-Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
-
-**Resolution:** 
-
----
-
-## [36] Validate and lint issue files
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/parse.rs`
-
-There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
-
-- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
-- `ishoo lint --strict` — treats warnings as errors (useful for CI)
-This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
 
 **Resolution:** 
 
@@ -233,11 +217,41 @@ After reload, diff the old and new issue lists. For any issue that changed, show
 
 ---
 
+## [37] Add CI/pre-commit hook integration
+**Status:** OPEN
+**Files:** `src/main.rs`, `docs/`
+**Depends on:** [36]
+
+Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
+
+- Duplicate issue IDs introduced by a bad merge
+- Dangling dependency references
+- Issues left in IN PROGRESS on a branch that's being merged to main
+Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
+
+**Resolution:** 
+
+---
+
 ## [109] Add issue count badges per section in sidebar
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`
 
 The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names ([28]), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
+
+**Resolution:** 
+
+---
+
+## [54] Add issue dependency blocking visualization
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`
+
+The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue [5] depends on [4], and [4] is still OPEN, then [5] is effectively blocked. Visually distinguish:
+
+- Satisfied dependencies (dependency is DONE) — green edge
+- Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
+The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
 
 **Resolution:** 
 
@@ -259,20 +273,6 @@ Cluster: card.rs + feed.rs
 ```
 
 This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
-
-**Resolution:** 
-
----
-
-## [54] Add issue dependency blocking visualization
-**Status:** OPEN
-**Files:** `src/ui/views/viz.rs`
-
-The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue [5] depends on [4], and [4] is still OPEN, then [5] is effectively blocked. Visually distinguish:
-
-- Satisfied dependencies (dependency is DONE) — green edge
-- Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
-The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
 
 **Resolution:** 
 

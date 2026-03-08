@@ -2,22 +2,19 @@
 
 ---
 
-## [61] Project health pulse & Issue Age
+## [116] Gotta take a shit
 **Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
-
-Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
+**Labels:** ux, frontend, compiler, ux, backend, business logic
 
 **Resolution:** 
 
 ---
 
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
+## [61] Project health pulse & Issue Age
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
 
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
 
 **Resolution:** 
 
@@ -40,9 +37,12 @@ Requirements:
 
 ---
 
-## [116] Gotta take a shit
-**Status:** OPEN
-**Labels:** ux, frontend, compiler, ux, backend, business logic
+## [4] Replace polling with OS file system events
+**Status:** IN PROGRESS
+**Files:** `src/ui/app.rs`, `Cargo.toml`
+
+The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
 
 **Resolution:** 
 

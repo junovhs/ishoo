@@ -68,6 +68,22 @@ Relies on the AST parser to generate HTML for the modal descriptions, replacing 
 
 ---
 
+## [100] Upgrade UI styling to V2 Spike Layout
+**Status:** DONE
+**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/components.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+
+Replaces the base UI application with the improved styling logic from the docs/UI Concepts/ui-v2-spike.html spike.
+
+**Resolution:** The task to migrate styling and layout components was completed successfully.
+
+1. `style.css` was fully replaced with the `<style>` block content inside the provided spike file.
+2. The core structures inside `app.rs` and `components.rs` were updated to reflect the spike tag layout (`app`, `sb`, `mn` shells, with `.vb` navigation styles).
+3. The `.issue-title` and `.issue-sub` tags were assigned standard ellipsis truncation CSS (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`) as requested by the user, specifically to preserve a static `54px` card height during window resizing, protecting the stability of the custom physics loop math.
+4. `feed.rs` and `feed/card.rs` were safely restructured to embed their content in the new `issue-row` wrapper, leaving the original `onpointerdown` handlers and positioning mechanics identical to what existed before the task.
+Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo test` generated fully passing returns.
+
+---
+
 ## [8] Switch to AST-based markdown parser
 **Status:** DONE
 **Files:** `src/model/parse.rs`, `Cargo.toml`
@@ -89,22 +105,6 @@ The UI spike includes a dark mode toggle and a clean breakdown of stats.
 Pure UI implementation, no backend needed.
 
 **Resolution:** 
-
----
-
-## [100] Upgrade UI styling to V2 Spike Layout
-**Status:** DONE
-**Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/components.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
-
-Replaces the base UI application with the improved styling logic from the docs/UI Concepts/ui-v2-spike.html spike.
-
-**Resolution:** The task to migrate styling and layout components was completed successfully.
-
-1. `style.css` was fully replaced with the `<style>` block content inside the provided spike file.
-2. The core structures inside `app.rs` and `components.rs` were updated to reflect the spike tag layout (`app`, `sb`, `mn` shells, with `.vb` navigation styles).
-3. The `.issue-title` and `.issue-sub` tags were assigned standard ellipsis truncation CSS (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`) as requested by the user, specifically to preserve a static `54px` card height during window resizing, protecting the stability of the custom physics loop math.
-4. `feed.rs` and `feed/card.rs` were safely restructured to embed their content in the new `issue-row` wrapper, leaving the original `onpointerdown` handlers and positioning mechanics identical to what existed before the task.
-Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo test` generated fully passing returns.
 
 ---
 
