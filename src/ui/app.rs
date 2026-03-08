@@ -71,10 +71,9 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let toast_id = use_signal(|| 0u64);
     let is_compact = use_signal(|| false);
     
-    // ── Global Scroll physics ──────────────────────────────
     let physics = use_signal(super::scroll::ScrollPhysics::default);
     let animating = use_signal(|| false);
-
+    
     let zoom = use_signal(|| {
         let p = ws_path.join(".ishoo/zoom");
         std::fs::read_to_string(&p).unwrap_or_else(|_| "1.0".to_string()).parse::<f32>().unwrap_or(1.0)
@@ -465,6 +464,7 @@ fn render_topbar(
                     oninput: move |e| {
                         search.set(e.value());
                         physics.write().reset();
+                        super::scroll::jump_to_top();
                         animating.set(true);
                     } 
                 }
@@ -491,22 +491,42 @@ fn render_topbar(
             div { class: "lens-row",
                 button { 
                     class: if active_lens() == FeedLens::MyOrder { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set(FeedLens::MyOrder), 
+                    onclick: move |_| {
+                        active_lens.set(FeedLens::MyOrder);
+                        physics.write().reset();
+                        super::scroll::jump_to_top();
+                        animating.set(true);
+                    }, 
                     "My Order" 
                 }
                 button { 
                     class: if active_lens() == FeedLens::NextUp { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set(FeedLens::NextUp), 
+                    onclick: move |_| {
+                        active_lens.set(FeedLens::NextUp);
+                        physics.write().reset();
+                        super::scroll::jump_to_top();
+                        animating.set(true);
+                    }, 
                     "Next Up" 
                 }
                 button { 
                     class: if active_lens() == FeedLens::HotPath { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set(FeedLens::HotPath), 
+                    onclick: move |_| {
+                        active_lens.set(FeedLens::HotPath);
+                        physics.write().reset();
+                        super::scroll::jump_to_top();
+                        animating.set(true);
+                    }, 
                     "Hot Path" 
                 }
                 button { 
                     class: if active_lens() == FeedLens::QuickWins { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set(FeedLens::QuickWins), 
+                    onclick: move |_| {
+                        active_lens.set(FeedLens::QuickWins);
+                        physics.write().reset();
+                        super::scroll::jump_to_top();
+                        animating.set(true);
+                    }, 
                     "Quick Wins" 
                 }
             }
@@ -521,7 +541,12 @@ fn render_topbar(
                         div { class: "label-filter-row",
                             button {
                                 class: if active_label().is_none() { "label-filter active" } else { "label-filter" },
-                                onclick: move |_| active_label.set(None),
+                                onclick: move |_| {
+                                    active_label.set(None);
+                                    physics.write().reset();
+                                    super::scroll::jump_to_top();
+                                    animating.set(true);
+                                },
                                 "All labels"
                             }
                             for label in available_labels {
@@ -534,7 +559,12 @@ fn render_topbar(
                                     },
                                     onclick: {
                                         let label = label.clone();
-                                        move |_| active_label.set(Some(label.clone()))
+                                        move |_| {
+                                            active_label.set(Some(label.clone()));
+                                            physics.write().reset();
+                                            super::scroll::jump_to_top();
+                                            animating.set(true);
+                                        }
                                     },
                                     "{label}"
                                 }
@@ -568,13 +598,9 @@ fn render_content(
 ) -> Element {
     let mut issues = state.issues;
     let edit_epoch = use_context::<Signal<u64>>();
-
-    // ── Global Scroll physics ──────────────────────────────
-    // physics and animating sigs passed from the root container
     let mut max_scroll = use_signal(|| 0.0f64);
     let mut header_ys = use_signal(Vec::<f64>::new);
 
-    // Animation loop: ticks physics at ~60fps, writes transforms via eval()
     use_effect(move || {
         spawn(async move {
             let mut last_tick = tokio::time::Instant::now();
@@ -585,45 +611,49 @@ fn render_content(
 
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(16)).await;
-                
+
                 let is_anim = animating();
-                
+
                 if is_anim && !was_animating {
-                    // Just started scrolling
                     super::scroll::set_is_scrolling(true);
                     last_tick = tokio::time::Instant::now();
                     frames = 0;
                     total_time = 0.0;
                     max_frame_time = 0.0;
-                    
-                    // Measure geometry once at start of scroll to avoid IPC thrashing
+
                     let ms = super::scroll::measure_max_scroll().await;
-                    if ms > 0.0 { max_scroll.set(ms); }
-                    
+                    if ms > 0.0 {
+                        max_scroll.set(ms);
+                    }
+
                     let hys = super::scroll::measure_header_positions().await;
-                    if !hys.is_empty() { header_ys.set(hys); }
+                    if !hys.is_empty() {
+                        header_ys.set(hys);
+                    }
                 } else if !is_anim && was_animating {
-                    // Just stopped scrolling
                     super::scroll::set_is_scrolling(false);
                     if frames > 0 {
-                        let avg = total_time / (frames as f64);
-                        println!("[Scroll Metrics] Frames: {} | Avg: {:.1}ms | Max: {:.1}ms", frames, avg, max_frame_time);
+                        let avg = total_time / frames as f64;
+                        println!(
+                            "[Scroll Metrics] Frames: {} | Avg: {:.1}ms | Max: {:.1}ms",
+                            frames, avg, max_frame_time
+                        );
                     }
                 }
-                
-                was_animating = is_anim;
 
-                if !is_anim { continue; }
+                was_animating = is_anim;
+                if !is_anim {
+                    continue;
+                }
 
                 let now = tokio::time::Instant::now();
-                // Ensure dt is never 0 and capped to prevent tunneling spikes if loop sleeps too long
                 let dt = (now - last_tick).as_secs_f64().clamp(0.001, 0.050);
                 let dt_ms = dt * 1000.0;
-                
                 frames += 1;
                 total_time += dt_ms;
-                if dt_ms > max_frame_time { max_frame_time = dt_ms; }
-                
+                if dt_ms > max_frame_time {
+                    max_frame_time = dt_ms;
+                }
                 last_tick = now;
 
                 let still_moving = {
@@ -652,8 +682,6 @@ fn render_content(
             },
             onpointermove: move |_| {
                 if animating() {
-                    // Every mouse movement tick drains 15% of the current velocity,
-                    // creating an organic, dynamic braking sensation.
                     physics.write().velocity *= 0.85;
                 }
             },
@@ -725,6 +753,7 @@ fn render_content(
                         },
                         on_section_toggle: move |_| {
                             physics.write().reset();
+                            super::scroll::jump_to_top();
                             animating.set(true);
                         },
                     }

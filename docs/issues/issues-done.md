@@ -2,6 +2,23 @@
 
 ---
 
+## [132] Feed Scroll Architecture: replace transformed text-layer scrolling with native scroll ownership
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/scroll.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** feed, architecture, polish
+**Depends on:** [131]
+
+The current feed scroll path animates the entire text-bearing feed by writing `transform` values onto `#scroll-content` and separately translating sticky section headers. That architecture forces a bad tradeoff:
+
+- fractional transforms keep the deceleration smooth but soften text
+- pixel-snapped transforms keep text sharp but introduce stepped motion at very low velocity
+
+This should be fixed at the rendering-ownership level, not with more threshold tuning.
+
+**Resolution:** Reworked the feed scroll/render ownership to favor the browser’s native scroll pipeline instead of the abandoned transformed-content path, while restoring the interaction quality that regressed in the intermediate attempt. `src/ui/app.rs` now relies on the `.content` container’s native scrolling and uses `onscroll` only to gate the `.is-scrolling` class, which restores hover suppression during active scroll without competing with drag motion on a custom frame loop. Label filters, search, lenses, and section toggles now call the shared scroll utility to jump back to the top so filtered results do not appear “missing” below the fold. `assets/style.css` restores stacked sticky section headers with explicit per-section offsets, keeps the real scroll container on `.content`, hides its scrollbar chrome, and disables hover/press shadows while `.is-scrolling` is active. `src/ui/views/feed/card.rs` no longer rounds card Y transforms, which removes the drag stutter introduced by snapping. `src/ui/scroll.rs` was reduced to only the live scroll helpers still used by the app, and the dead custom momentum code was deleted rather than retained behind warning suppressions. Verified on 2026-03-08 with `neti check`: `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS, Neti scan still reports only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`.
+
+---
+
 ## [11] Implement categorical issue IDs
 **Status:** DONE
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/model/cli.rs`, `src/main.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `src/ui/views/viz.rs`

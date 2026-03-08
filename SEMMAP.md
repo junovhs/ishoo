@@ -51,7 +51,7 @@ Implements label tone class.
 
 `src/ui/scroll.rs`
 Scroll physics engine — pure Rust.
-→ Exports: add_wheel_delta, set_is_scrolling, ScrollPhysics, visual_offset
+→ Exports: add_wheel_delta, set_is_scrolling, write_scroll_position, visual_offset
 
 `src/ui/toast.rs`
 Implements toast container.
@@ -70,7 +70,7 @@ Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/viz.rs`
-Implements heatmap view.
+Implements timeline view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -95,7 +95,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Creates workspace at. [TYPE]
+Implements status ord. [TYPE]
 → Exports: issue_id_sort_key, parse_categorical_issue_id, default_init_path, init_workspace_at
 
 `src/ui/mod.rs`

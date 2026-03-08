@@ -2,6 +2,63 @@
 
 ---
 
+## [61] Project health pulse & Issue Age
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
+**Labels:** viz, git
+
+Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
+
+**Resolution:** 
+
+---
+
+## [9] Add global keyboard shortcuts
+**Status:** OPEN
+**Files:** `src/ui/app.rs`
+**Labels:** modal
+**Depends on:** [6]
+
+Essential keyboard shortcuts for the desktop app:
+
+- `Cmd/Ctrl + S` — Save All
+- `Esc` — Close modal or collapse active card
+Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
+
+**Resolution:** 
+
+---
+
+## [43] Add issue description editing in the UI
+**Status:** OPEN
+**Files:** `src/ui/views/feed/card.rs`
+**Labels:** modal, feed
+
+The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
+Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
+
+**Resolution:** 
+
+---
+
+## [121] Board Drag Feel: cursor anchoring must match Feed exactly
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`
+**Labels:** board, drag
+
+While dragging in Board, the held card must stay under the cursor with the same deadzone break, live follow, and no-drift behavior as Feed. No shrink, no offset drift, no alternate ghost logic that changes the feel.
+
+Requirements:
+
+- Use the same deadzone behavior as Feed
+- Keep the held card anchored identically under the cursor
+- Remove any visual shrink/compression behavior not present in Feed
+- Match Feed lift/shadow/scale treatment while dragging
+
+**Resolution:** 
+
+---
+
 ## [131] Feed/Text Crispness: eliminate transform-induced fuzz during scroll settle and hover
 **Status:** OPEN
 **Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
@@ -34,52 +91,7 @@ Suggested direction:
 - Remove or reduce scale transforms on `.issue-row` and preserve the feel through shadow, color, border, or slight translate-only motion
 - Audit whether app zoom plus transformed children is producing compounded softness, and tighten that path if needed
 
-**Resolution:** 
-
----
-
-## [121] Board Drag Feel: cursor anchoring must match Feed exactly
-**Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`
-**Labels:** board, drag
-
-While dragging in Board, the held card must stay under the cursor with the same deadzone break, live follow, and no-drift behavior as Feed. No shrink, no offset drift, no alternate ghost logic that changes the feel.
-
-Requirements:
-
-- Use the same deadzone behavior as Feed
-- Keep the held card anchored identically under the cursor
-- Remove any visual shrink/compression behavior not present in Feed
-- Match Feed lift/shadow/scale treatment while dragging
-
-**Resolution:** 
-
----
-
-## [61] Project health pulse & Issue Age
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
-**Labels:** viz, git
-
-Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
-
-**Resolution:** 
-
----
-
-## [9] Add global keyboard shortcuts
-**Status:** OPEN
-**Files:** `src/ui/app.rs`
-**Labels:** modal
-**Depends on:** [6]
-
-Essential keyboard shortcuts for the desktop app:
-
-- `Cmd/Ctrl + S` — Save All
-- `Esc` — Close modal or collapse active card
-Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
-
-**Resolution:** 
+**Resolution:** Snapped feed scroll/content and sticky-header transforms to whole pixels in `src/ui/scroll.rs`, snapped feed card Y positioning to whole pixels in `src/ui/views/feed/card.rs`, and removed text-bearing scale transforms from issue-row drag/hover/press states in `assets/style.css` in favor of translate-only motion. Verified with `neti check` on 2026-03-08: `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS, Neti scan reported only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`. Relevant labels remain `feed, polish`.
 
 ---
 
@@ -132,18 +144,6 @@ Requirements:
 - Switching lanes must not change drag feel, deadzone, or release behavior
 - Empty lanes must accept drops cleanly
 - Cross-lane insertion should still preserve Feed-style displacement inside the destination lane
-
-**Resolution:** 
-
----
-
-## [43] Add issue description editing in the UI
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Labels:** modal, feed
-
-The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
-Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
 
 **Resolution:** 
 

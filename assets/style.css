@@ -56,6 +56,24 @@ body.is-scrolling .section-head {
 body.is-scrolling .issue-row {
     transition: none !important;
 }
+
+body.is-scrolling .item:hover {
+    z-index: 1 !important;
+}
+
+body.is-scrolling .issue-row:hover,
+body.is-scrolling .item:not(.dragging) .issue-row:active,
+body.is-scrolling .item.recent-drop.hover-armed .issue-row,
+html.dark body.is-scrolling .item:not(.dragging) .issue-row:active {
+    box-shadow: none !important;
+    transform: none !important;
+    background: var(--bg) !important;
+}
+
+html.dark body.is-scrolling .issue-row:hover,
+html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
+    background: var(--bg) !important;
+}
 .app {
     max-width: 100%;
     width: 100%;
@@ -525,7 +543,8 @@ html.dark .label-filter.active {
     margin-top: 20px;
 }
 .section-head {
-    position: relative;
+    position: sticky;
+    top: 0;
     z-index: 99;
     background: var(--bg);
     display: flex;
@@ -537,8 +556,10 @@ html.dark .label-filter.active {
     margin-bottom: 2px;
     cursor: pointer;
     user-select: none;
-    will-change: transform;
 }
+.section-head.s-active { top: 0; }
+.section-head.s-backlog { top: 45px; }
+.section-head.s-done { top: 90px; }
 .section-head .chevron {
     font-size: 13px;
     color: var(--ink3);
@@ -585,7 +606,7 @@ html.dark .label-filter.active {
 .feed.compact {
     --card-h: 44px;
 }
-.feed-inner { position: relative; will-change: transform; }
+.feed-inner { position: relative; }
 .bracket-svg {
     position: absolute;
     top: 0;
@@ -617,7 +638,7 @@ html.dark .label-filter.active {
     cursor: grabbing;
     background: var(--bg);
     box-shadow: 0 16px 32px rgba(0,0,0,0.1), 0 6px 12px rgba(0,0,0,0.08); /* Reduced blur to avoid right-edge scroll clip */
-    transform: scale(1.015);
+    transform: translateY(-1px);
     border-radius: 6px;
     transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1);
 }
@@ -664,13 +685,13 @@ html.dark .label-filter.active {
 .issue-row:hover {
     background: var(--bg);
     box-shadow: 0 6px 16px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.02);
-    transform: scale(1.002);
+    transform: translateY(-1px);
 }
 
 /* Press state - push into page */
 .item:not(.dragging) .issue-row:active {
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    transform: scale(0.99);
+    transform: translateY(0);
     transition: transform 0.1s cubic-bezier(0.4, 0.0, 0.2, 1), box-shadow 0.1s cubic-bezier(0.4, 0.0, 0.2, 1);
     background: rgba(0, 0, 0, 0.02);
 }

@@ -161,23 +161,6 @@ After #8 lands (AST parser), the parser should capture unknown `**Key:** Value` 
 
 ---
 
-## [46] Cross-platform path handling and line ending audit
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
-**Labels:** save-load, test-coverage
-
-Development is on Pop!_OS Linux and Windows 11. PathBuf operations should be cross-platform, but there are untested risks:
-
-- Backslash vs forward slash in `**Files:**` field values parsed on Windows vs displayed on Linux
-- Case sensitivity differences (Windows NTFS is case-insensitive, Linux ext4 is not) — could cause duplicate file entries in the heatmap
-- Line ending normalization: if a Windows user commits with CRLF and a Linux user opens the same file, does the parser handle `\r\n` correctly? The `lines()` iterator strips `\r` but the `accumulate_text` function may re-introduce inconsistencies
-- Long path issues on Windows (>260 chars without the `\\?\` prefix)
-Add integration tests that exercise `init → new → save → load` with both forward and backslash paths. Test with CRLF input.
-
-**Resolution:** 
-
----
-
 ## [37] Add CI/pre-commit hook integration
 **Status:** OPEN
 **Files:** `src/main.rs`, `docs/`
@@ -208,16 +191,18 @@ After reload, diff the old and new issue lists. For any issue that changed, show
 
 ---
 
-## [54] Add issue dependency blocking visualization
+## [46] Cross-platform path handling and line ending audit
 **Status:** OPEN
-**Files:** `src/ui/views/viz.rs`
-**Labels:** viz, feed
+**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+**Labels:** save-load, test-coverage
 
-The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue #5 depends on #4, and #4 is still OPEN, then #5 is effectively blocked. Visually distinguish:
+Development is on Pop!_OS Linux and Windows 11. PathBuf operations should be cross-platform, but there are untested risks:
 
-- Satisfied dependencies (dependency is DONE) — green edge
-- Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
-The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
+- Backslash vs forward slash in `**Files:**` field values parsed on Windows vs displayed on Linux
+- Case sensitivity differences (Windows NTFS is case-insensitive, Linux ext4 is not) — could cause duplicate file entries in the heatmap
+- Line ending normalization: if a Windows user commits with CRLF and a Linux user opens the same file, does the parser handle `\r\n` correctly? The `lines()` iterator strips `\r` but the `accumulate_text` function may re-introduce inconsistencies
+- Long path issues on Windows (>260 chars without the `\\?\` prefix)
+Add integration tests that exercise `init → new → save → load` with both forward and backslash paths. Test with CRLF input.
 
 **Resolution:** 
 
@@ -240,6 +225,21 @@ Cluster: card.rs + feed.rs
 ```
 
 This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
+
+**Resolution:** 
+
+---
+
+## [54] Add issue dependency blocking visualization
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`
+**Labels:** viz, feed
+
+The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue #5 depends on #4, and #4 is still OPEN, then #5 is effectively blocked. Visually distinguish:
+
+- Satisfied dependencies (dependency is DONE) — green edge
+- Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
+The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
 
 **Resolution:** 
 
@@ -700,25 +700,6 @@ This can start as a soft lint warning and become stricter later. Without pressur
 
 ---
 
-## [82] Preserve unknown markdown fields through Brief save
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
-**Labels:** brief, markdown, save-load
-
-Same issue as #16, but for Briefs. If a user adds custom metadata or manually extends a brief, Ishoo should not destroy it on save.
-
-After Brief parsing is implemented:
-
-* capture unknown `**Key:** Value` fields
-* preserve them in memory
-* emit them back on save in stable order
-
-This is necessary to preserve the “your markdown, your rules” philosophy for Briefs too.
-
-**Resolution:** 
-
----
-
 ## [83] Add integrated search across Issues and Briefs
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/model/workspace.rs`, `src/ui/views/`
@@ -798,6 +779,25 @@ Once Briefs exist, Ishoo should surface lightweight aggregate signals:
 * briefs with no downstream impact
 
 These should be optional lenses, not dashboard sludge. The point is to expose health, not create managerial theater.
+
+**Resolution:** 
+
+---
+
+## [82] Preserve unknown markdown fields through Brief save
+**Status:** OPEN
+**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
+**Labels:** brief, markdown, save-load
+
+Same issue as #16, but for Briefs. If a user adds custom metadata or manually extends a brief, Ishoo should not destroy it on save.
+
+After Brief parsing is implemented:
+
+* capture unknown `**Key:** Value` fields
+* preserve them in memory
+* emit them back on save in stable order
+
+This is necessary to preserve the “your markdown, your rules” philosophy for Briefs too.
 
 **Resolution:** 
 
