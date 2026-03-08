@@ -24,18 +24,17 @@ Note: The HTML UI buttons have been added to the Topbar. Still requires wiring u
 
 ---
 
-## [5] Add conflict resolution for concurrent edits
+## [42] Protect against data loss on crash during save
 **Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/model/workspace.rs`
-**Depends on:** [4]
+**Files:** `src/model/workspace.rs`
 
-If the user modifies an issue in the UI (`dirty = true`) and an external process modifies the markdown simultaneously, "Save All" overwrites the external changes with no warning.
-The current poll handler also has an internal race: the `if !dirty()` check and `issues.set()` are not atomic, so a user edit between those two calls is silently dropped even without external interference.
-Resolution should include:
+`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
+Fix:
 
-- Content hash or generation counter comparison before overwriting
-- A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
-- Optionally, per-issue dirty tracking instead of a single global `dirty` flag
+- Write to a temporary file in the same directory (`issues-active.md.tmp`)
+- `fsync` the temp file
+- Atomically rename the temp file to the target name
+- On startup, detect and clean up orphaned `.tmp` files
 
 **Resolution:** 
 
@@ -51,30 +50,18 @@ Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to
 
 ---
 
-## [28] Support arbitrary issue file names
+## [5] Add conflict resolution for concurrent edits
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+**Files:** `src/ui/app.rs`, `src/model/workspace.rs`
+**Depends on:** [4]
 
-The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
-Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
-This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
-If a new issue is created and has no source file, default to `issues-active.md`.
+If the user modifies an issue in the UI (`dirty = true`) and an external process modifies the markdown simultaneously, "Save All" overwrites the external changes with no warning.
+The current poll handler also has an internal race: the `if !dirty()` check and `issues.set()` are not atomic, so a user edit between those two calls is silently dropped even without external interference.
+Resolution should include:
 
-**Resolution:** 
-
----
-
-## [42] Protect against data loss on crash during save
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`
-
-`write_section` calls `fs::write` directly. If the process crashes or is killed mid-write (e.g., laptop lid close, OOM kill), the file is truncated and all issues in that section are lost.
-Fix:
-
-- Write to a temporary file in the same directory (`issues-active.md.tmp`)
-- `fsync` the temp file
-- Atomically rename the temp file to the target name
-- On startup, detect and clean up orphaned `.tmp` files
+- Content hash or generation counter comparison before overwriting
+- A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
+- Optionally, per-issue dirty tracking instead of a single global `dirty` flag
 
 **Resolution:** 
 
@@ -101,6 +88,19 @@ Fix:
 - If multiple candidates contain issue files, print a warning listing all matches and which was selected
 - Default to the first match but make the choice visible
 - The `init` command should print the chosen path explicitly
+
+**Resolution:** 
+
+---
+
+## [28] Support arbitrary issue file names
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
+
+The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
+Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
+This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
+If a new issue is created and has no source file, default to `issues-active.md`.
 
 **Resolution:** 
 
@@ -168,18 +168,6 @@ Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and po
 
 ---
 
-## [16] Preserve unknown markdown fields through save
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
-**Depends on:** [8]
-
-If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
-After [8] lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
-
-**Resolution:** 
-
----
-
 ## [36] Validate and lint issue files
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/parse.rs`
@@ -205,13 +193,13 @@ Add a pencil icon or double-click-to-edit interaction that swaps the description
 
 ---
 
-## [44] Add notification/badge for externally changed issues
+## [16] Preserve unknown markdown fields through save
 **Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
-**Depends on:** [4]
+**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
+**Depends on:** [8]
 
-When the file watcher detects external changes, the UI silently refreshes. The user has no idea which issues changed or what changed about them.
-After reload, diff the old and new issue lists. For any issue that changed, show a subtle "updated" indicator on the card (e.g., a blue dot that fades after 10 seconds). Optionally show a toast: "3 issues updated externally".
+If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
+After [8] lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
 
 **Resolution:** 
 
@@ -233,11 +221,44 @@ Add integration tests that exercise `init → new → save → load` with both f
 
 ---
 
+## [44] Add notification/badge for externally changed issues
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
+**Depends on:** [4]
+
+When the file watcher detects external changes, the UI silently refreshes. The user has no idea which issues changed or what changed about them.
+After reload, diff the old and new issue lists. For any issue that changed, show a subtle "updated" indicator on the card (e.g., a blue dot that fades after 10 seconds). Optionally show a toast: "3 issues updated externally".
+
+**Resolution:** 
+
+---
+
 ## [109] Add issue count badges per section in sidebar
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`
 
 The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names ([28]), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
+
+**Resolution:** 
+
+---
+
+## [60] Issue clustering by shared files
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+
+Add a view mode (or a tab within Heatmap) that groups issues by file overlap rather than by status or section. Issues that share 2+ files get clustered together.
+
+Output something like:
+
+```
+Cluster: parse.rs + workspace.rs
+  → [8] AST parser, [12] round-trip tests, [16] preserve unknown fields, [27] comments
+Cluster: card.rs + feed.rs
+  → [47] drag fix, [14] physics performance, [41] compact mode, [43] description editing
+```
+
+This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
 
 **Resolution:** 
 
@@ -284,41 +305,6 @@ This answers "what's stalled and why am I pretending it isn't?"
 
 ---
 
-## [60] Issue clustering by shared files
-**Status:** OPEN
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-
-Add a view mode (or a tab within Heatmap) that groups issues by file overlap rather than by status or section. Issues that share 2+ files get clustered together.
-
-Output something like:
-
-```
-Cluster: parse.rs + workspace.rs
-  → [8] AST parser, [12] round-trip tests, [16] preserve unknown fields, [27] comments
-Cluster: card.rs + feed.rs
-  → [47] drag fix, [14] physics performance, [41] compact mode, [43] description editing
-```
-
-This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
-
-**Resolution:** 
-
----
-
-## [62] “Cost” lens for ruthless scoping
-**Status:** OPEN
-**Files:** `src/ui/views/feed.rs`, `src/model/workspace.rs`
-
-Add a Feed lens or a sortable column that shows the "cost" of each issue — computed as the number of files touched weighted by their heatmap scores, plus the number of dependencies.
-
-High-cost issues that are still OPEN and have no dependents (nothing else is waiting on them) are candidates for cutting. Surface them visually — maybe a "heavy" badge or a sort that puts the most expensive, least-blocking issues at the top.
-
-This answers "what should I seriously consider descoping?"
-
-**Resolution:** 
-
----
-
 ## [63] Velocity visualization in Timeline view
 **Status:** OPEN
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
@@ -345,6 +331,20 @@ Add a "Focus" action on any issue card (click a target icon, or double-click the
 A single-issue view with full context and zero noise. Press Esc or click "Back to Feed" to return.
 
 This answers "I've decided what to work on, now show me everything I need to know about just this one thing."
+
+**Resolution:** 
+
+---
+
+## [62] “Cost” lens for ruthless scoping
+**Status:** OPEN
+**Files:** `src/ui/views/feed.rs`, `src/model/workspace.rs`
+
+Add a Feed lens or a sortable column that shows the "cost" of each issue — computed as the number of files touched weighted by their heatmap scores, plus the number of dependencies.
+
+High-cost issues that are still OPEN and have no dependents (nothing else is waiting on them) are candidates for cutting. Surface them visually — maybe a "heavy" badge or a sort that puts the most expensive, least-blocking issues at the top.
+
+This answers "what should I seriously consider descoping?"
 
 **Resolution:** 
 

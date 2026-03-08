@@ -6,11 +6,59 @@ use crate::ui::components::label_tone_class;
 use card::IssueCard;
 use dioxus::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct HoverTarget {
+    idx: usize,
+    after: bool,
+    y: f32,
+}
+
+pub(super) const DRAG_DEADZONE_PX: f32 = 8.0;
+
+pub(super) fn apply_drag_deadzone(offset_y: f32) -> f32 {
+    if offset_y.abs() < DRAG_DEADZONE_PX {
+        0.0
+    } else {
+        offset_y - (offset_y.signum() * DRAG_DEADZONE_PX)
+    }
+}
+
+fn compute_hover_target(
+    start_idx: usize,
+    start_virtual_y: f32,
+    offset_y: f32,
+    candidates: &[(usize, f32)],
+) -> HoverTarget {
+    let logical_y = start_virtual_y + apply_drag_deadzone(offset_y);
+    let mut closest = HoverTarget {
+        idx: start_idx,
+        after: false,
+        y: start_virtual_y,
+    };
+    let mut min_dist = f32::MAX;
+
+    for (idx, insertion_y) in candidates {
+        let dist = (logical_y - *insertion_y).abs();
+
+        if dist < min_dist {
+            min_dist = dist;
+            closest = HoverTarget {
+                idx: *idx,
+                after: false,
+                y: *insertion_y,
+            };
+        }
+    }
+
+    closest
+}
+
 #[derive(Clone, Default, PartialEq)]
 pub struct DragState {
     pub dragging_id: Option<u32>,
     pub start_idx: usize,
     pub hover_idx: usize,
+    pub hover_after: bool,
     pub hover_y: f32,
     pub start_y: f32,
     pub start_virtual_y: f32,
@@ -65,52 +113,71 @@ pub fn FeedView(props: FeedViewProps) -> Element {
 
                 let mut ds = drag_state.write();
                 ds.offset_y = (e.client_coordinates().y as f32 - ds.start_y) / props.zoom;
-                
-                let logical_y = ds.start_virtual_y + ds.offset_y;
-                    let sl = if props.is_compact { 44.0 } else { 93.0 };
-                    
-                    let sections = [
-                        ("Active", "active", "var(--orange)"),
-                        ("Backlog", "backlog", "var(--blue)"),
-                        ("Done", "done", "var(--green)"),
-                    ];
-                    
-                    let mut closest_idx = ds.start_idx;
-                    let mut min_dist = f32::MAX;
-                    let mut current_y = 0.0;
-                    
-                    for (_label, key, _color) in sections {
-                        let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
-                            .filter(|(_, i)| {
-                                let sec = i.section.to_lowercase();
-                                let is_done = sec.contains("done") || i.status == Status::Done || i.status == Status::Descoped;
-                                let is_backlog = !is_done && sec.contains("backlog");
-                                match key {
-                                    "done" => is_done,
-                                    "backlog" => is_backlog,
-                                    "active" => !is_done && !is_backlog,
-                                    _ => false,
-                                }
-                            })
-                            .collect();
-                            
-                        if section_items.is_empty() { continue; }
-                        
-                        current_y += 45.0; // Header height natively integrated
-                        
-                        if !collapsed.read().contains(key) {
-                            for (idx, _) in section_items {
-                                let dist = (current_y - logical_y).abs();
-                                if dist < min_dist {
-                                    min_dist = dist;
-                                    closest_idx = idx;
-                                    ds.hover_y = current_y;
-                                }
-                                current_y += sl;
+
+                let sections = [
+                    ("Active", "active", "var(--orange)"),
+                    ("Backlog", "backlog", "var(--blue)"),
+                    ("Done", "done", "var(--green)"),
+                ];
+
+                let mut insertion_slots = vec![(ds.start_idx, ds.start_virtual_y, false)];
+                let mut current_y = 0.0;
+
+                for (_label, key, _color) in sections {
+                    let section_items: Vec<(usize, &Issue)> = props
+                        .issues
+                        .iter()
+                        .enumerate()
+                        .filter(|(idx, _)| *idx != ds.start_idx)
+                        .filter(|(_, i)| {
+                            let sec = i.section.to_lowercase();
+                            let is_done =
+                                sec.contains("done") || i.status == Status::Done || i.status == Status::Descoped;
+                            let is_backlog = !is_done && sec.contains("backlog");
+                            match key {
+                                "done" => is_done,
+                                "backlog" => is_backlog,
+                                "active" => !is_done && !is_backlog,
+                                _ => false,
                             }
+                        })
+                        .collect();
+
+                    if section_items.is_empty() {
+                        continue;
+                    }
+
+                    current_y += 45.0;
+
+                    if !collapsed.read().contains(key) {
+                        let mut prev_idx: Option<usize> = None;
+                        for (idx, _) in section_items {
+                            if current_y != ds.start_virtual_y {
+                                insertion_slots.push((idx, current_y, false));
+                            }
+                            prev_idx = Some(idx);
+                            current_y += slot_h;
+                        }
+                        if let Some(last_idx) = prev_idx {
+                            insertion_slots.push((last_idx, current_y, true));
                         }
                     }
-                    ds.hover_idx = closest_idx;
+                }
+
+                let hover = compute_hover_target(
+                    ds.start_idx,
+                    ds.start_virtual_y,
+                    ds.offset_y,
+                    &insertion_slots.iter().map(|(idx, y, _)| (*idx, *y)).collect::<Vec<_>>(),
+                );
+
+                ds.hover_idx = hover.idx;
+                ds.hover_y = hover.y;
+                ds.hover_after = insertion_slots
+                    .iter()
+                    .find(|(idx, y, _)| *idx == hover.idx && (*y - hover.y).abs() < f32::EPSILON)
+                    .map(|(_, _, after)| *after)
+                    .unwrap_or(false);
             },
             onpointerup: move |_| {
                 let mut ds = drag_state.write();
@@ -131,6 +198,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     let drag_id = id;
                     let start_idx = ds.start_idx;
                     let hover_idx = ds.hover_idx;
+                    let hover_after = ds.hover_after;
                     
                     // MUST drop the write lock before we can copy the drag_state signal
                     // into the spawned future
@@ -147,8 +215,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         if start_idx != hover_idx {
                             if let Some(target) = issues_clone.get(hover_idx) {
                                 let target_id = target.id;
-                                let after = hover_idx > start_idx;
-                                on_reorder_clone.call((drag_id, target_id, after));
+                                on_reorder_clone.call((drag_id, target_id, hover_after));
                             }
                         }
                         
@@ -189,40 +256,12 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         ("Done", "done", "var(--green)"),
                     ];
                     
-                    let mut sim_issues = props.issues.clone();
-                    let mut array_reordered = false;
-                    {
-                        let ds_read = drag_state.read();
-                        if let Some(drag_id) = ds_read.dragging_id {
-                            if let Some(curr) = props.issues.iter().position(|i| i.id == drag_id) {
-                                if curr != ds_read.start_idx { array_reordered = true; }
-                                
-                                // Simulate the insertion for butter-smooth visual drag layout over sections
-                                if !array_reordered && !ds_read.releasing {
-                                    let iss = sim_issues.remove(curr);
-                                    let hover_idx = ds_read.hover_idx;
-                                    if let Some(tidx) = sim_issues.iter().position(|i| i.id == props.issues[hover_idx].id) {
-                                        let mut iss_clone = iss.clone();
-                                        iss_clone.section = sim_issues[tidx].section.clone();
-                                        let after = hover_idx > ds_read.start_idx;
-                                        let insert_at = if after { tidx + 1 } else { tidx }.min(sim_issues.len());
-                                        sim_issues.insert(insert_at, iss_clone);
-                                    } else {
-                                        sim_issues.insert(curr.min(sim_issues.len()), iss);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let array_reordered = false;
                     
                     let mut current_y = 0.0;
                     
                     for (label, key, color) in sections {
-                        let section_items: Vec<(usize, &Issue)> = sim_issues.iter()
-                            .map(|i| {
-                                let orig_idx = props.issues.iter().position(|orig| orig.id == i.id).unwrap_or(0);
-                                (orig_idx, i)
-                            })
+                        let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
                             .filter(|(_, i)| {
                                 let sec = i.section.to_lowercase();
                                 let is_done = sec.contains("done") || i.status == Status::Done || i.status == Status::Descoped;
@@ -468,5 +507,49 @@ fn IssueModal(props: IssueModalProps) -> Element {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{compute_hover_target, HoverTarget};
+
+    #[test]
+    fn tiny_downward_motion_does_not_reorder() {
+        let hover = compute_hover_target(0, 45.0, 1.0, &[(0, 45.0), (1, 138.0), (2, 231.0)]);
+        assert_eq!(
+            hover,
+            HoverTarget {
+                idx: 0,
+                after: false,
+                y: 45.0
+            }
+        );
+    }
+
+    #[test]
+    fn downward_reorders_after_crossing_first_boundary() {
+        let hover = compute_hover_target(0, 45.0, 70.0, &[(0, 45.0), (1, 138.0), (2, 231.0)]);
+        assert_eq!(
+            hover,
+            HoverTarget {
+                idx: 1,
+                after: false,
+                y: 138.0
+            }
+        );
+    }
+
+    #[test]
+    fn upward_reorders_after_crossing_first_boundary() {
+        let hover = compute_hover_target(2, 231.0, -70.0, &[(0, 45.0), (1, 138.0), (2, 231.0)]);
+        assert_eq!(
+            hover,
+            HoverTarget {
+                idx: 1,
+                after: false,
+                y: 138.0
+            }
+        );
     }
 }

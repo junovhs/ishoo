@@ -20,6 +20,16 @@ With these changes, `.content` becomes the actual scroll container, `position: s
 
 ---
 
+## [103] UI: Feed Collapsible Sections
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+
+The spike groups issues into sections (Active, Backlog, Done) with collapsible headers (`.section`, `.section-head`).
+
+**Resolution:** Implemented visually *without* breaking the absolute positioning math of the physics engine. Injected `.section-head` elements into the Dioxus virtual list, computing index offsets dynamically so they occupy slot space. Added a `collapsed` state signal to filter out cards that are grouped beneath a collapsed `section-head`. Verified the physics math works perfectly by running the app and manually moving items across sections. Verified unit tests via `cargo test` and `neti check`.
+
+---
+
 ## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
@@ -44,16 +54,6 @@ Remaining issues from the V2 Spike integration:
 Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
 
 **Resolution:** Injected `pulldown_cmark::html::push_html` into a new `render_markdown` helper inside `feed.rs`. Modified `IssueModal` to use Dioxus's `dangerous_inner_html` to emit the parsed HTML string directly into the `.m-body` DOM element. Added rigor tests inside a new `mod tests` block in `feed.rs` checking output tags exactly. Verified via `neti check`.
-
----
-
-## [103] UI: Feed Collapsible Sections
-**Status:** DONE
-**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
-
-The spike groups issues into sections (Active, Backlog, Done) with collapsible headers (`.section`, `.section-head`).
-
-**Resolution:** Implemented visually *without* breaking the absolute positioning math of the physics engine. Injected `.section-head` elements into the Dioxus virtual list, computing index offsets dynamically so they occupy slot space. Added a `collapsed` state signal to filter out cards that are grouped beneath a collapsed `section-head`. Verified the physics math works perfectly by running the app and manually moving items across sections. Verified unit tests via `cargo test` and `neti check`.
 
 ---
 
@@ -108,19 +108,6 @@ Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo te
 
 ---
 
-## [48] Fix pre-existing neti violations in viz.rs and workspace.rs
-**Status:** DONE
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-
-7 pre-existing P04 violations (nested loops flagged as quadratic). Rather than suppress with `neti:allow`, the logic was refactored to be genuinely better:
-
-- `viz.rs` — Deleted the `compute_overlaps` / `extract_pairs` pair-enumeration path (O(k²) issue-pairs per file). `GraphView` now calls `shared_file_overlaps` which builds a file→issues map via `flat_map` (O(n)), rendering "file: #A #B #C" instead of "A ⟷ B". More information, less work.
-- `workspace.rs` — `file_heatmap` nested for-loops replaced with `flat_map` iterator chain. Removed the stale `neti:allow(P04)` comment that was failing to suppress the violation anyway.
-
-**Resolution:** Refactored to eliminate violations by genuinely improving the algorithms, not suppressing them. `neti check` → clean (0 violations). Clippy ✅ Tests ✅. Commands: `neti check`
-
----
-
 ## [6] Move CSS to native asset files
 **Status:** DONE
 **Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`
@@ -156,13 +143,16 @@ Commands: `neti check`
 
 ---
 
-## [41] Add a compact/dense display mode
+## [48] Fix pre-existing neti violations in viz.rs and workspace.rs
 **Status:** DONE
-**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
 
-The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Added a toggle between Comfortable and Compact.
+7 pre-existing P04 violations (nested loops flagged as quadratic). Rather than suppress with `neti:allow`, the logic was refactored to be genuinely better:
 
-**Resolution:** Added an `is_compact` boolean signal to `AppState` and passed it down to `FeedViewProps` so the class could be injected into the root `.feed` container. Connected the button toggles to the signal state in `app.rs`. Verified visually using standard testing to ensure transitions trigger with zero delays. Verified via `cargo test` and `neti check`.
+- `viz.rs` — Deleted the `compute_overlaps` / `extract_pairs` pair-enumeration path (O(k²) issue-pairs per file). `GraphView` now calls `shared_file_overlaps` which builds a file→issues map via `flat_map` (O(n)), rendering "file: #A #B #C" instead of "A ⟷ B". More information, less work.
+- `workspace.rs` — `file_heatmap` nested for-loops replaced with `flat_map` iterator chain. Removed the stale `neti:allow(P04)` comment that was failing to suppress the violation anyway.
+
+**Resolution:** Refactored to eliminate violations by genuinely improving the algorithms, not suppressing them. `neti check` → clean (0 violations). Clippy ✅ Tests ✅. Commands: `neti check`
 
 ---
 
@@ -183,6 +173,16 @@ Build the core engine to read/write issues from markdown files. Needs to handle 
 Create the main shell, sidebar navigation, and a feed view. Ensure it matches a clean, dark-mode aesthetic with DM Sans and JetBrains Mono.
 
 **Resolution:** Built the shell and injected CSS variables for consistent theming across the app.
+
+---
+
+## [41] Add a compact/dense display mode
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
+The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Added a toggle between Comfortable and Compact.
+
+**Resolution:** Added an `is_compact` boolean signal to `AppState` and passed it down to `FeedViewProps` so the class could be injected into the root `.feed` container. Connected the button toggles to the signal state in `app.rs`. Verified visually using standard testing to ensure transitions trigger with zero delays. Verified via `cargo test` and `neti check`.
 
 ---
 

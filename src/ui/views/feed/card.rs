@@ -1,6 +1,6 @@
 use crate::model::Issue;
 use crate::ui::components::label_tone_class;
-use crate::ui::views::feed::DragState;
+use crate::ui::views::feed::{apply_drag_deadzone, DragState, DRAG_DEADZONE_PX};
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq, Props)]
@@ -25,25 +25,42 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let is_dragging = ds.dragging_id == Some(id);
     let array_reordered = props.array_reordered;
 
-    // Use the perfectly simulated virtual Y computed by the parent
-    let virtual_y = props.virtual_y;
+    // Keep live drag displacement local to the card layer instead of simulating
+    // array reorder in the parent; this avoids downward cards appearing to jump
+    // across the held card mid-flight.
+    let mut virtual_y = props.virtual_y;
+    let slot_h = if props.is_compact { 44.0 } else { 93.0 };
+
+    if ds.dragging_id.is_some() && !is_dragging && !array_reordered {
+        let start_y = ds.start_virtual_y;
+        let hover_y = ds.hover_y;
+
+        if hover_y > start_y {
+            if props.virtual_y > start_y && props.virtual_y <= hover_y {
+                virtual_y -= slot_h;
+            }
+        } else if hover_y < start_y && props.virtual_y < start_y && props.virtual_y >= hover_y {
+            virtual_y += slot_h;
+        }
+    }
 
     let mut actually_dragging = is_dragging;
     let mut effective_offset = ds.offset_y;
-    let deadzone = 8.0; // Buttery 8px deadzone for sloppy clicks
     
     if actually_dragging && !ds.releasing {
-        if effective_offset.abs() < deadzone {
+        if effective_offset.abs() < DRAG_DEADZONE_PX {
             actually_dragging = false; 
             effective_offset = 0.0;
         } else {
-            effective_offset = effective_offset - (effective_offset.signum() * deadzone);
+            effective_offset = apply_drag_deadzone(effective_offset);
         }
     }
 
     let y_pos = if is_dragging && !ds.releasing {
-        // Free follow cursor relative to the starting slot
-        props.virtual_y + effective_offset
+        // During live drag, stay pinned to the original pickup slot so
+        // simulated reordering underneath never pulls the held card away
+        // from the cursor.
+        ds.start_virtual_y + effective_offset
     } else if is_dragging && ds.releasing {
         // Snap/suck into the final hover socket
         if array_reordered {
@@ -103,6 +120,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     ds_write.dragging_id = Some(id);
                     ds_write.start_idx = idx;
                     ds_write.hover_idx = idx;
+                    ds_write.hover_after = false;
                     ds_write.start_y = e.client_coordinates().y as f32;
                     ds_write.start_virtual_y = props.virtual_y;
                     ds_write.offset_y = 0.0;
