@@ -365,6 +365,7 @@ body.is-scrolling .issue-row {
     display: flex;
     gap: 4px;
     margin: 10px 0 0 10px;
+    flex-wrap: wrap;
 }
 .lens {
     font: inherit;
@@ -389,13 +390,51 @@ body.is-scrolling .issue-row {
     color: var(--bg);
     border-color: var(--ink);
 }
+.label-filter-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 10px 0 14px 10px;
+    max-width: calc(100% - 10px);
+}
+.label-filter-clip {
+    flex: 1;
+    min-width: 0;
+    max-height: 28px;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, black 0%, black 80%, transparent 100%);
+    transition: max-height 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+        mask-image 0.36s ease;
+}
+.label-filter-clip.expanded {
+    max-height: min(240px, calc(100vh - 280px));
+    mask-image: none;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink3) 55%, transparent) transparent;
+}
+.label-filter-clip.expanded::-webkit-scrollbar {
+    width: 8px;
+}
+.label-filter-clip.expanded::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--ink3) 55%, transparent);
+    border-radius: 999px;
+}
+.label-filter-clip.expanded::-webkit-scrollbar-track {
+    background: transparent;
+}
 .label-filter-row {
     display: flex;
     gap: 6px;
-    margin: 10px 0 14px 10px;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding-bottom: 2px;
 }
 .label-filter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font: inherit;
     font-size: 10px;
     letter-spacing: 1px;
@@ -407,7 +446,21 @@ body.is-scrolling .issue-row {
     color: var(--ink3);
     cursor: pointer;
     white-space: nowrap;
-    transition: all 0.12s;
+    transform-origin: center;
+    transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease,
+        transform 0.22s ease, box-shadow 0.22s ease;
+    animation: label-pill-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.label-filter-more {
+    border-style: dashed;
+    min-width: 64px;
+}
+.label-filter-more:hover {
+    transform: translateY(-1px);
+}
+.label-filter-more.active {
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 10%, transparent);
 }
 .label-filter:hover {
     color: var(--ink);
@@ -419,6 +472,16 @@ body.is-scrolling .issue-row {
 }
 html.dark .label-filter.active {
     background: rgba(255, 255, 255, 0.04);
+}
+@keyframes label-pill-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 .label-filter.t-ink { color: var(--ink3); border-color: color-mix(in srgb, var(--ink3) 78%, var(--rule)); }
 .label-filter.t-blue-a, .label-filter.t-blue-b, .label-filter.t-blue-c { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 78%, var(--rule)); }

@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 pub use app::App;
+use dioxus::desktop::{Config, WindowBuilder};
 
 static WORKSPACE_ROOT: OnceLock<PathBuf> = OnceLock::new();
 
@@ -16,7 +17,15 @@ pub fn launch_dashboard(path: PathBuf) {
     WORKSPACE_ROOT
         .set(path)
         .expect("workspace path already set");
-    dioxus::launch(App);
+    dioxus::LaunchBuilder::desktop()
+        .with_cfg(
+            Config::new().with_window(
+                WindowBuilder::new()
+                    .with_title("Ishoo")
+                    .with_always_on_top(false),
+            ),
+        )
+        .launch(App);
 }
 
 /// Returns the discovered workspace root (where issue files live)

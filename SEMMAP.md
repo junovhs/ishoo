@@ -33,16 +33,13 @@ Handles README.
 `SEMMAP.md`
 Handles SEMMAP.
 
-`north-star.md`
-Placeholder file.
-
 `src/model/cli.rs`
 Implements cli set status. [TYPE]
 → Exports: cli_set_status, cli_heatmap, cli_list, cli_show
 
 `src/model/workspace.rs`
 Implements Workspace functionality. [TYPE]
-→ Exports: dependency_edges, file_heatmap, Workspace, load
+→ Exports: allocate_issue_id, dependency_edges, file_heatmap, Workspace
 
 `src/ui/app.rs`
 Implements App functionality.
@@ -98,8 +95,8 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
-→ Exports: default_init_path, init_workspace_at, css_class, discover_root
+Creates workspace at. [TYPE]
+→ Exports: issue_id_sort_key, parse_categorical_issue_id, default_init_path, init_workspace_at
 
 `src/ui/mod.rs`
 Gets the workspace path. [ENTRY]

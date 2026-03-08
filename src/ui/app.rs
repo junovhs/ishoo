@@ -18,6 +18,14 @@ struct AppState {
     zoom: Signal<f32>,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+struct TopbarState {
+    search: Signal<String>,
+    active_label: Signal<Option<String>>,
+    show_all_labels: Signal<bool>,
+    active_lens: Signal<FeedLens>,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FeedLens {
     MyOrder,
@@ -52,6 +60,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let mut issues = use_signal(|| initial.issues);
     let search = use_signal(String::new);
     let active_label = use_signal(|| None::<String>);
+    let show_all_labels = use_signal(|| false);
     let active_lens = use_signal(|| FeedLens::MyOrder);
     let view = use_signal(|| View::Feed);
     let dirty = use_signal(|| false);
@@ -128,13 +137,19 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         })
     };
 
-    let stats = compute_stats(&(state.issues)());
+    let stats = compute_breakdown(&(state.issues)());
     let sections = section_counts(&(state.issues)());
     let available_labels = collect_labels(&(state.issues)());
+    let topbar = TopbarState {
+        search,
+        active_label,
+        show_all_labels,
+        active_lens,
+    };
     let filtered = apply_feed_lens(
         &(state.issues)(),
-        filter_issues(&(state.issues)(), &search(), active_label().as_deref()),
-        active_lens(),
+        filter_issues(&(state.issues)(), &(topbar.search)(), (topbar.active_label)().as_deref()),
+        (topbar.active_lens)(),
     );
 
 
@@ -152,7 +167,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         div { class: "app",
             {render_sidebar(view, stats.clone(), sections, dirty, modal, reinit_modal, state)}
             main { class: "mn",
-                {render_topbar(search, active_label, active_lens, available_labels, state, physics, animating)}
+                {render_topbar(topbar, available_labels, state, physics, animating)}
                 {render_content(view, filtered, dirty, state, physics, animating)}
             }
         }
@@ -420,16 +435,25 @@ fn render_sidebar(
 }
 
 fn render_topbar(
-    mut search: Signal<String>, 
-    mut active_label: Signal<Option<String>>,
-    mut active_lens: Signal<FeedLens>,
+    topbar: TopbarState,
     available_labels: Vec<String>,
     state: AppState,
     mut physics: Signal<super::scroll::ScrollPhysics>,
     mut animating: Signal<bool>,
 ) -> Element {
+    let mut search = topbar.search;
+    let mut active_label = topbar.active_label;
+    let mut show_all_labels = topbar.show_all_labels;
+    let mut active_lens = topbar.active_lens;
     let mut is_compact = state.is_compact;
     let mut zoom = state.zoom;
+    let has_many_labels = available_labels.len() > 8;
+    let hidden_label_count = available_labels.len().saturating_sub(8);
+    let disclosure_label = if show_all_labels() {
+        "Less".to_string()
+    } else {
+        format!("More {hidden_label_count}")
+    };
     
     rsx! {
         div { class: "sticky-header",
@@ -487,25 +511,45 @@ fn render_topbar(
                 }
             }
             if !available_labels.is_empty() {
-                div { class: "label-filter-row",
-                    button {
-                        class: if active_label().is_none() { "label-filter active" } else { "label-filter" },
-                        onclick: move |_| active_label.set(None),
-                        "All labels"
+                div { class: "label-filter-bar",
+                    div {
+                        class: if show_all_labels() {
+                            "label-filter-clip expanded"
+                        } else {
+                            "label-filter-clip"
+                        },
+                        div { class: "label-filter-row",
+                            button {
+                                class: if active_label().is_none() { "label-filter active" } else { "label-filter" },
+                                onclick: move |_| active_label.set(None),
+                                "All labels"
+                            }
+                            for label in available_labels {
+                                button {
+                                    key: "label-filter-{label}",
+                                    class: if active_label().as_deref() == Some(label.as_str()) {
+                                        "label-filter active {components::label_tone_class(&label)}"
+                                    } else {
+                                        "label-filter {components::label_tone_class(&label)}"
+                                    },
+                                    onclick: {
+                                        let label = label.clone();
+                                        move |_| active_label.set(Some(label.clone()))
+                                    },
+                                    "{label}"
+                                }
+                            }
+                        }
                     }
-                    for label in available_labels {
+                    if has_many_labels {
                         button {
-                            key: "label-filter-{label}",
-                            class: if active_label().as_deref() == Some(label.as_str()) {
-                                "label-filter active {components::label_tone_class(&label)}"
+                            class: if show_all_labels() {
+                                "label-filter label-filter-more active"
                             } else {
-                                "label-filter {components::label_tone_class(&label)}"
+                                "label-filter label-filter-more"
                             },
-                            onclick: {
-                                let label = label.clone();
-                                move |_| active_label.set(Some(label.clone()))
-                            },
-                            "{label}"
+                            onclick: move |_| show_all_labels.set(!show_all_labels()),
+                            "{disclosure_label}"
                         }
                     }
                 }
@@ -756,6 +800,26 @@ fn compute_stats(issues: &[Issue]) -> Stats {
     s
 }
 
+fn compute_breakdown(issues: &[Issue]) -> Stats {
+    let mut stats = compute_stats(issues);
+    stats.open = 0;
+    stats.in_progress = 0;
+    stats.done = 0;
+
+    for (section, count) in section_counts(issues) {
+        let normalized = section.trim().to_ascii_lowercase();
+        if normalized.contains("active") {
+            stats.in_progress += count;
+        } else if normalized.contains("backlog") {
+            stats.open += count;
+        } else if normalized.contains("done") {
+            stats.done += count;
+        }
+    }
+
+    stats
+}
+
 fn section_counts(issues: &[Issue]) -> Vec<(String, usize)> {
     let mut counts = std::collections::BTreeMap::<String, usize>::new();
     for issue in issues {
@@ -952,8 +1016,8 @@ fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<I
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_feed_lens, can_apply_external_reload, collect_labels, filter_issues,
-        parse_label_input, section_counts, should_reload_for_event, FeedLens,
+        apply_feed_lens, can_apply_external_reload, collect_labels, compute_breakdown,
+        filter_issues, parse_label_input, section_counts, should_reload_for_event, FeedLens,
     };
     use crate::model::{Issue, Status};
     use notify::event::{AccessKind, AccessMode, CreateKind, DataChange, ModifyKind};
@@ -1104,6 +1168,27 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn compute_breakdown_uses_section_counts_instead_of_status_names() {
+        let mut active = make_issue("ISS-1", "Active", &[]);
+        active.section = "ACTIVE Issues".to_string();
+        active.status = Status::Open;
+
+        let mut backlog = make_issue("ISS-2", "Backlog", &[]);
+        backlog.section = "BACKLOG Issues".to_string();
+        backlog.status = Status::InProgress;
+
+        let mut done = make_issue("ISS-3", "Done", &[]);
+        done.section = "DONE Issues".to_string();
+        done.status = Status::Open;
+
+        let stats = compute_breakdown(&[active, backlog, done]);
+        assert_eq!(stats.in_progress, 1);
+        assert_eq!(stats.open, 1);
+        assert_eq!(stats.done, 1);
+    }
+
 
     #[test]
     fn next_up_lens_prioritizes_transitive_unblock_count() {

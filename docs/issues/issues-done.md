@@ -5,6 +5,7 @@
 ## [11] Implement categorical issue IDs
 **Status:** DONE
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/model/cli.rs`, `src/main.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `src/ui/views/viz.rs`
+**Labels:** markdown, cli, save-load
 
 Replaced numeric-only issue IDs with categorical string IDs across the model, parser, CLI, persistence, and UI. New IDs use the `<CATEGORY>-<NUMBER>` shape, for example `BUG-01` and `FT-12`, and new issue creation now allocates monotonically increasing numbers per category through `.ishoo/id-counters.txt` so deleting a high-numbered issue no longer causes ID reuse.
 
@@ -15,6 +16,7 @@ Replaced numeric-only issue IDs with categorical string IDs across the model, pa
 ## [4] Replace polling with OS file system events
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `Cargo.toml`
+**Labels:** save-load
 
 The dashboard used a 3-second `tokio::time::sleep` loop to poll for external changes. The issue also called out the race in the old `if !dirty() { issues.set(...) }` reload path, where a local edit could land between the check and the overwrite.
 
@@ -25,6 +27,7 @@ The dashboard used a 3-second `tokio::time::sleep` loop to poll for external cha
 ## [103] UI: Feed Collapsible Sections
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+**Labels:** feed
 
 The spike groups issues into sections (Active, Backlog, Done) with collapsible headers (`.section`, `.section-head`).
 
@@ -35,6 +38,7 @@ The spike groups issues into sections (Active, Backlog, Done) with collapsible h
 ## [107] UI Regressions: Drag Snapback, Dark Mode Opacity, Color Dots
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** feed, drag, bugs
 
 Remaining issues from the V2 Spike integration:
 
@@ -48,9 +52,22 @@ Remaining issues from the V2 Spike integration:
 
 ---
 
+## [30] Render markdown in description and resolution fields
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`
+**Labels:** markdown, modal, feed
+**Depends on:** [8]
+
+Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
+
+**Resolution:** Injected `pulldown_cmark::html::push_html` into a new `render_markdown` helper inside `feed.rs`. Modified `IssueModal` to use Dioxus's `dangerous_inner_html` to emit the parsed HTML string directly into the `.m-body` DOM element. Added rigor tests inside a new `mod tests` block in `feed.rs` checking output tags exactly. Verified via `neti check`.
+
+---
+
 ## [108] Fix sticky section/category headers in feed view
 **Status:** DONE
 **Files:** `assets/style.css`
+**Labels:** feed
 
 Section headers ("Active", "Backlog", "Done") in the feed view do not stick at the top of the scroll area as the user scrolls. They scroll away with the content despite having `position: sticky` in CSS.
 
@@ -66,20 +83,10 @@ With these changes, `.content` becomes the actual scroll container, `position: s
 
 ---
 
-## [30] Render markdown in description and resolution fields
-**Status:** DONE
-**Files:** `src/ui/views/feed.rs`
-**Depends on:** [8]
-
-Relies on the AST parser to generate HTML for the modal descriptions, replacing raw text.
-
-**Resolution:** Injected `pulldown_cmark::html::push_html` into a new `render_markdown` helper inside `feed.rs`. Modified `IssueModal` to use Dioxus's `dangerous_inner_html` to emit the parsed HTML string directly into the `.m-body` DOM element. Added rigor tests inside a new `mod tests` block in `feed.rs` checking output tags exactly. Verified via `neti check`.
-
----
-
 ## [104] UI: Category Color Dots & Keyboard Guide
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
+**Labels:** labels
 
 1. The issue rows are missing the `.s-dot` color indicators based on status (orange/blue/green).
 2. The sidebar is missing the `.kb-ref` keyboard shortcut guide.
@@ -91,6 +98,7 @@ Relies on the AST parser to generate HTML for the modal descriptions, replacing 
 ## [100] Upgrade UI styling to V2 Spike Layout
 **Status:** DONE
 **Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/components.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+**Labels:** feed
 
 Replaces the base UI application with the improved styling logic from the docs/UI Concepts/ui-v2-spike.html spike.
 
@@ -107,6 +115,7 @@ Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo te
 ## [8] Switch to AST-based markdown parser
 **Status:** DONE
 **Files:** `src/model/parse.rs`, `Cargo.toml`
+**Labels:** markdown
 
 Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-cmark`.
 
@@ -117,6 +126,7 @@ Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-c
 ## [102] UI: Dark Mode Toggle & Stats Breakdown
 **Status:** DONE
 **Files:** `src/ui/app.rs`
+**Labels:** feed
 
 The UI spike includes a dark mode toggle and a clean breakdown of stats.
 
@@ -131,6 +141,7 @@ Pure UI implementation, no backend needed.
 ## [6] Move CSS to native asset files
 **Status:** DONE
 **Files:** `assets/style.css`, `src/ui/app.rs`, `src/ui/styles.rs (deleted)`
+**Labels:** feed
 
 **Resolution:** Migrated all CSS from Rust string literals into a standard `assets/style.css` file. Used the standard Rust `include_str!` macro to bundle the stylesheet directly into the binary at compile time. This preserves the "single executable" portability and `cargo install` compatibility while allowing for a proper CSS development experience with syntax highlighting and linting.
 
@@ -139,6 +150,7 @@ Pure UI implementation, no backend needed.
 ## [14] Fix re-render performance in physics loop
 **Status:** DONE
 **Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
+**Labels:** feed, drag, performance
 
 **Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
 
@@ -147,6 +159,7 @@ Pure UI implementation, no backend needed.
 ## [47] Fix drag-and-drop state corruption after first reorder
 **Status:** DONE
 **Files:** `src/ui/views/physics.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+**Labels:** feed, drag, bugs
 
 Critical UX bug: drag-and-drop worked on the first attempt but broke progressively on subsequent drags due to stale `item_springs` HashMap entries leaking between drag sessions.
 
@@ -166,6 +179,7 @@ Commands: `neti check`
 ## [48] Fix pre-existing neti violations in viz.rs and workspace.rs
 **Status:** DONE
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+**Labels:** viz, performance
 
 7 pre-existing P04 violations (nested loops flagged as quadratic). Rather than suppress with `neti:allow`, the logic was refactored to be genuinely better:
 
@@ -179,6 +193,7 @@ Commands: `neti check`
 ## [1] Setup initial workspace parsing
 **Status:** DONE
 **Files:** `src/model/parse.rs`, `src/model/workspace.rs`
+**Labels:** markdown, save-load
 
 Build the core engine to read/write issues from markdown files. Needs to handle custom sections, parse metadata (Status, Files, Depends on), and cleanly separate the Description text from the Resolution text.
 
@@ -189,6 +204,7 @@ Build the core engine to read/write issues from markdown files. Needs to handle 
 ## [2] Basic Dioxus desktop UI layout
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/styles.rs`
+**Labels:** feed
 
 Create the main shell, sidebar navigation, and a feed view. Ensure it matches a clean, dark-mode aesthetic with DM Sans and JetBrains Mono.
 
@@ -199,6 +215,7 @@ Create the main shell, sidebar navigation, and a feed view. Ensure it matches a 
 ## [41] Add a compact/dense display mode
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+**Labels:** feed
 
 The current card layout is spacious and readable for 10-20 issues but wastes vertical space when you have 50+. Added a toggle between Comfortable and Compact.
 
@@ -209,6 +226,7 @@ The current card layout is spacious and readable for 10-20 issues but wastes ver
 ## [3] Implement custom drag-and-drop physics
 **Status:** DONE
 **Files:** `src/ui/views/physics.rs`, `src/ui/views/feed/card.rs`
+**Labels:** drag, feed, performance
 
 Standard HTML5 drag-and-drop feels clunky. Write a custom spring physics engine (stiffness, damping, mass) to make the cards feel tactile, fluid, and fun to reorder.
 
@@ -219,6 +237,7 @@ Standard HTML5 drag-and-drop feels clunky. Write a custom spring physics engine 
 ## [10] Support SQLite database backend
 **Status:** DESCOPED
 **Files:** `src/model/mod.rs`
+**Labels:** docs
 
 Add support for storing issues in a local `issues.db` SQLite file for faster querying and relationship mapping.
 
@@ -229,6 +248,7 @@ Add support for storing issues in a local `issues.db` SQLite file for faster que
 ## [110] Fix scroll stutter and physics bounds math
 **Status:** DONE
 **Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `assets/style.css`
+**Labels:** performance, feed
 
 The feed scrolling stutters terribly because hover effects (`mouseenter`/`mouseleave`) trigger rapid shadow repaints, and the physics `animating` loop was IPC blocking on `eval().await` twice per frame to poll sticky header heights. Furthermore, visual rubber banding hit a hard clamp and "paused" when snapping to the extremes.
 
@@ -244,6 +264,7 @@ The feed scrolling stutters terribly because hover effects (`mouseenter`/`mousel
 ## [21] Add labels/tags system
 **Status:** DONE
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+**Labels:** labels, markdown, feed
 
 Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
 
@@ -254,6 +275,7 @@ Freeform tags for categorization. Requires updating the parser to extract `**Lab
 ## [111] Labels: Add semantic color system and shared chip renderer
 **Status:** DONE
 **Files:** `src/ui/views/feed/card.rs`, `src/ui/views/feed.rs`, `assets/style.css`
+**Labels:** labels
 
 Labels currently render as uniform grey chips, which makes them visually weak and inconsistent with the UI spike. Introduce a first-class label styling system based on the design intent in `docs/UI concepts/ui-v2-spike.html`.
 
@@ -271,6 +293,7 @@ Requirements:
 ## [112] Labels: Make search and filtering label-aware
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/views/feed.rs`
+**Labels:** labels, feed
 
 Labels should affect issue discovery, not just rendering. The feed search/filter system must explicitly match labels, as shown in the UI spike.
 
@@ -288,6 +311,7 @@ Requirements:
 ## [113] Labels: Add first-class filter UI
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/ui/views/feed.rs`, `assets/style.css`
+**Labels:** labels
 
 Labels need a dedicated filtering surface, not just free-text search. Add a UI control that lets users narrow the feed by label and makes labels feel like a first-class navigation primitive.
 
@@ -305,6 +329,7 @@ Requirements:
 ## [114] Labels: Add modal and new-issue editing flow
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/model/workspace.rs`
+**Labels:** labels, modal
 
 Labels are currently markdown-only. Users need to be able to create and edit them directly in the app.
 
@@ -322,6 +347,7 @@ Requirements:
 ## [117] Feed Drag-and-Drop: Restore symmetric live displacement and stable release
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+**Labels:** feed, drag
 
 Recent tag and UI work exposed multiple regressions in the feed drag-and-drop interaction. Dragging upward still felt correct, but dragging downward caused displaced cards to snap across the held card, release into the wrong slot, or correct themselves with visible secondary pops.
 
@@ -339,6 +365,7 @@ Requirements:
 ## [118] Feed UX: Suppress immediate post-drop re-hover on released card
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** feed, drag
 
 After a drag settles into place, the released card immediately re-enters its hover animation if the pointer is still over it. This creates an ugly second lift/shadow pulse right after the card has already nestled into its slot.
 
@@ -355,6 +382,7 @@ Requirements:
 ## [115] Labels: Reuse the system across views
 **Status:** DONE
 **Files:** `src/ui/components.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/viz.rs`
+**Labels:** labels, viz
 
 Once labels are promoted to first-class UI data, they need consistent rendering across the product rather than being feed-only details.
 
@@ -372,7 +400,7 @@ Requirements:
 ## [105] UI: Modal Accent Bar & Next/Prev Navigation
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`
-**Labels:** polish
+**Labels:** modal, bugs
 
 The issue modal is missing the top colored accent bar (`.m-accent`), properly styled header layout, and keyboard navigation hints.
 Note: The UI HTML layout has been completed. Keyboard `ArrowUp`/`ArrowDown` navigation logic still needs to be implemented.
@@ -384,6 +412,7 @@ Note: The UI HTML layout has been completed. Keyboard `ArrowUp`/`ArrowDown` navi
 ## [109] Add issue count badges per section in sidebar
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`
+**Labels:** feed
 
 The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names (#28), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
 
@@ -394,6 +423,7 @@ The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break 
 ## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
+**Labels:** feed, viz
 
 Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
 Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
@@ -405,6 +435,7 @@ Note: The HTML UI buttons have been added to the Topbar. Still requires wiring u
 ## [13] Prevent silent data loss from discover_root ambiguity
 **Status:** DONE
 **Files:** `src/model/mod.rs`
+**Labels:** cli, save-load
 
 `discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
 Fix:
@@ -420,7 +451,7 @@ Fix:
 ## [33] Add issue linking, mentions, and hover brackets
 **Status:** DONE
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
-**Labels:** core, frontend, ux, cli
+**Labels:** markdown, feed, cli
 
 Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
 Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
@@ -432,7 +463,7 @@ Once parsed, the UI must implement the `.bracket-svg` hover effect bridging link
 ## [119] Style the real Board, Heatmap, Graph, and Timeline views
 **Status:** DONE
 **Files:** `src/ui/views/board.rs`, `src/ui/views/viz.rs`, `assets/style.css`
-**Labels:** frontend, polish, ux
+**Labels:** board, viz
 
 The Feed view carries the app’s visual language, but the other implemented views still render as near-unstyled diagnostics. Bring the real views up to the same standard instead of building more disconnected spike files.
 
@@ -444,5 +475,27 @@ Requirements:
 - Improve Heatmap, Graph, and Timeline so they feel like intentional dashboard surfaces instead of raw text dumps
 
 **Resolution:** Rebuilt `BoardView` around actual issue sections rather than status-only buckets, preserving the feed’s ordering (`Active`, `Backlog`, `Done`, then custom sections) and rendering each lane as a kanban column that stays inside the existing feed design language instead of introducing brighter new colors. Added independent per-lane scrolling plus board drag/reorder so issues can move vertically within a section or horizontally into another section using the same underlying reorder path as the feed. Added a regression test in `board.rs` to pin the lane ordering. Upgraded `viz.rs` to opt into richer shared shells/panels, then replaced the old CSS fallback block in `assets/style.css` with real board/viz styling derived from the established app palette: restrained lane chrome, card treatment, heatmap rows and bars, graph panels and pills, and a proper progress/timeline surface. Verified with `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [129] Labels: topbar filter row needs progressive disclosure instead of horizontal overflow
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `assets/style.css`
+**Labels:** labels, bugs
+
+The label filter row under the feed lenses grew long enough to force horizontal scrolling in the main surface. That is the wrong interaction for Ishoo. The filter controls need progressive disclosure so the header stays calm and entirely on-screen.
+
+**Resolution:** Replaced the single unbounded horizontal chip row with a collapsed/expanded disclosure model in `src/ui/app.rs`. The topbar now keeps all label pills inside an animated clipping container and exposes them behind a persistent disclosure pill that toggles between `More N` and `Less`. Updated `assets/style.css` so the label row wraps instead of scrolling horizontally, expanded label rows scroll vertically inside their own header container instead of falling off-screen, and the hidden rows reveal and collapse through a real `max-height` animation with a soft fade mask plus a short pill-entry motion, rather than snapping open in one frame. Followed that by pruning the issue-label taxonomy down to a smaller work-mode set across the issue docs so the filter row is useful as a batching tool instead of turning into a second ontology. Verified with `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [130] Sidebar Breakdown: derive the pretty counts from section grouping, not raw status math
+**Status:** DONE
+**Files:** `src/ui/app.rs`
+**Labels:** bugs
+
+The sidebar had two competing summaries of the same thing: the pretty `Breakdown` block and the ugly-but-correct `Sections` block. `Breakdown` was using raw status totals (`OPEN`, `IN PROGRESS`, `DONE`) while the feed and sections UI are organized by section (`Active`, `Backlog`, `Done`), so the numbers drifted and became misleading.
+
+**Resolution:** Changed the sidebar breakdown path in `src/ui/app.rs` to derive its displayed `Active`, `Backlog`, and `Done` counts from section aggregation instead of directly from issue status totals. That keeps the beautiful `Breakdown` block aligned with the accurate `Sections` block and with what the user actually sees in the feed. Added a targeted regression test proving section-derived counts stay correct even when issue statuses do not line up with their current section. Verified with `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
 ---
