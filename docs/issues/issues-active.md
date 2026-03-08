@@ -2,22 +2,9 @@
 
 ---
 
-## [11] Implement categorical issue IDs
+## [116] Gotta take a shit
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
-
-Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
-New ID format: `<CATEGORY>-<NUMBER>` where:
-
-- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
-- Number is zero-padded, monotonically increasing per category, never reused
-- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
-This requires updating:
-- The `Issue` struct (`id: u32` → `id: String`)
-- The parser heading regex (`## [47]` → `## [BUG-47]`)
-- All ID comparisons, sorting, and display logic
-- The CLI `show`, `set`, and `new` commands to accept string IDs
-- The `new` command to accept `--category` or infer from a default
+**Labels:** ux, frontend, compiler, ux, backend, business logic
 
 **Resolution:** 
 
@@ -34,9 +21,22 @@ Note: switching to `notify` alone does NOT fix the race condition in the current
 
 ---
 
-## [116] Gotta take a shit
+## [11] Implement categorical issue IDs
 **Status:** OPEN
-**Labels:** ux, frontend, compiler, ux, backend, business logic
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+
+Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
+New ID format: `<CATEGORY>-<NUMBER>` where:
+
+- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
+- Number is zero-padded, monotonically increasing per category, never reused
+- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
+This requires updating:
+- The `Issue` struct (`id: u32` → `id: String`)
+- The parser heading regex (`## [47]` → `## [BUG-47]`)
+- All ID comparisons, sorting, and display logic
+- The CLI `show`, `set`, and `new` commands to accept string IDs
+- The `new` command to accept `--category` or infer from a default
 
 **Resolution:** 
 

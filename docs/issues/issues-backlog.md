@@ -81,6 +81,19 @@ If a new issue is created and has no source file, default to `issues-active.md`.
 
 ---
 
+## [58] Bottleneck highlighting in Graph view
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+**Depends on:** [54]
+
+After #54 adds blocking visualization (green/red edges), add a "Bottlenecks" mode to the Graph view that highlights the issues with the highest transitive dependent count. The issue whose completion unblocks the most downstream work should visually glow or scale larger.
+
+This answers "what's the single most important thing to do right now" from a pure dependency perspective. Compute transitive dependents by walking the dependency graph — no new data source needed.
+
+**Resolution:** 
+
+---
+
 ## [12] Add round-trip save/parse tests
 **Status:** DESCOPED
 **Files:** `src/model/workspace.rs`, `src/model/parse.rs`
@@ -237,19 +250,6 @@ Cluster: card.rs + feed.rs
 ```
 
 This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
-
-**Resolution:** 
-
----
-
-## [58] Bottleneck highlighting in Graph view
-**Status:** OPEN
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-**Depends on:** [54]
-
-After #54 adds blocking visualization (green/red edges), add a "Bottlenecks" mode to the Graph view that highlights the issues with the highest transitive dependent count. The issue whose completion unblocks the most downstream work should visually glow or scale larger.
-
-This answers "what's the single most important thing to do right now" from a pure dependency perspective. Compute transitive dependents by walking the dependency graph — no new data source needed.
 
 **Resolution:** 
 
