@@ -210,12 +210,91 @@ Add support for storing issues in a local `issues.db` SQLite file for faster que
 **Status:** DONE
 **Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `assets/style.css`
 
-The feed scrolling stutters terribly because hover effects (`mouseenter`/`mouseleave`) trigger rapid shadow repaints, and the physics `animating` loop was IPC blocking on `eval().await` twice per frame to poll sticky header heights. Furthermore, visual rubber banding hit a hard clamp and "paused" when snapping to the extremes. 
+The feed scrolling stutters terribly because hover effects (`mouseenter`/`mouseleave`) trigger rapid shadow repaints, and the physics `animating` loop was IPC blocking on `eval().await` twice per frame to poll sticky header heights. Furthermore, visual rubber banding hit a hard clamp and "paused" when snapping to the extremes.
 
-**Resolution:** 
-1. **IPC Fix:** Abstracted DOM polling (`measure_max_scroll`, `measure_header_positions`) out of the 60fps spin loop into a one-time operation on gestures. Batched all DOM transforms into a single IPC pipe (`write_transforms`).
+**Resolution:** 1. **IPC Fix:** Abstracted DOM polling (`measure_max_scroll`, `measure_header_positions`) out of the 60fps spin loop into a one-time operation on gestures. Batched all DOM transforms into a single IPC pipe (`write_transforms`).
 2. **Hover Fix:** Implemented `body.is-scrolling .item { pointer-events: none !important; }` synced with the physics loop state to strip tracking listeners during motion.
 3. **Reactive Footgun Fix:** Fixed a massive bug in Dioxus where `onpointermove` was blindly calling `.write()` on the drag signal during scroll, forcing the virtual DOM to deeply re-measure/re-render all 100+ cards synchronously on every single mouse tick. Changed to `.read()` first, preventing layout storms.
 4. **Physics Maths Fix:** Removed visual hard clamps on overscroll bounds and replaced them with an exponential smoothing curve (`1.0 - exp(-over / R_VIS_MAX)`). Lowered friction `TAU` from 0.35 to 0.22 for snappier braking.
 5. **Organic Controls:** Added tap-to-stop (`onpointerdown` velocity zeroing) and organic mouse scrubbing (`velocity *= 0.85` injected per `onpointermove` tick during scroll). CSS shielded the section headers out of the pointer blocker, allowing instantaneous click-resets of the math loop.
 5. Verified: Added rigorous edge-case testing `test_exponential_rubber_banding` proving extreme `offset` values gracefully converge at visual asymptotes without wrapping, and `test_manual_velocity_dampening_scrub` to ensure the manual fractional decays compound correctly over baseline time domains. Passed `cargo test` and `neti check`.
+
+---
+
+## [21] Add labels/tags system
+**Status:** DONE
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+
+Freeform tags for categorization. Requires updating the parser to extract `**Labels:**` from markdown, storing in `Issue`, and rendering `.label` chips on the UI cards and modal.
+
+**Resolution:** Added `Issue.labels: Vec<String>` to the model, parsed and persisted `**Labels:**` lines in markdown, and rendered real label chips in the feed card and issue modal instead of the placeholder mock tag. Verified with `cargo test labels_parsing`, `cargo test save_and_load_preserves_labels`, `cargo test test_roundtrip`, and `neti check` (verification commands passed; static analysis still reports the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [111] Labels: Add semantic color system and shared chip renderer
+**Status:** DONE
+**Files:** `src/ui/views/feed/card.rs`, `src/ui/views/feed.rs`, `assets/style.css`
+
+Labels currently render as uniform grey chips, which makes them visually weak and inconsistent with the UI spike. Introduce a first-class label styling system based on the design intent in `docs/UI concepts/ui-v2-spike.html`.
+
+Requirements:
+
+- Add a shared label color mapping for known labels (for example `frontend`, `core`, `performance`, `cli`, `testing`, `ux`, `v2`)
+- Render label chips with colored text/borders matching the spike instead of the current grey default
+- Keep the chip shape, density, casing, and spacing aligned between cards and modal
+- Provide a sensible fallback color for unknown labels
+
+**Resolution:** Added a shared semantic label color mapping based on the V2 spike and applied it to both feed cards and the issue modal, replacing the uniform grey label treatment. Tightened `.label` styling in `assets/style.css` to match the spike’s smaller, denser pill treatment. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [112] Labels: Make search and filtering label-aware
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/views/feed.rs`
+
+Labels should affect issue discovery, not just rendering. The feed search/filter system must explicitly match labels, as shown in the UI spike.
+
+Requirements:
+
+- Extend the existing search behavior so label text participates in matching
+- Ensure label matches work alongside title and ID matching
+- Preserve current behavior for issues without labels
+- Add tests covering positive and negative label match cases when practical
+
+**Resolution:** Extended `filter_issues` so label text now participates in feed search alongside title and ID matching, and added focused tests covering a positive label match and a negative non-match case. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [113] Labels: Add first-class filter UI
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/ui/views/feed.rs`, `assets/style.css`
+
+Labels need a dedicated filtering surface, not just free-text search. Add a UI control that lets users narrow the feed by label and makes labels feel like a first-class navigation primitive.
+
+Requirements:
+
+- Add a visible label filter control in the dashboard UI
+- Show active label filters clearly and make them removable
+- Filter the visible issue list by selected labels
+- Preserve the overall V2 visual language from `docs/UI concepts/ui-v2-spike.html`
+
+**Resolution:** Added a label filter row beneath the lens controls in the topbar, including an `All labels` reset state and color-coded active chips based on the shared label color system. The feed now filters by a selected label in addition to the text search path, with tests covering active-label filtering and label collection/deduping. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [114] Labels: Add modal and new-issue editing flow
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/model/workspace.rs`
+
+Labels are currently markdown-only. Users need to be able to create and edit them directly in the app.
+
+Requirements:
+
+- Add label entry/editing to the new-issue modal
+- Add label editing within the issue modal
+- Persist edits back to markdown cleanly using the existing `**Labels:**` format
+- Handle empty labels, trimming, and comma-separated input robustly
+
+**Resolution:** Added comma-separated label input to the new-issue modal and to the issue modal, wiring both through the existing markdown persistence path so edits save back as `**Labels:**` metadata. Added parsing tests to cover trimming and empty-value removal. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---

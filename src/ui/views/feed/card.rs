@@ -1,4 +1,5 @@
 use crate::model::Issue;
+use crate::ui::components::label_tone_class;
 use crate::ui::views::feed::DragState;
 use dioxus::prelude::*;
 
@@ -10,6 +11,7 @@ pub struct IssueCardProps {
     pub drag_state: Signal<DragState>,
     pub is_compact: bool,
     pub array_reordered: bool,
+    pub is_hidden: bool,
 }
 
 #[component]
@@ -23,21 +25,8 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let is_dragging = ds.dragging_id == Some(id);
     let array_reordered = props.array_reordered;
 
-    // Compute the effective index for where this card should visually sit right now
-    let mut virtual_y = props.virtual_y;
-    let slot_h = if props.is_compact { 44.0 } else { 93.0 };
-    
-    if ds.dragging_id.is_some() && !is_dragging && !array_reordered {
-        let start = ds.start_idx as i32;
-        let hover = ds.hover_idx as i32;
-        let curr = idx as i32;
-        
-        if curr > start && curr <= hover {
-            virtual_y -= slot_h; // Shift up to make room for dragged card moving down
-        } else if curr < start && curr >= hover {
-            virtual_y += slot_h; // Shift down to make room for dragged card moving up
-        }
-    }
+    // Use the perfectly simulated virtual Y computed by the parent
+    let virtual_y = props.virtual_y;
 
     let mut actually_dragging = is_dragging;
     let mut effective_offset = ds.offset_y;
@@ -82,7 +71,10 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     }
 
     let outer_style = format!(
-        "position: absolute; top: 0; left: 0px; right: 0px; transform: translate3d(0, {y_pos}px, 0); transition: {transition};"
+        "position: absolute; top: 0; left: 0px; right: 0px; transform: translate3d(0, {y_pos}px, 0){}; transition: {transition}; opacity: {}; pointer-events: {};",
+        if props.is_hidden { " scale(0.8)" } else { "" },
+        if props.is_hidden { "0" } else { "1" },
+        if props.is_hidden { "none" } else { "auto" },
     );
 
     let mut drag_state_signal = props.drag_state;
@@ -133,8 +125,9 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                         }
                         div { class: "labels-row", style: "display:flex;gap:4px;margin-top:4px;",
                             span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
-                            // Mock labels for now since model doesn't have them
-                            span { class: "label", style: "color:var(--ink3);border-color:var(--ink3)", "Core" }
+                            for label in &i.labels {
+                                span { class: "label {label_tone_class(label)}", "{label}" }
+                            }
                         }
                     }
                 }

@@ -141,6 +141,7 @@ pub struct Issue {
     pub title: String,
     pub status: Status,
     pub files: Vec<String>,
+    pub labels: Vec<String>,
     pub description: String,
     pub resolution: String,
     pub section: String,

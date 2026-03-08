@@ -85,6 +85,7 @@ fn main() {
                         title: title.clone(),
                         status: model::Status::from_str(status),
                         files: vec![],
+                        labels: vec![],
                         description: String::new(),
                         resolution: String::new(),
                         section: "ACTIVE Issues".to_string(),

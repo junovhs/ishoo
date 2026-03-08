@@ -13,33 +13,12 @@ Should prompt for confirmation unless `--force` is passed. After deletion, the i
 
 ---
 
-## [11] Implement categorical issue IDs
+## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
 
-Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
-New ID format: `<CATEGORY>-<NUMBER>` where:
-
-- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
-- Number is zero-padded, monotonically increasing per category, never reused
-- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
-This requires updating:
-- The `Issue` struct (`id: u32` → `id: String`)
-- The parser heading regex (`## [47]` → `## [BUG-47]`)
-- All ID comparisons, sorting, and display logic
-- The CLI `show`, `set`, and `new` commands to accept string IDs
-- The `new` command to accept `--category` or infer from a default
-
-**Resolution:** 
-
----
-
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
+Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
 
 **Resolution:** 
 
@@ -57,6 +36,16 @@ Resolution should include:
 - Content hash or generation counter comparison before overwriting
 - A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
 - Optionally, per-issue dirty tracking instead of a single global `dirty` flag
+
+**Resolution:** 
+
+---
+
+## [27] Add comments per issue
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+
+Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
 
 **Resolution:** 
 
@@ -118,7 +107,7 @@ Fix:
 ---
 
 ## [12] Add round-trip save/parse tests
-**Status:** OPEN
+**Status:** DESCOPED
 **Files:** `src/model/workspace.rs`, `src/model/parse.rs`
 
 There are no tests that verify `parse → mutate → save → parse` produces equivalent results. This is where the real data-loss bugs hide. Specifically:
@@ -132,7 +121,7 @@ Write property-based or snapshot tests that:
 - Inject unknown fields and verify they survive (or explicitly document that they won't)
 - Mutate status and verify correct file routing
 
-**Resolution:** 
+**Resolution:** Descoped. Dumb to make this an issue, lets just do actual mutation testing.
 
 ---
 

@@ -357,6 +357,44 @@ body.is-scrolling .issue-row {
     color: var(--bg);
     border-color: var(--ink);
 }
+.label-filter-row {
+    display: flex;
+    gap: 6px;
+    margin: 10px 0 14px 10px;
+    overflow-x: auto;
+}
+.label-filter {
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--ink3);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+}
+.label-filter:hover {
+    color: var(--ink);
+    border-color: var(--ink3);
+}
+.label-filter.active {
+    background: rgba(0, 0, 0, 0.035);
+    border-color: currentColor;
+}
+html.dark .label-filter.active {
+    background: rgba(255, 255, 255, 0.04);
+}
+.label-filter.t-blue { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 78%, var(--rule)); }
+.label-filter.t-orange { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 78%, var(--rule)); }
+.label-filter.t-pink { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 78%, var(--rule)); }
+.label-filter.t-teal { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 78%, var(--rule)); }
+.label-filter.t-yellow { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 78%, var(--rule)); }
+.label-filter.t-purple { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 78%, var(--rule)); }
+.label-filter.t-ink { color: var(--ink3); border-color: color-mix(in srgb, var(--ink3) 78%, var(--rule)); }
 
 /* Density toggle */
 .density-toggle {
@@ -469,7 +507,7 @@ body.is-scrolling .issue-row {
 .issue-row {
     height: var(--card-h);
     display: grid;
-    grid-template-columns: 88px 1fr auto;
+    grid-template-columns: 103px 1fr auto; /* 103px instead of 88px to leave 15px for brackets */
     align-items: center;
     gap: 12px;
     padding: 14px 8px;
@@ -582,7 +620,7 @@ html.dark .item.dragging .issue-row {
 /* Compact mode layout */
 .feed.compact .issue-row {
     padding: 9px 8px;
-    grid-template-columns: 88px 1fr auto;
+    grid-template-columns: 103px 1fr auto;
 }
 .feed.compact .issue-sub {
     display: none;
@@ -613,19 +651,27 @@ html.dark .item.dragging .issue-row {
     white-space: nowrap;
 }
 .label {
-    font-size: 12px;
+    font-size: 10px;
     letter-spacing: 1px;
     text-transform: uppercase;
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 10px;
-    border: 1px solid;
+    border: 1.5px solid;
     white-space: nowrap;
     flex-shrink: 0;
+    font-weight: 500;
 }
 .label.b-open { border-color: rgba(61, 126, 199, .3); color: var(--blue); }
 .label.b-in-progress { border-color: rgba(201, 106, 42, .3); color: var(--orange); }
 .label.b-done { border-color: rgba(74, 154, 96, .3); color: var(--green); }
 .label.b-descoped { border-color: rgba(138, 136, 120, .3); color: var(--ink3); }
+.label.t-blue { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 78%, var(--rule)); background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.label.t-orange { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 78%, var(--rule)); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+.label.t-pink { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 78%, var(--rule)); background: color-mix(in srgb, var(--pink) 12%, transparent); }
+.label.t-teal { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 78%, var(--rule)); background: color-mix(in srgb, var(--teal) 12%, transparent); }
+.label.t-yellow { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 78%, var(--rule)); background: color-mix(in srgb, var(--yellow) 12%, transparent); }
+.label.t-purple { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 78%, var(--rule)); background: color-mix(in srgb, var(--purple) 12%, transparent); }
+.label.t-ink { color: var(--ink3); border-color: color-mix(in srgb, var(--ink3) 78%, var(--rule)); background: color-mix(in srgb, var(--ink3) 10%, transparent); }
 
 /* ── MODAL ── */
 @keyframes modalOverlayFade {
@@ -664,6 +710,10 @@ html.dark .modal-overlay {
         0 2px 6px rgba(0, 0, 0, 0.04);
     margin-bottom: 6vh;
     animation: modalScaleUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
+}
+.m-accent {
+    width: 100%;
+    height: 6px;
 }
 .m-head {
     padding: 24px 28px 0;

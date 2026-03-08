@@ -6,7 +6,7 @@ use crate::model::{reinit_workspace, workspace_exists, Issue, Stats, Status, Wor
 use dioxus::document::eval;
 use dioxus::prelude::*;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct AppState {
     issues: Signal<Vec<Issue>>,
     toasts: Signal<Vec<Toast>>,
@@ -40,6 +40,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
 
     let mut issues = use_signal(|| initial.issues);
     let search = use_signal(String::new);
+    let active_label = use_signal(|| None::<String>);
     let view = use_signal(|| View::Feed);
     let dirty = use_signal(|| false);
     let modal = use_signal(|| false);
@@ -47,6 +48,10 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let mut toasts = use_signal(Vec::<Toast>::new);
     let toast_id = use_signal(|| 0u64);
     let is_compact = use_signal(|| false);
+    
+    // ── Global Scroll physics ──────────────────────────────
+    let physics = use_signal(super::scroll::ScrollPhysics::default);
+    let animating = use_signal(|| false);
 
     let zoom = use_signal(|| {
         let p = ws_path.join(".ishoo/zoom");
@@ -55,7 +60,6 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
 
     use_effect(move || {
         let z = zoom();
-        let _ = eval(&format!("document.body.style.zoom = '{}';", z));
         let p = get_workspace_path().join(".ishoo/zoom");
         let _ = std::fs::write(&p, z.to_string());
     });
@@ -86,7 +90,8 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     };
 
     let stats = compute_stats(&(state.issues)());
-    let filtered = filter_issues(&(state.issues)(), &search());
+    let available_labels = collect_labels(&(state.issues)());
+    let filtered = filter_issues(&(state.issues)(), &search(), active_label().as_deref());
 
 
     rsx! {
@@ -97,14 +102,14 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
             on_dismiss: move |id| { toasts.write().retain(|t| t.id != id); }
         }
 
-        if modal() { {render_new_issue_modal(modal, state)} }
-        if reinit_modal() { {render_reinit_modal(reinit_modal, state)} }
+        if modal() { NewIssueModal { modal: modal, state: state } }
+        if reinit_modal() { ReinitModal { modal: reinit_modal, state: state } }
 
         div { class: "app",
             {render_sidebar(view, stats.clone(), dirty, modal, reinit_modal, state)}
             main { class: "mn",
-                {render_topbar(search, modal, &stats, state)}
-                {render_content(view, filtered, dirty, state)}
+                {render_topbar(search, active_label, available_labels, state, physics, animating)}
+                {render_content(view, filtered, dirty, state, physics, animating)}
             }
         }
     }
@@ -140,9 +145,11 @@ fn save_workspace(state: AppState, msg: &str) {
     }
 }
 
-fn render_new_issue_modal(mut modal: Signal<bool>, state: AppState) -> Element {
+#[component]
+fn NewIssueModal(mut modal: Signal<bool>, state: AppState) -> Element {
     let mut title = use_signal(String::new);
     let mut status = use_signal(|| "OPEN".to_string());
+    let mut labels = use_signal(String::new);
     let mut issues = state.issues;
 
     rsx! {
@@ -169,6 +176,13 @@ fn render_new_issue_modal(mut modal: Signal<bool>, state: AppState) -> Element {
                             option { value: "IN PROGRESS", "In Progress" }
                         }
                     }
+                    div { class: "fgroup",
+                        label { class: "flbl", "Labels" }
+                        input {
+                            class: "modal-input", placeholder: "core, frontend, ux",
+                            value: "{labels}", oninput: move |e| labels.set(e.value()),
+                        }
+                    }
                 }
                 div { class: "modal-footer",
                     button { class: "btn-secondary", onclick: move |_| modal.set(false), "Cancel" }
@@ -178,9 +192,10 @@ fn render_new_issue_modal(mut modal: Signal<bool>, state: AppState) -> Element {
                             let t = title().trim().to_string();
                             if !t.is_empty() {
                                 let max = issues().iter().map(|i| i.id).max().unwrap_or(0);
+                                let parsed_labels = parse_label_input(&labels());
                                 let issue = Issue {
                                     id: max + 1, title: t.clone(), status: Status::from_str(&status()),
-                                    files: vec![], description: String::new(), resolution: String::new(),
+                                    files: vec![], labels: parsed_labels, description: String::new(), resolution: String::new(),
                                     section: "ACTIVE Issues".to_string(), depends_on: vec![],
                                 };
                                 issues.write().insert(0, issue.clone());
@@ -196,7 +211,8 @@ fn render_new_issue_modal(mut modal: Signal<bool>, state: AppState) -> Element {
     }
 }
 
-fn render_reinit_modal(mut modal: Signal<bool>, state: AppState) -> Element {
+#[component]
+fn ReinitModal(mut modal: Signal<bool>, state: AppState) -> Element {
     let mut confirm_text = use_signal(String::new);
     let confirmed = confirm_text().trim().to_lowercase() == "erase my issues";
     let mut issues = state.issues;
@@ -317,7 +333,14 @@ fn render_sidebar(
     }
 }
 
-fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stats, state: AppState) -> Element {
+fn render_topbar(
+    mut search: Signal<String>, 
+    mut active_label: Signal<Option<String>>,
+    available_labels: Vec<String>,
+    state: AppState,
+    mut physics: Signal<super::scroll::ScrollPhysics>,
+    mut animating: Signal<bool>,
+) -> Element {
     let mut is_compact = state.is_compact;
     let mut zoom = state.zoom;
     let mut active_lens = use_signal(|| "My Order".to_string());
@@ -325,7 +348,16 @@ fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stat
     rsx! {
         div { class: "sticky-header",
             div { class: "topbar",
-                input { class: "si", placeholder: "Search…", value: "{search}", oninput: move |e| search.set(e.value()) }
+                input { 
+                    class: "si", 
+                    placeholder: "Search…", 
+                    value: "{search}", 
+                    oninput: move |e| {
+                        search.set(e.value());
+                        physics.write().reset();
+                        animating.set(true);
+                    } 
+                }
                 
                 div { class: "density-toggle", style: "margin-right: 12px;",
                     button { class: "dt-btn", onclick: move |_| zoom.set((zoom() - 0.25).max(1.0)), "-" }
@@ -368,6 +400,30 @@ fn render_topbar(mut search: Signal<String>, _modal: Signal<bool>, _stats: &Stat
                     "Quick Wins" 
                 }
             }
+            if !available_labels.is_empty() {
+                div { class: "label-filter-row",
+                    button {
+                        class: if active_label().is_none() { "label-filter active" } else { "label-filter" },
+                        onclick: move |_| active_label.set(None),
+                        "All labels"
+                    }
+                    for label in available_labels {
+                        button {
+                            key: "label-filter-{label}",
+                            class: if active_label().as_deref() == Some(label.as_str()) {
+                                "label-filter active {components::label_tone_class(&label)}"
+                            } else {
+                                "label-filter {components::label_tone_class(&label)}"
+                            },
+                            onclick: {
+                                let label = label.clone();
+                                move |_| active_label.set(Some(label.clone()))
+                            },
+                            "{label}"
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -377,12 +433,13 @@ fn render_content(
     filtered: Vec<Issue>,
     mut dirty: Signal<bool>,
     state: AppState,
+    mut physics: Signal<super::scroll::ScrollPhysics>,
+    mut animating: Signal<bool>,
 ) -> Element {
     let mut issues = state.issues;
 
-    // ── Scroll physics (pure Rust) ──────────────────────────────
-    let mut physics = use_signal(super::scroll::ScrollPhysics::default);
-    let mut animating = use_signal(|| false);
+    // ── Global Scroll physics ──────────────────────────────
+    // physics and animating sigs passed from the root container
     let mut max_scroll = use_signal(|| 0.0f64);
     let mut header_ys = use_signal(Vec::<f64>::new);
 
@@ -456,6 +513,7 @@ fn render_content(
     rsx! {
         div {
             class: "content",
+            style: "zoom: {(state.zoom)()};",
             onpointerdown: move |_| {
                 if animating() {
                     physics.write().velocity = 0.0;
@@ -486,6 +544,12 @@ fn render_content(
                         },
                         on_resolution: move |(id, t): (u32, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.resolution = t; }
+                            dirty.set(true);
+                        },
+                        on_labels: move |(id, labels): (u32, String)| {
+                            if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) {
+                                i.labels = parse_label_input(&labels);
+                            }
                             dirty.set(true);
                         },
                         on_reorder: move |(drag, target, after): (u32, u32, bool)| {
@@ -546,14 +610,114 @@ fn compute_stats(issues: &[Issue]) -> Stats {
     s
 }
 
-fn filter_issues(issues: &[Issue], q: &str) -> Vec<Issue> {
-    if q.is_empty() {
-        return issues.to_vec();
-    }
+fn collect_labels(issues: &[Issue]) -> Vec<String> {
+    let mut labels = issues
+        .iter()
+        .flat_map(|issue| issue.labels.iter().cloned())
+        .collect::<Vec<_>>();
+    labels.sort_by_key(|label| label.to_ascii_lowercase());
+    labels.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    labels
+}
+
+fn parse_label_input(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<Issue> {
     let q = q.to_lowercase();
+    let active_label = active_label.map(str::to_ascii_lowercase);
     issues
         .iter()
-        .filter(|i| i.title.to_lowercase().contains(&q) || i.id.to_string().contains(&q))
+        .filter(|i| {
+            (q.is_empty()
+                || i.title.to_lowercase().contains(&q)
+                || i.id.to_string().contains(&q)
+                || i.labels.iter().any(|label| label.to_lowercase().contains(&q)))
+                && active_label.as_ref().is_none_or(|selected| {
+                    i.labels
+                        .iter()
+                        .any(|label| label.eq_ignore_ascii_case(selected))
+                })
+        })
         .cloned()
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{collect_labels, filter_issues, parse_label_input};
+    use crate::model::{Issue, Status};
+
+    fn make_issue(id: u32, title: &str, labels: &[&str]) -> Issue {
+        Issue {
+            id,
+            title: title.to_string(),
+            status: Status::Open,
+            files: vec![],
+            labels: labels.iter().map(|label| label.to_string()).collect(),
+            description: String::new(),
+            resolution: String::new(),
+            section: "ACTIVE Issues".to_string(),
+            depends_on: vec![],
+        }
+    }
+
+    #[test]
+    fn filter_issues_matches_labels() {
+        let issues = vec![
+            make_issue(1, "Parser cleanup", &["core", "frontend"]),
+            make_issue(2, "Health pulse", &["ux"]),
+        ];
+
+        let filtered = filter_issues(&issues, "front", None);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, 1);
+    }
+
+    #[test]
+    fn filter_issues_excludes_non_matching_labels() {
+        let issues = vec![
+            make_issue(1, "Parser cleanup", &["core", "frontend"]),
+            make_issue(2, "Health pulse", &["ux"]),
+        ];
+
+        let filtered = filter_issues(&issues, "testing", None);
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn filter_issues_respects_active_label() {
+        let issues = vec![
+            make_issue(1, "Parser cleanup", &["core", "frontend"]),
+            make_issue(2, "Health pulse", &["ux"]),
+        ];
+
+        let filtered = filter_issues(&issues, "", Some("ux"));
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, 2);
+    }
+
+    #[test]
+    fn parse_label_input_trims_and_drops_empty_values() {
+        assert_eq!(
+            parse_label_input(" core, frontend , , ux "),
+            vec!["core", "frontend", "ux"]
+        );
+    }
+
+    #[test]
+    fn collect_labels_deduplicates_case_insensitively() {
+        let issues = vec![
+            make_issue(1, "Parser cleanup", &["core", "frontend"]),
+            make_issue(2, "Health pulse", &["Core", "ux"]),
+        ];
+
+        assert_eq!(collect_labels(&issues), vec!["core", "frontend", "ux"]);
+    }
 }

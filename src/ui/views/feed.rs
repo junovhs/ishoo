@@ -2,6 +2,7 @@
 mod card;
 
 use crate::model::{Issue, Status};
+use crate::ui::components::label_tone_class;
 use card::IssueCard;
 use dioxus::prelude::*;
 
@@ -24,6 +25,7 @@ pub struct FeedViewProps {
     pub issues: Vec<Issue>,
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
+    pub on_labels: EventHandler<(u32, String)>,
     pub on_reorder: EventHandler<(u32, u32, bool)>,
     pub on_section_toggle: EventHandler<()>,
 }
@@ -186,49 +188,44 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         ("Backlog", "backlog", "var(--blue)"),
                         ("Done", "done", "var(--green)"),
                     ];
-                    // We use `current_y` iterators further down to calculate precise vertical offsets.
+                    
+                    let mut sim_issues = props.issues.clone();
                     let mut array_reordered = false;
                     {
                         let ds_read = drag_state.read();
                         if let Some(drag_id) = ds_read.dragging_id {
                             if let Some(curr) = props.issues.iter().position(|i| i.id == drag_id) {
-                                if curr != ds_read.start_idx {
-                                    array_reordered = true;
+                                if curr != ds_read.start_idx { array_reordered = true; }
+                                
+                                // Simulate the insertion for butter-smooth visual drag layout over sections
+                                if !array_reordered && !ds_read.releasing {
+                                    let iss = sim_issues.remove(curr);
+                                    let hover_idx = ds_read.hover_idx;
+                                    if let Some(tidx) = sim_issues.iter().position(|i| i.id == props.issues[hover_idx].id) {
+                                        let mut iss_clone = iss.clone();
+                                        iss_clone.section = sim_issues[tidx].section.clone();
+                                        let after = hover_idx > ds_read.start_idx;
+                                        let insert_at = if after { tidx + 1 } else { tidx }.min(sim_issues.len());
+                                        sim_issues.insert(insert_at, iss_clone);
+                                    } else {
+                                        sim_issues.insert(curr.min(sim_issues.len()), iss);
+                                    }
                                 }
                             }
                         }
                     }
                     
-                    for (_label, key, _color) in sections {
-                        // Find all issues belonging to this section, preserving their original index in `props.issues`
-                        let _section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
-                            .filter(|(_, i)| {
-                                if key == "active" { i.status == Status::Open || i.status == Status::InProgress }
-                                else if key == "done" { i.status == Status::Done || i.status == Status::Descoped }
-                                else { i.status == Status::Open /* fallback, wait actually we should check the actual section string */ }
-                            })
-                            .collect();
-                            
-                        // Wait, the spike just groups by status. Let's do a strict pass based on `i.status`
-                        let _section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
-                            .filter(|(_, i)| {
-                                match key {
-                                    "active" => i.status == Status::InProgress || i.status == Status::Open,
-                                    "done" => i.status == Status::Done || i.status == Status::Descoped,
-                                    "backlog" => false, // We'll fix this, Issue struct doesn't have "backlog" status.
-                                    _ => false
-                                }
-                            })
-                            .collect();
-                    }
-                    
                     let mut current_y = 0.0;
                     
                     for (label, key, color) in sections {
-                        let section_items: Vec<(usize, &Issue)> = props.issues.iter().enumerate()
+                        let section_items: Vec<(usize, &Issue)> = sim_issues.iter()
+                            .map(|i| {
+                                let orig_idx = props.issues.iter().position(|orig| orig.id == i.id).unwrap_or(0);
+                                (orig_idx, i)
+                            })
                             .filter(|(_, i)| {
                                 let sec = i.section.to_lowercase();
-                                let is_done = sec.contains("done") || i.status == Status::Done;
+                                let is_done = sec.contains("done") || i.status == Status::Done || i.status == Status::Descoped;
                                 let is_backlog = !is_done && sec.contains("backlog");
                                 let is_active = !is_done && !is_backlog;
                                 
@@ -279,23 +276,29 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         
                         current_y += 45.0; // Math matched to the 45px section-head constraint.
                         
-                        if !is_collapsed {
-                            for (idx, issue) in section_items {
-                                let target_y = current_y;
+                        for (idx, issue) in section_items {
+                            let target_y = if is_collapsed { current_y - 45.0 } else { current_y };
+                            
+                            if !is_collapsed {
                                 elements.push(rsx! {
                                     div { key: "spacer-{issue.id}", style: "height: {slot_h}px; width: 100%;" }
                                 });
-                                elements.push(rsx! {
-                                    IssueCard {
-                                        key: "card-{issue.id}",
-                                        issue: issue.clone(),
-                                        idx: idx,
-                                        virtual_y: target_y, // We need to modify IssueCard to take `virtual_y`
-                                        drag_state: drag_state,
-                                        is_compact: props.is_compact,
-                                        array_reordered: array_reordered,
-                                    }
-                                });
+                            }
+                            
+                            elements.push(rsx! {
+                                IssueCard {
+                                    key: "card-{issue.id}",
+                                    issue: issue.clone(),
+                                    idx: idx,
+                                    virtual_y: target_y,
+                                    drag_state: drag_state,
+                                    is_compact: props.is_compact,
+                                    array_reordered: array_reordered,
+                                    is_hidden: is_collapsed,
+                                }
+                            });
+                            
+                            if !is_collapsed {
                                 current_y += slot_h;
                             }
                         }
@@ -313,6 +316,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     on_close: move |_| modal_id.set(None),
                     on_status: props.on_status,
                     on_resolution: props.on_resolution,
+                    on_labels: props.on_labels,
                 }
             }
         }
@@ -325,6 +329,7 @@ struct IssueModalProps {
     on_close: EventHandler<()>,
     on_status: EventHandler<(u32, String)>,
     on_resolution: EventHandler<(u32, String)>,
+    on_labels: EventHandler<(u32, String)>,
 }
 
 fn render_markdown(text: &str) -> String {
@@ -340,11 +345,15 @@ fn render_markdown(text: &str) -> String {
 fn IssueModal(props: IssueModalProps) -> Element {
     let i = &props.issue;
     let id = i.id;
+    let mut labels_input = use_signal(|| i.labels.join(", "));
 
-    let color = match i.section.as_str() {
-        "active" => "var(--orange)",
-        "done" => "var(--green)",
-        _ => "var(--blue)",
+    let section = i.section.to_ascii_lowercase();
+    let color = if section.contains("done") || i.status == Status::Done || i.status == Status::Descoped {
+        "var(--green)"
+    } else if section.contains("backlog") {
+        "var(--blue)"
+    } else {
+        "var(--orange)"
     };
     
     // We don't have age or comments on the backend yet, use placeholders
@@ -377,7 +386,9 @@ fn IssueModal(props: IssueModalProps) -> Element {
                     span { class: "m-status-text", "{i.status.label()}" }
                     div { class: "m-labels",
                         span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
-                        // Real tags would map here in the future
+                        for label in &i.labels {
+                            span { class: "label {label_tone_class(label)}", "{label}" }
+                        }
                     }
                 }
                 hr { class: "m-divider" }
@@ -415,6 +426,18 @@ fn IssueModal(props: IssueModalProps) -> Element {
                     div { class: "m-body-label", "Description" }
                     div { dangerous_inner_html: "{html_desc}" }
                     
+                    div { style: "margin-top: 16px;",
+                        div { class: "m-body-label", "Labels" }
+                        input {
+                            class: "modal-input",
+                            placeholder: "core, frontend, ux",
+                            value: "{labels_input}",
+                            oninput: move |e| {
+                                labels_input.set(e.value().clone());
+                                props.on_labels.call((id, e.value()));
+                            },
+                        }
+                    }
                     div { style: "margin-top: 16px;",
                         div { class: "m-body-label", "Resolution" }
                         textarea {

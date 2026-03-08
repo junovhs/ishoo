@@ -145,6 +145,7 @@ fn new_issue(id: u32, title: String, section: &str) -> Issue {
         title,
         status: Status::Open,
         files: vec![],
+        labels: vec![],
         description: String::new(),
         resolution: String::new(),
         section: section.to_owned(),
@@ -159,6 +160,10 @@ fn try_parse_field(cur: &mut Issue, line: &str, in_resolution: &mut bool) -> boo
     }
     if let Some(rest) = line.strip_prefix("**Files:**") {
         parse_files(cur, rest.trim());
+        return true;
+    }
+    if let Some(rest) = line.strip_prefix("**Labels:**") {
+        cur.labels = parse_labels(rest.trim());
         return true;
     }
     if let Some(rest) = line.strip_prefix("**Depends on:**") {
@@ -181,6 +186,17 @@ fn parse_files(cur: &mut Issue, val: &str) {
         .split(',')
         .map(|f| f.replace('`', "").trim().to_owned())
         .collect();
+}
+
+fn parse_labels(val: &str) -> Vec<String> {
+    if val.eq_ignore_ascii_case("n/a") || val.is_empty() {
+        return vec![];
+    }
+    val.split(',')
+        .map(|label| label.trim())
+        .filter(|label| !label.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn parse_dep_ids(rest: &str) -> Vec<u32> {
@@ -234,11 +250,12 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let md = "# Test\n\n---\n\n## [1] First\n**Status:** OPEN\n**Files:** `a.rs`, `b.rs`\n\nDesc here.\n\n**Resolution:** \n\n---\n";
+        let md = "# Test\n\n---\n\n## [1] First\n**Status:** OPEN\n**Files:** `a.rs`, `b.rs`\n**Labels:** parser, ui polish\n\nDesc here.\n\n**Resolution:** \n\n---\n";
         let issues = parse_markdown(md, "Test");
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].id, 1);
         assert_eq!(issues[0].files, vec!["a.rs", "b.rs"]);
+        assert_eq!(issues[0].labels, vec!["parser", "ui polish"]);
     }
 
     #[test]
@@ -254,6 +271,13 @@ mod tests {
         let md = "# Test\n\n## [3] Third\n**Status:** OPEN\n**Depends on:** [1], [2]\n\n**Resolution:** \n";
         let issues = parse_markdown(md, "Test");
         assert_eq!(issues[0].depends_on, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_labels_parsing() {
+        let md = "# Test\n\n## [4] Tagged\n**Status:** OPEN\n**Labels:** core, ux, parser\n\n**Resolution:** \n";
+        let issues = parse_markdown(md, "Test");
+        assert_eq!(issues[0].labels, vec!["core", "ux", "parser"]);
     }
 
     #[test]
