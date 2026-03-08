@@ -16,12 +16,12 @@ pub fn HeatmapView(issues: Vec<Issue>) -> Element {
     let max = entries.iter().map(|(_, v)| v.len()).max().unwrap_or(1);
 
     rsx! {
-        div { class: "viz",
+        div { class: "viz view-shell",
             div { class: "viz-hdr",
                 h2 { class: "viz-title", "File Heatmap" }
                 p { class: "viz-sub", "Files touched by the most issues — hotspots in your codebase" }
             }
-            div { class: "hm-grid",
+            div { class: "hm-grid viz-panel",
                 for (file, ids) in &entries {
                     div { class: "hm-row",
                         span { class: "hm-file", "{file}" }
@@ -53,14 +53,14 @@ pub fn GraphView(issues: Vec<Issue>) -> Element {
 
 
     rsx! {
-        div { class: "viz",
+        div { class: "viz view-shell",
             div { class: "viz-hdr",
                 h2 { class: "viz-title", "Issue Relationship Graph" }
                 p { class: "viz-sub", "Dependencies and shared-file connections" }
             }
 
             if !dep_edges.is_empty() {
-                div { class: "graph-sec",
+                div { class: "graph-sec viz-panel",
                     h3 { class: "graph-sec-title", "Dependencies" }
                     for (from, to) in &dep_edges {
                         div { class: "g-edge",
@@ -78,7 +78,7 @@ pub fn GraphView(issues: Vec<Issue>) -> Element {
             }
 
             if !file_overlaps.is_empty() {
-                div { class: "graph-sec",
+                div { class: "graph-sec viz-panel",
                     h3 { class: "graph-sec-title", "File Overlaps (Active)" }
                     for (file, ids) in &file_overlaps {
                         div { class: "g-edge overlap",
@@ -118,7 +118,7 @@ pub fn TimelineView(issues: Vec<Issue>) -> Element {
     sorted.sort_by_key(|i| (i.status_ord(), i.id));
 
     rsx! {
-        div { class: "viz",
+        div { class: "viz view-shell",
             div { class: "viz-hdr",
                 h2 { class: "viz-title", "Progress Overview" }
                 p { class: "viz-sub", "Overall project completion at a glance" }

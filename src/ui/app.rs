@@ -577,17 +577,24 @@ fn render_content(
                             }
                             dirty.set(true);
                         },
-                        on_reorder: move |(drag, target, after): (u32, u32, bool)| {
-                            if drag == target || target == 0 {
+                        on_reorder: move |(drag, target, after, section): (u32, Option<u32>, bool, Option<String>)| {
+                            if target == Some(drag) {
                                 return;
                             }
                             let mut all = issues();
                             if let Some(idx) = all.iter().position(|i| i.id == drag) {
                                 let mut iss = all.remove(idx);
-                                if let Some(tidx) = all.iter().position(|i| i.id == target) {
-                                    iss.section = all[tidx].section.clone();
-                                    let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
-                                    all.insert(insert_at, iss);
+                                if let Some(target_id) = target {
+                                    if let Some(tidx) = all.iter().position(|i| i.id == target_id) {
+                                        iss.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
+                                        let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
+                                        all.insert(insert_at, iss);
+                                    } else {
+                                        all.insert(idx.min(all.len()), iss);
+                                    }
+                                } else if let Some(section_name) = section {
+                                    iss.section = section_name;
+                                    all.push(iss);
                                 } else {
                                     all.insert(idx.min(all.len()), iss);
                                 }
@@ -597,7 +604,7 @@ fn render_content(
                                     for i in all.iter() {
                                         assert!(
                                             seen.insert(i.id),
-                                            "on_reorder: duplicate id {} (drag={} target={} after={})",
+                                            "on_reorder: duplicate id {} (drag={} target={:?} after={})",
                                             i.id, drag, target, after
                                         );
                                     }
@@ -612,7 +619,51 @@ fn render_content(
                         },
                     }
                 },
-                View::Board => rsx! { views::BoardView { issues: filtered } },
+                View::Board => rsx! {
+                    views::BoardView {
+                        issues: filtered,
+                        on_status: move |(id, s): (u32, String)| {
+                            if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }
+                            dirty.set(true);
+                        },
+                        on_resolution: move |(id, t): (u32, String)| {
+                            if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.resolution = t; }
+                            dirty.set(true);
+                        },
+                        on_labels: move |(id, labels): (u32, String)| {
+                            if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) {
+                                i.labels = parse_label_input(&labels);
+                            }
+                            dirty.set(true);
+                        },
+                        on_reorder: move |payload: (u32, Option<u32>, bool, Option<String>)| {
+                            if payload.0 == payload.1.unwrap_or(0) {
+                                return;
+                            }
+                            let (drag, target, after, section) = payload;
+                            let mut all = issues();
+                            if let Some(idx) = all.iter().position(|i| i.id == drag) {
+                                let mut iss = all.remove(idx);
+                                if let Some(target_id) = target {
+                                    if let Some(tidx) = all.iter().position(|i| i.id == target_id) {
+                                        iss.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
+                                        let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
+                                        all.insert(insert_at, iss);
+                                    } else {
+                                        all.insert(idx.min(all.len()), iss);
+                                    }
+                                } else if let Some(section_name) = section {
+                                    iss.section = section_name;
+                                    all.push(iss);
+                                } else {
+                                    all.insert(idx.min(all.len()), iss);
+                                }
+                            }
+                            issues.set(all);
+                            save_workspace(state, "");
+                        }
+                    }
+                },
                 View::Heatmap => rsx! { views::HeatmapView { issues: issues() } },
                 View::Graph => rsx! { views::GraphView { issues: issues() } },
                 View::Timeline => rsx! { views::TimelineView { issues: issues() } },

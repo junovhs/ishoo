@@ -81,7 +81,7 @@ pub struct FeedViewProps {
     pub on_status: EventHandler<(u32, String)>,
     pub on_resolution: EventHandler<(u32, String)>,
     pub on_labels: EventHandler<(u32, String)>,
-    pub on_reorder: EventHandler<(u32, u32, bool)>,
+    pub on_reorder: EventHandler<(u32, Option<u32>, bool, Option<String>)>,
     pub on_section_toggle: EventHandler<()>,
 }
 
@@ -274,7 +274,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         if start_idx != hover_idx {
                             if let Some(target) = issues_clone.get(hover_idx) {
                                 let target_id = target.id;
-                                on_reorder_clone.call((drag_id, target_id, hover_after));
+                                on_reorder_clone.call((drag_id, Some(target_id), hover_after, None));
                             }
                         }
                         

@@ -2,24 +2,6 @@
 
 ---
 
-## [108] Fix sticky section/category headers in feed view
-**Status:** DONE
-**Files:** `assets/style.css`
-
-Section headers ("Active", "Backlog", "Done") in the feed view do not stick at the top of the scroll area as the user scrolls. They scroll away with the content despite having `position: sticky` in CSS.
-
-**Resolution:** Root cause: `.app` had no height constraint, so `.mn` and `.content` (which has `overflow-y: auto`) grew unbounded to fit all content. The page scrolled at the body/viewport level instead of inside `.content`. Since `position: sticky` scopes to the nearest scroll ancestor and `.content` never actually scrolled, the headers never stuck.
-
-Fix (CSS-only in `style.css`):
-
-1. Added `height: calc(100vh - 56px)` to `.app` to constrain the grid to viewport height.
-2. Added `min-height: 0; overflow: hidden` to `.mn` so the flex column respects the grid height constraint.
-3. Added `padding-top: 20px` to `.content` so the first section header has visual breathing room below the topbar.
-
-With these changes, `.content` becomes the actual scroll container, `position: sticky` activates on the section headers, and they stack correctly at `top: 0/45/90px` as the user scrolls. Verified via `neti check` (clippy PASS, tests PASS, 0 new violations). User confirmed visually.
-
----
-
 ## [103] UI: Feed Collapsible Sections
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
@@ -43,6 +25,24 @@ Remaining issues from the V2 Spike integration:
 **Resolution:** 1. The snapback was identified mathematically to be caused by pointercancel wiping the DragState zero prematurely. Re-writing `onpointercancel` to only wipe states if dragging is strictly zero zero, removing the pointer event leak on X11/Wayland.
 2. Dark mode opacity was fixed via explicitly resetting `.item.dragging .issue-row` hover styles back to solid `var(--bg)` within `style.css`.
 3. Missing color dots and disappearing elements were traced to a missing `key` attribute in the custom Dioxus loop generating `section-head`, causing list re-renders to wrongly diff the virtual DOM. Added unique `key: "header-{key}"` prefixes. All `neti check` verify passed.
+
+---
+
+## [108] Fix sticky section/category headers in feed view
+**Status:** DONE
+**Files:** `assets/style.css`
+
+Section headers ("Active", "Backlog", "Done") in the feed view do not stick at the top of the scroll area as the user scrolls. They scroll away with the content despite having `position: sticky` in CSS.
+
+**Resolution:** Root cause: `.app` had no height constraint, so `.mn` and `.content` (which has `overflow-y: auto`) grew unbounded to fit all content. The page scrolled at the body/viewport level instead of inside `.content`. Since `position: sticky` scopes to the nearest scroll ancestor and `.content` never actually scrolled, the headers never stuck.
+
+Fix (CSS-only in `style.css`):
+
+1. Added `height: calc(100vh - 56px)` to `.app` to constrain the grid to viewport height.
+2. Added `min-height: 0; overflow: hidden` to `.mn` so the flex column respects the grid height constraint.
+3. Added `padding-top: 20px` to `.content` so the first section header has visual breathing room below the topbar.
+
+With these changes, `.content` becomes the actual scroll container, `position: sticky` activates on the section headers, and they stack correctly at `top: 0/45/90px` as the user scrolls. Verified via `neti check` (clippy PASS, tests PASS, 0 new violations). User confirmed visually.
 
 ---
 
@@ -406,5 +406,23 @@ Requires parsing `#ID` mentions from markdown text to build a list of `issue.lin
 Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
 
 **Resolution:** Added first-class `links: Vec<u32>` to the `Issue` model and populated it in `parse_markdown` by scanning issue title, description, and resolution text for `#123` mentions while deduplicating links and ignoring self-references. Wired the modal’s link area to show both authored outgoing mentions (`Mentions`) and reverse incoming references (`Mentioned By`). In the feed, each card now exposes its issue/section identity to the DOM and computes reverse-link context so hover brackets/highlighting work from either side of the relationship while still preserving authored direction in the iconography (`↗`, `↙`, or `↕`). Added the missing bracket and modal link styles in `assets/style.css`, plus parser/reverse-link tests covering real mention extraction, negative self/embedded-hash cases, and incoming-link aggregation. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [119] Style the real Board, Heatmap, Graph, and Timeline views
+**Status:** DONE
+**Files:** `src/ui/views/board.rs`, `src/ui/views/viz.rs`, `assets/style.css`
+**Labels:** frontend, polish, ux
+
+The Feed view carries the app’s visual language, but the other implemented views still render as near-unstyled diagnostics. Bring the real views up to the same standard instead of building more disconnected spike files.
+
+Requirements:
+
+- Rework Board into a kanban-style lane layout based on the same section groupings the Feed already uses
+- Reuse the existing issue metadata language: status badges, labels, issue IDs, file counts
+- Replace the `.board, .viz` fallback styling with real panel and card treatment
+- Improve Heatmap, Graph, and Timeline so they feel like intentional dashboard surfaces instead of raw text dumps
+
+**Resolution:** Rebuilt `BoardView` around actual issue sections rather than status-only buckets, preserving the feed’s ordering (`Active`, `Backlog`, `Done`, then custom sections) and rendering each lane as a kanban column that stays inside the existing feed design language instead of introducing brighter new colors. Added independent per-lane scrolling plus board drag/reorder so issues can move vertically within a section or horizontally into another section using the same underlying reorder path as the feed. Added a regression test in `board.rs` to pin the lane ordering. Upgraded `viz.rs` to opt into richer shared shells/panels, then replaced the old CSS fallback block in `assets/style.css` with real board/viz styling derived from the established app palette: restrained lane chrome, card treatment, heatmap rows and bars, graph panels and pills, and a proper progress/timeline surface. Verified with `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
 ---

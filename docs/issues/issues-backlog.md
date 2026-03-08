@@ -56,18 +56,6 @@ Resolution should include:
 
 ---
 
-## [15] Implement ishoo edit CLI command
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
-
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-
-**Resolution:** 
-
----
-
 ## [28] Support arbitrary issue file names
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/workspace.rs`
@@ -89,6 +77,18 @@ If a new issue is created and has no source file, default to `issues-active.md`.
 After #54 adds blocking visualization (green/red edges), add a "Bottlenecks" mode to the Graph view that highlights the issues with the highest transitive dependent count. The issue whose completion unblocks the most downstream work should visually glow or scale larger.
 
 This answers "what's the single most important thing to do right now" from a pure dependency perspective. Compute transitive dependents by walking the dependency graph — no new data source needed.
+
+**Resolution:** 
+
+---
+
+## [15] Implement ishoo edit CLI command
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`
+
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
 
@@ -142,12 +142,12 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 ---
 
-## [43] Add issue description editing in the UI
+## [31] Status changes move issues between files automatically
 **Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
 
-The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
-Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land (#28), the routing rules should be configurable or at least documented.
 
 **Resolution:** 
 
@@ -160,17 +160,6 @@ Add a pencil icon or double-click-to-edit interaction that swaps the description
 
 If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
 After #8 lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
-
-**Resolution:** 
-
----
-
-## [31] Status changes move issues between files automatically
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
-
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land (#28), the routing rules should be configurable or at least documented.
 
 **Resolution:** 
 

@@ -47,7 +47,7 @@ Implements App functionality.
 
 `src/ui/components.rs`
 Implements label tone class.
-→ Exports: label_tone_class, NavBtn, StatRow, LabelChip
+→ Exports: SectionBadgeRow, label_tone_class, NavBtn, StatRow
 
 `src/ui/scroll.rs`
 Scroll physics engine — pure Rust.
@@ -70,7 +70,7 @@ Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/viz.rs`
-Implements graph view.
+Implements timeline view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -88,14 +88,20 @@ Parses markdown. [UTIL]
 `assets/style.css`
 Implements style functionality. styles.
 
+`board-view-spike.html`
+Ishoo Board View Spike
+
 `dragging-prototype.html`
 Smooth Reorder (Engine-grade, no release jitter)
+
+`graph-view-spike.html`
+Ishoo Graph View Spike
 
 `src/main.rs`
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
+Creates workspace at. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`
