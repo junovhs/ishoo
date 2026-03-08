@@ -388,13 +388,13 @@ body.is-scrolling .issue-row {
 html.dark .label-filter.active {
     background: rgba(255, 255, 255, 0.04);
 }
-.label-filter.t-blue { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 78%, var(--rule)); }
-.label-filter.t-orange { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 78%, var(--rule)); }
-.label-filter.t-pink { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 78%, var(--rule)); }
-.label-filter.t-teal { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 78%, var(--rule)); }
-.label-filter.t-yellow { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 78%, var(--rule)); }
-.label-filter.t-purple { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 78%, var(--rule)); }
 .label-filter.t-ink { color: var(--ink3); border-color: color-mix(in srgb, var(--ink3) 78%, var(--rule)); }
+.label-filter.t-blue-a, .label-filter.t-blue-b, .label-filter.t-blue-c { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 78%, var(--rule)); }
+.label-filter.t-orange-a, .label-filter.t-orange-b, .label-filter.t-orange-c { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 78%, var(--rule)); }
+.label-filter.t-pink-a, .label-filter.t-pink-b, .label-filter.t-pink-c { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 78%, var(--rule)); }
+.label-filter.t-teal-a, .label-filter.t-teal-b, .label-filter.t-teal-c { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 78%, var(--rule)); }
+.label-filter.t-yellow-a, .label-filter.t-yellow-b, .label-filter.t-yellow-c { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 78%, var(--rule)); }
+.label-filter.t-purple-a, .label-filter.t-purple-b, .label-filter.t-purple-c { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 78%, var(--rule)); }
 
 /* Density toggle */
 .density-toggle {
@@ -665,13 +665,25 @@ html.dark .item.dragging .issue-row {
 .label.b-in-progress { border-color: rgba(201, 106, 42, .3); color: var(--orange); }
 .label.b-done { border-color: rgba(74, 154, 96, .3); color: var(--green); }
 .label.b-descoped { border-color: rgba(138, 136, 120, .3); color: var(--ink3); }
-.label.t-blue { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 78%, var(--rule)); background: color-mix(in srgb, var(--blue) 12%, transparent); }
-.label.t-orange { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 78%, var(--rule)); background: color-mix(in srgb, var(--orange) 12%, transparent); }
-.label.t-pink { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 78%, var(--rule)); background: color-mix(in srgb, var(--pink) 12%, transparent); }
-.label.t-teal { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 78%, var(--rule)); background: color-mix(in srgb, var(--teal) 12%, transparent); }
-.label.t-yellow { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 78%, var(--rule)); background: color-mix(in srgb, var(--yellow) 12%, transparent); }
-.label.t-purple { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 78%, var(--rule)); background: color-mix(in srgb, var(--purple) 12%, transparent); }
 .label.t-ink { color: var(--ink3); border-color: color-mix(in srgb, var(--ink3) 78%, var(--rule)); background: color-mix(in srgb, var(--ink3) 10%, transparent); }
+.label.t-blue-a { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 82%, var(--rule)); background: color-mix(in srgb, var(--blue) 18%, transparent); }
+.label.t-blue-b { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 72%, var(--rule)); background: color-mix(in srgb, var(--blue) 10%, transparent); }
+.label.t-blue-c { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 88%, var(--rule)); background: color-mix(in srgb, var(--blue) 6%, transparent); }
+.label.t-orange-a { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 82%, var(--rule)); background: color-mix(in srgb, var(--orange) 18%, transparent); }
+.label.t-orange-b { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 72%, var(--rule)); background: color-mix(in srgb, var(--orange) 10%, transparent); }
+.label.t-orange-c { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 88%, var(--rule)); background: color-mix(in srgb, var(--orange) 6%, transparent); }
+.label.t-pink-a { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 82%, var(--rule)); background: color-mix(in srgb, var(--pink) 18%, transparent); }
+.label.t-pink-b { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 72%, var(--rule)); background: color-mix(in srgb, var(--pink) 10%, transparent); }
+.label.t-pink-c { color: var(--pink); border-color: color-mix(in srgb, var(--pink) 88%, var(--rule)); background: color-mix(in srgb, var(--pink) 6%, transparent); }
+.label.t-teal-a { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 82%, var(--rule)); background: color-mix(in srgb, var(--teal) 18%, transparent); }
+.label.t-teal-b { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 72%, var(--rule)); background: color-mix(in srgb, var(--teal) 10%, transparent); }
+.label.t-teal-c { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 88%, var(--rule)); background: color-mix(in srgb, var(--teal) 6%, transparent); }
+.label.t-yellow-a { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 82%, var(--rule)); background: color-mix(in srgb, var(--yellow) 18%, transparent); }
+.label.t-yellow-b { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 72%, var(--rule)); background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+.label.t-yellow-c { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 88%, var(--rule)); background: color-mix(in srgb, var(--yellow) 6%, transparent); }
+.label.t-purple-a { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 82%, var(--rule)); background: color-mix(in srgb, var(--purple) 18%, transparent); }
+.label.t-purple-b { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 72%, var(--rule)); background: color-mix(in srgb, var(--purple) 10%, transparent); }
+.label.t-purple-c { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 88%, var(--rule)); background: color-mix(in srgb, var(--purple) 6%, transparent); }
 
 /* ── MODAL ── */
 @keyframes modalOverlayFade {

@@ -6,11 +6,21 @@ pub fn label_tone_class(label: &str) -> &'static str {
         return "t-ink";
     }
 
-    const TONES: [&str; 6] = ["t-blue", "t-orange", "t-pink", "t-teal", "t-yellow", "t-purple"];
+    const TONES: [[&str; 3]; 6] = [
+        ["t-blue-a", "t-blue-b", "t-blue-c"],
+        ["t-orange-a", "t-orange-b", "t-orange-c"],
+        ["t-pink-a", "t-pink-b", "t-pink-c"],
+        ["t-teal-a", "t-teal-b", "t-teal-c"],
+        ["t-yellow-a", "t-yellow-b", "t-yellow-c"],
+        ["t-purple-a", "t-purple-b", "t-purple-c"],
+    ];
+
     let hash = normalized
         .bytes()
         .fold(0u64, |acc, byte| acc.wrapping_mul(131).wrapping_add(u64::from(byte)));
-    TONES[(hash % TONES.len() as u64) as usize]
+    let hue = (hash % TONES.len() as u64) as usize;
+    let variant = ((hash / TONES.len() as u64) % 3) as usize;
+    TONES[hue][variant]
 }
 
 #[component]
@@ -48,6 +58,14 @@ mod tests {
     #[test]
     fn label_tone_class_uses_palette_for_unknown_labels() {
         let tone = label_tone_class("clown pass");
-        assert!(matches!(tone, "t-blue" | "t-orange" | "t-pink" | "t-teal" | "t-yellow" | "t-purple"));
+        assert!(matches!(
+            tone,
+            "t-blue-a" | "t-blue-b" | "t-blue-c"
+                | "t-orange-a" | "t-orange-b" | "t-orange-c"
+                | "t-pink-a" | "t-pink-b" | "t-pink-c"
+                | "t-teal-a" | "t-teal-b" | "t-teal-c"
+                | "t-yellow-a" | "t-yellow-b" | "t-yellow-c"
+                | "t-purple-a" | "t-purple-b" | "t-purple-c"
+        ));
     }
 }

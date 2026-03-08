@@ -2,14 +2,6 @@
 
 ---
 
-## [116] Gotta take a shit
-**Status:** OPEN
-**Labels:** ux, frontend
-
-**Resolution:** 
-
----
-
 ## [33] Add issue linking, mentions, and hover brackets
 **Status:** OPEN
 **Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
@@ -27,6 +19,14 @@ Once parsed, the UI must implement the `.bracket-svg` hover effect bridging link
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
 
 Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
+
+**Resolution:** 
+
+---
+
+## [116] Gotta take a shit
+**Status:** OPEN
+**Labels:** ux, frontend, compiler, ux, backend, business logic
 
 **Resolution:** 
 
