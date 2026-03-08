@@ -7,7 +7,7 @@
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
 
 Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once [11] lands — the per-category counter must not decrement).
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
 
 **Resolution:** 
 
@@ -61,7 +61,7 @@ Resolution should include:
 **Files:** `src/main.rs`, `src/model/cli.rs`
 
 Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on [8] for robust re-parsing.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
 Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
@@ -129,23 +129,12 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 ---
 
-## [31] Status changes move issues between files automatically
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
-
-When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
-Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land ([28]), the routing rules should be configurable or at least documented.
-
-**Resolution:** 
-
----
-
 ## [43] Add issue description editing in the UI
 **Status:** OPEN
 **Files:** `src/ui/views/feed/card.rs`
 
 The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
-Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on [30]).
+Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
 
 **Resolution:** 
 
@@ -157,7 +146,18 @@ Add a pencil icon or double-click-to-edit interaction that swaps the description
 **Depends on:** [8]
 
 If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
-After [8] lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
+After #8 lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
+
+**Resolution:** 
+
+---
+
+## [31] Status changes move issues between files automatically
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/ui/app.rs`
+
+When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
+Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land (#28), the routing rules should be configurable or at least documented.
 
 **Resolution:** 
 
@@ -211,7 +211,7 @@ Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and po
 **Status:** OPEN
 **Files:** `src/ui/views/viz.rs`
 
-The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue [5] depends on [4], and [4] is still OPEN, then [5] is effectively blocked. Visually distinguish:
+The Graph view shows dependency edges, but doesn't highlight blocked chains. If issue #5 depends on #4, and #4 is still OPEN, then #5 is effectively blocked. Visually distinguish:
 
 - Satisfied dependencies (dependency is DONE) — green edge
 - Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
@@ -231,9 +231,9 @@ Output something like:
 
 ```
 Cluster: parse.rs + workspace.rs
-  → [8] AST parser, [12] round-trip tests, [16] preserve unknown fields, [27] comments
+  → #8 AST parser, #12 round-trip tests, #16 preserve unknown fields, #27 comments
 Cluster: card.rs + feed.rs
-  → [47] drag fix, [14] physics performance, [41] compact mode, [43] description editing
+  → #47 drag fix, #14 physics performance, #41 compact mode, #43 description editing
 ```
 
 This answers "if I'm already in these files, what else can I batch?" Reduces context switching and merge conflict risk.
@@ -247,7 +247,7 @@ This answers "if I'm already in these files, what else can I batch?" Reduces con
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
 **Depends on:** [54]
 
-After [54] adds blocking visualization (green/red edges), add a "Bottlenecks" mode to the Graph view that highlights the issues with the highest transitive dependent count. The issue whose completion unblocks the most downstream work should visually glow or scale larger.
+After #54 adds blocking visualization (green/red edges), add a "Bottlenecks" mode to the Graph view that highlights the issues with the highest transitive dependent count. The issue whose completion unblocks the most downstream work should visually glow or scale larger.
 
 This answers "what's the single most important thing to do right now" from a pure dependency perspective. Compute transitive dependents by walking the dependency graph — no new data source needed.
 
@@ -323,8 +323,8 @@ The graph and heatmap views currently compute overlap indices, pair intersection
 Move all graph computation into `Workspace`:
 
 - `file_overlap_index: HashMap<(IssueId, IssueId), Vec<String>>` — precomputed at load time
-- `transitive_dependents: HashMap<IssueId, usize>` — for bottleneck highlighting ([58])
-- `issue_heat_score: HashMap<IssueId, usize>` — weighted file touch count for feed lenses ([57])
+- `transitive_dependents: HashMap<IssueId, usize>` — for bottleneck highlighting (#58)
+- `issue_heat_score: HashMap<IssueId, usize>` — weighted file touch count for feed lenses (#57)
 
 The viz views become pure consumers of precomputed data. This fixes the current Neti violations and makes all the new lens/sort features cheap to render.
 

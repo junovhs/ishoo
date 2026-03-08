@@ -2,7 +2,7 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 32 files | 85458 tokens | 2 violations
+SCAN SUMMARY: 33 files | 88631 tokens | 2 violations
 
 ALL VIOLATING FILES:
     2 violations | src/model/workspace.rs
@@ -35,7 +35,7 @@ warn: Class 'Workspace' has high fan-out (SFOUT: 8)
    |
    = SUPPRESS: // neti:allow(SFOUT) on the line, or SFOUT = "warn" in neti.toml [rules]
 
-~ Neti found 2 warnings (329ms).
+~ Neti found 2 warnings (419ms).
 
 
 ========================================
@@ -54,8 +54,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (1306ms)
+> PASS (1895ms)
 
 $ cargo test
-> PASS (1532ms)
+> PASS (2212ms)
 

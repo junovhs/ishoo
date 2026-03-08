@@ -195,6 +195,7 @@ mod tests {
             status,
             files: files.iter().map(|s| s.to_string()).collect(),
             labels: vec![],
+            links: vec![],
             description: String::new(),
             resolution: String::new(),
             section: "ACTIVE Issues".to_string(),

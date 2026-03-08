@@ -85,6 +85,16 @@ pub struct FeedViewProps {
     pub on_section_toggle: EventHandler<()>,
 }
 
+fn reverse_links(issues: &[Issue]) -> std::collections::HashMap<u32, Vec<u32>> {
+    let mut reverse = std::collections::HashMap::<u32, Vec<u32>>::new();
+    for issue in issues {
+        for target in &issue.links {
+            reverse.entry(*target).or_default().push(issue.id);
+        }
+    }
+    reverse
+}
+
 fn modal_neighbor_id(issues: &[Issue], current_id: u32, delta: isize) -> Option<u32> {
     let current_idx = issues.iter().position(|issue| issue.id == current_id)?;
     let next_idx = current_idx as isize + delta;
@@ -114,10 +124,12 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     
     // We need to track which sections are currently collapsed
     let mut collapsed = use_signal(std::collections::HashSet::<String>::new);
+    let mentioned_by = reverse_links(&props.issues);
     let active_modal = modal_id().and_then(|id| {
         props.issues.iter().find(|issue| issue.id == id).cloned().map(|issue| {
             (
                 issue,
+                mentioned_by.get(&id).cloned().unwrap_or_default(),
                 modal_neighbor_id(&props.issues, id, -1),
                 modal_neighbor_id(&props.issues, id, 1),
             )
@@ -371,6 +383,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                 card::IssueCard {
                                     key: "card-{issue.id}",
                                     issue: issue.clone(),
+                                    incoming_links: mentioned_by.get(&issue.id).cloned().unwrap_or_default(),
                                     idx: idx,
                                     virtual_y: target_y,
                                     drag_state: drag_state,
@@ -392,9 +405,10 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             }
         }
 
-        if let Some((issue, prev_id, next_id)) = active_modal {
+        if let Some((issue, incoming_links, prev_id, next_id)) = active_modal {
                 IssueModal {
                     issue: issue,
+                    incoming_links: incoming_links,
                     prev_id: prev_id,
                     next_id: next_id,
                     on_close: move |_| modal_id.set(None),
@@ -419,6 +433,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
 #[derive(Clone, PartialEq, Props)]
 struct IssueModalProps {
     issue: Issue,
+    incoming_links: Vec<u32>,
     prev_id: Option<u32>,
     next_id: Option<u32>,
     on_close: EventHandler<()>,
@@ -529,12 +544,20 @@ fn IssueModal(props: IssueModalProps) -> Element {
                         for f in &i.files { code { "{f}" } br {} }
                     }
                 }
-                if !i.depends_on.is_empty() {
+                if !i.links.is_empty() || !props.incoming_links.is_empty() {
                     div { class: "m-links",
                         hr { class: "m-divider", style: "margin:12px 0;" }
-                        div { class: "m-link-label", "Linked Issues" }
-                        for d in &i.depends_on {
-                            span { class: "m-link-item", "↗ ISSUE-{d}" }
+                        if !i.links.is_empty() {
+                            div { class: "m-link-label", "Mentions" }
+                            for d in &i.links {
+                                span { class: "m-link-item", "↗ ISSUE-{d}" }
+                            }
+                        }
+                        if !props.incoming_links.is_empty() {
+                            div { class: "m-link-label", "Mentioned By" }
+                            for d in &props.incoming_links {
+                                span { class: "m-link-item", "↙ ISSUE-{d}" }
+                            }
                         }
                     }
                 }
@@ -596,7 +619,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_hover_target, modal_neighbor_id, HoverTarget};
+    use super::{compute_hover_target, modal_neighbor_id, reverse_links, HoverTarget};
     use crate::model::{Issue, Status};
 
     fn make_issue(id: u32) -> Issue {
@@ -606,6 +629,7 @@ mod tests {
             status: Status::Open,
             files: vec![],
             labels: vec![],
+            links: vec![],
             description: String::new(),
             resolution: String::new(),
             section: "ACTIVE Issues".to_string(),
@@ -664,5 +688,15 @@ mod tests {
         let issues = vec![make_issue(10), make_issue(20)];
         assert_eq!(modal_neighbor_id(&issues, 10, -1), None);
         assert_eq!(modal_neighbor_id(&issues, 20, 1), None);
+    }
+
+    #[test]
+    fn reverse_links_collects_incoming_mentions() {
+        let mut first = make_issue(10);
+        first.links = vec![30];
+        let mut second = make_issue(20);
+        second.links = vec![30];
+        let reverse = reverse_links(&[first, second, make_issue(30)]);
+        assert_eq!(reverse.get(&30), Some(&vec![10, 20]));
     }
 }

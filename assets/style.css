@@ -523,6 +523,30 @@ html.dark .label-filter.active {
     --card-h: 44px;
 }
 .feed-inner { position: relative; will-change: transform; }
+.bracket-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    z-index: 2;
+}
+.bracket-svg.visible {
+    opacity: 1;
+}
+.bracket-line {
+    stroke: var(--ink3);
+    stroke-width: 1.8;
+    fill: none;
+    stroke-linecap: round;
+}
+.bracket-tick {
+    stroke: var(--ink3);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+}
 .item { position: absolute; left: 0; right: 0; touch-action: none; will-change: transform; z-index: 1; height: var(--card-h); }
 .item.dragging { z-index: 500; }
 .item.settling { z-index: 400; pointer-events: none; }
@@ -569,6 +593,9 @@ html.dark .label-filter.active {
 .item.recent-drop.hover-armed .issue-row {
     transition: background 0.3s ease, box-shadow 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
 }
+.issue-row.link-hl {
+    background: rgba(0, 0, 0, 0.03);
+}
 
 /* Base hover - gently lift towards user */
 .issue-row:hover {
@@ -589,6 +616,9 @@ html.dark .label-filter.active {
 html.dark .issue-row:hover {
     background: rgba(255, 255, 255, 0.03);
     box-shadow: 0 8px 16px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1);
+}
+html.dark .issue-row.link-hl {
+    background: rgba(255, 255, 255, 0.05);
 }
 html.dark .item:not(.dragging) .issue-row:active {
     background: rgba(0, 0, 0, 0.2);
@@ -861,6 +891,33 @@ html.dark .modal-overlay {
     font-size: 12px;
     color: var(--ink3);
     line-height: 1.6;
+}
+.m-links {
+    padding: 0 28px 8px;
+}
+.m-link-label {
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink3);
+    margin-bottom: 8px;
+}
+.m-link-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--ink2);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    font-size: 12px;
+}
+.m-link-item:hover {
+    border-color: var(--ink3);
+    color: var(--ink);
 }
 /* Markdown-ish body */
 .m-body {

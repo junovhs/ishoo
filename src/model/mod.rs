@@ -155,6 +155,7 @@ pub struct Issue {
     pub status: Status,
     pub files: Vec<String>,
     pub labels: Vec<String>,
+    pub links: Vec<u32>,
     pub description: String,
     pub resolution: String,
     pub section: String,

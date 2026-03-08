@@ -365,7 +365,7 @@ Note: The UI HTML layout has been completed. Keyboard `ArrowUp`/`ArrowDown` navi
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`
 
-The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names ([28]), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
+The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names (#28), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
 
 **Resolution:** Added section aggregation in `src/ui/app.rs` based on each issue’s `section` string, ordered the built-in sections first (`Active`, `Backlog`, `Done`) with custom sections after them, and rendered the result in a new sidebar `Sections` block via a shared `SectionBadgeRow` component. Added tests for grouping and ordering so custom sections do not destabilize the sidebar presentation. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
@@ -394,5 +394,17 @@ Fix:
 - The `init` command should print the chosen path explicitly
 
 **Resolution:** Changed `discover_root` so it first collects all matching candidate roots, then warns via stderr when more than one workspace root exists while still preserving the existing first-match preference. Added a regression test proving `docs/issues` still wins when both it and the repo root contain issue files. The CLI `init` path was already printed explicitly in `main.rs`, so no additional change was needed there. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [33] Add issue linking, mentions, and hover brackets
+**Status:** DONE
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** core, frontend, ux, cli
+
+Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
+Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
+
+**Resolution:** Added first-class `links: Vec<u32>` to the `Issue` model and populated it in `parse_markdown` by scanning issue title, description, and resolution text for `#123` mentions while deduplicating links and ignoring self-references. Wired the modal’s link area to show both authored outgoing mentions (`Mentions`) and reverse incoming references (`Mentioned By`). In the feed, each card now exposes its issue/section identity to the DOM and computes reverse-link context so hover brackets/highlighting work from either side of the relationship while still preserving authored direction in the iconography (`↗`, `↙`, or `↕`). Added the missing bracket and modal link styles in `assets/style.css`, plus parser/reverse-link tests covering real mention extraction, negative self/embedded-hash cases, and incoming-link aggregation. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
 ---

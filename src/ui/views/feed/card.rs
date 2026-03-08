@@ -1,11 +1,13 @@
 use crate::model::Issue;
 use crate::ui::components::LabelList;
 use crate::ui::views::feed::{apply_drag_deadzone, DragState, RecentDropState, DRAG_DEADZONE_PX};
+use dioxus::document::eval;
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq, Props)]
 pub struct IssueCardProps {
     pub issue: Issue,
+    pub incoming_links: Vec<u32>,
     pub idx: usize,
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
     pub drag_state: Signal<DragState>,
@@ -118,13 +120,28 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     } else {
         "var(--orange)"
     };
+    let mut related_links = i.links.clone();
+    for incoming in &props.incoming_links {
+        if !related_links.contains(incoming) {
+            related_links.push(*incoming);
+        }
+    }
+    let link_ids = related_links.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
+    let outgoing_count = i.links.len();
+    let incoming_count = props.incoming_links.len();
+    let link_count = related_links.len();
+    let row_dom_id = format!("issue-row-{id}");
+    let section_dom_key = i.section.to_ascii_lowercase().replace(' ', "-");
 
     rsx! {
         div { 
             class: "{cls}", 
             style: "{outer_style}",
             div {
+                id: "{row_dom_id}",
                 class: "issue-row",
+                "data-issue-id": "{id}",
+                "data-section-key": "{section_dom_key}",
                 onpointerdown: move |e| {
                     e.prevent_default();
                     recent_drop_signal.set(RecentDropState::default());
@@ -138,6 +155,101 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     ds_write.offset_y = 0.0;
                     ds_write.hover_y = props.virtual_y;
                     ds_write.releasing = false;
+                },
+                onmouseenter: move |_| {
+                    if link_count == 0 {
+                        return;
+                    }
+                    let script = format!(
+                        r#"
+(() => {{
+  const source = document.getElementById({row_id:?});
+  if (!source) return;
+  const container = document.getElementById("scroll-content");
+  if (!container) return;
+  const sectionKey = source.dataset.sectionKey;
+  const linkIds = {link_ids:?}.split(',').filter(Boolean);
+  const targets = linkIds
+    .map((linkId) => document.querySelector(`.issue-row[data-issue-id="${{linkId}}"][data-section-key="${{sectionKey}}"]`))
+    .filter(Boolean);
+  if (!targets.length) return;
+
+  document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
+  let svg = document.getElementById('link-bracket-overlay');
+  if (!svg) {{
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('id', 'link-bracket-overlay');
+    svg.classList.add('bracket-svg');
+    container.appendChild(svg);
+  }}
+
+  const containerRect = container.getBoundingClientRect();
+  const sourceRect = source.getBoundingClientRect();
+  const srcY = sourceRect.top + sourceRect.height / 2 - containerRect.top;
+  const x = sourceRect.left - containerRect.left - 10;
+  const tickLen = 8;
+
+  source.classList.add('link-hl');
+  svg.innerHTML = '';
+  svg.setAttribute('width', String(Math.max(22, Math.ceil(x + tickLen + 4))));
+  svg.setAttribute('height', String(container.scrollHeight));
+  svg.style.width = `${{Math.max(22, Math.ceil(x + tickLen + 4))}}px`;
+  svg.style.height = `${{container.scrollHeight}}px`;
+  svg.style.left = '0px';
+
+  targets.forEach((target) => {{
+    target.classList.add('link-hl');
+    const targetRect = target.getBoundingClientRect();
+    const tgtY = targetRect.top + targetRect.height / 2 - containerRect.top;
+    const topY = Math.min(srcY, tgtY);
+    const botY = Math.max(srcY, tgtY);
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(x));
+    line.setAttribute('y1', String(topY));
+    line.setAttribute('x2', String(x));
+    line.setAttribute('y2', String(botY));
+    line.classList.add('bracket-line');
+    svg.appendChild(line);
+
+    const topTick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    topTick.setAttribute('x1', String(x));
+    topTick.setAttribute('y1', String(topY));
+    topTick.setAttribute('x2', String(x + tickLen));
+    topTick.setAttribute('y2', String(topY));
+    topTick.classList.add('bracket-tick');
+    svg.appendChild(topTick);
+
+    const bottomTick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    bottomTick.setAttribute('x1', String(x));
+    bottomTick.setAttribute('y1', String(botY));
+    bottomTick.setAttribute('x2', String(x + tickLen));
+    bottomTick.setAttribute('y2', String(botY));
+    bottomTick.classList.add('bracket-tick');
+    svg.appendChild(bottomTick);
+  }});
+
+  svg.classList.add('visible');
+}})();
+"#,
+                        row_id = row_dom_id,
+                        link_ids = link_ids,
+                    );
+                    let _ = eval(&script);
+                },
+                onmouseleave: move |_| {
+                    let _ = eval(
+                        r#"
+(() => {
+  document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
+  const svg = document.getElementById('link-bracket-overlay');
+  if (svg) {
+    svg.classList.remove('visible');
+    svg.innerHTML = '';
+  }
+})();
+"#,
+                    );
                 },
                 div { class: "id-badge",
                     span { class: "id-cat", "ISS-" }
@@ -160,8 +272,24 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     }
                 }
                 div { class: "issue-right", // Empty space on the right, matches the dot and links
-                    if !i.depends_on.is_empty() {
-                        span { class: "xlink", title: "Linked to {i.depends_on.len()} issue(s)", "↗" }
+                    if outgoing_count > 0 || incoming_count > 0 {
+                        span {
+                            class: "xlink",
+                            title: if outgoing_count > 0 && incoming_count > 0 {
+                                "Mentions {outgoing_count} issue(s) and is mentioned by {incoming_count}"
+                            } else if outgoing_count > 0 {
+                                "Mentions {outgoing_count} linked issue(s)"
+                            } else {
+                                "Mentioned by {incoming_count} issue(s)"
+                            },
+                            if outgoing_count > 0 && incoming_count > 0 {
+                                "↕"
+                            } else if outgoing_count > 0 {
+                                "↗"
+                            } else {
+                                "↙"
+                            }
+                        }
                     }
                     div { class: "s-dot", style: "background:{section_color}; width:8px; height:8px; border-radius:50%;" }
                 }

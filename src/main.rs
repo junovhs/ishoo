@@ -86,6 +86,7 @@ fn main() {
                         status: model::Status::from_str(status),
                         files: vec![],
                         labels: vec![],
+                        links: vec![],
                         description: String::new(),
                         resolution: String::new(),
                         section: "ACTIVE Issues".to_string(),

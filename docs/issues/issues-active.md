@@ -23,32 +23,20 @@ This requires updating:
 
 ---
 
-## [116] Gotta take a shit
-**Status:** OPEN
-**Labels:** ux, frontend, compiler, ux, backend, business logic
-
-**Resolution:** 
-
----
-
 ## [4] Replace polling with OS file system events
 **Status:** IN PROGRESS
 **Files:** `src/ui/app.rs`, `Cargo.toml`
 
 The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue [5]).
+Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue #5).
 
 **Resolution:** 
 
 ---
 
-## [33] Add issue linking, mentions, and hover brackets
+## [116] Gotta take a shit
 **Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/ui/views/feed/card.rs`
-**Labels:** core, frontend, ux, cli
-
-Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
-Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
+**Labels:** ux, frontend, compiler, ux, backend, business logic
 
 **Resolution:** 
 

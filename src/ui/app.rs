@@ -211,7 +211,7 @@ fn NewIssueModal(mut modal: Signal<bool>, state: AppState) -> Element {
                                 let parsed_labels = parse_label_input(&labels());
                                 let issue = Issue {
                                     id: max + 1, title: t.clone(), status: Status::from_str(&status()),
-                                    files: vec![], labels: parsed_labels, description: String::new(), resolution: String::new(),
+                                    files: vec![], labels: parsed_labels, links: vec![], description: String::new(), resolution: String::new(),
                                     section: "ACTIVE Issues".to_string(), depends_on: vec![],
                                 };
                                 issues.write().insert(0, issue.clone());
@@ -840,6 +840,7 @@ mod tests {
             status: Status::Open,
             files: vec![],
             labels: labels.iter().map(|label| label.to_string()).collect(),
+            links: vec![],
             description: String::new(),
             resolution: String::new(),
             section: "ACTIVE Issues".to_string(),
@@ -860,6 +861,7 @@ mod tests {
             status,
             files: files.iter().map(|file| file.to_string()).collect(),
             labels: vec![],
+            links: vec![],
             description: String::new(),
             resolution: String::new(),
             section: "ACTIVE Issues".to_string(),

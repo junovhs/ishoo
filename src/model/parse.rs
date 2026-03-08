@@ -45,6 +45,7 @@ pub fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
     for issue in &mut issues {
         issue.description = issue.description.trim().to_owned();
         issue.resolution = issue.resolution.trim().to_owned();
+        issue.links = extract_links(issue);
     }
 
     issues
@@ -146,6 +147,7 @@ fn new_issue(id: u32, title: String, section: &str) -> Issue {
         status: Status::Open,
         files: vec![],
         labels: vec![],
+        links: vec![],
         description: String::new(),
         resolution: String::new(),
         section: section.to_owned(),
@@ -227,6 +229,53 @@ fn try_parse_heading(line: &str) -> Option<(u32, String)> {
     Some((id, title))
 }
 
+fn extract_links(issue: &Issue) -> Vec<u32> {
+    let mut links = vec![];
+    let mut seen = std::collections::BTreeSet::new();
+
+    for text in [&issue.title, &issue.description, &issue.resolution] { // neti:allow(P04)
+        for link in extract_mentions(text) {
+            if link != issue.id && seen.insert(link) {
+                links.push(link);
+            }
+        }
+    }
+
+    links
+}
+
+fn extract_mentions(text: &str) -> Vec<u32> {
+    let bytes = text.as_bytes();
+    let mut links = vec![];
+    let mut idx = 0;
+
+    while idx < bytes.len() {
+        if bytes[idx] != b'#' {
+            idx += 1;
+            continue;
+        }
+
+        let start = idx + 1;
+        let mut end = start;
+        while end < bytes.len() && bytes[end].is_ascii_digit() { // neti:allow(P04)
+            end += 1;
+        }
+
+        if end > start {
+            let prev = idx.checked_sub(1).map(|prev_idx| bytes[prev_idx]);
+            if prev.is_none_or(|prev| !prev.is_ascii_alphanumeric() && prev != b'-') {
+                if let Ok(id) = text[start..end].parse::<u32>() {
+                    links.push(id);
+                }
+            }
+        }
+
+        idx = end.max(idx + 1);
+    }
+
+    links
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +305,20 @@ mod tests {
         assert_eq!(issues[0].id, 1);
         assert_eq!(issues[0].files, vec!["a.rs", "b.rs"]);
         assert_eq!(issues[0].labels, vec!["parser", "ui polish"]);
+    }
+
+    #[test]
+    fn parse_markdown_extracts_unique_issue_mentions_from_body_and_resolution() {
+        let md = "# Test\n\n---\n\n## [8] Mentioned links\n**Status:** OPEN\n\nFollow up after #3 and #12.\nRepeat #3 here.\n\n**Resolution:** Closed by #9\n\n---\n";
+        let issues = parse_markdown(md, "Test");
+        assert_eq!(issues[0].links, vec![3, 12, 9]);
+    }
+
+    #[test]
+    fn parse_markdown_ignores_self_mentions_and_embedded_hashes() {
+        let md = "# Test\n\n---\n\n## [8] Mentioned links\n**Status:** OPEN\n\nIgnore self #8 and wordabc#9 and slug-#7.\n\n**Resolution:** \n\n---\n";
+        let issues = parse_markdown(md, "Test");
+        assert!(issues[0].links.is_empty());
     }
 
     #[test]

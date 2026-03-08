@@ -125,6 +125,7 @@ mod tests {
                 status: Status::Open,
                 files: vec!["src/model/parse.rs".to_string()],
                 labels: vec!["parser".to_string(), "ui".to_string()],
+                links: vec![],
                 description: "Desc".to_string(),
                 resolution: String::new(),
                 section: "ACTIVE Issues".to_string(),
