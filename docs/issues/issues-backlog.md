@@ -13,17 +13,6 @@ Should prompt for confirmation unless `--force` is passed. After deletion, the i
 
 ---
 
-## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
-**Status:** OPEN
-**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
-
-Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
-Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
-
-**Resolution:** 
-
----
-
 ## [42] Protect against data loss on crash during save
 **Status:** OPEN
 **Files:** `src/model/workspace.rs`
@@ -79,35 +68,6 @@ Also support field-level updates for scripting: `ishoo edit <id> --title "New ti
 
 ---
 
-## [13] Prevent silent data loss from discover_root ambiguity
-**Status:** OPEN
-**Files:** `src/model/mod.rs`
-
-`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
-Fix:
-
-- If multiple candidates contain issue files, print a warning listing all matches and which was selected
-- Default to the first match but make the choice visible
-- The `init` command should print the chosen path explicitly
-
-**Resolution:** 
-
----
-
-## [36] Validate and lint issue files
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/parse.rs`
-
-There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
-
-- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
-- `ishoo lint --strict` — treats warnings as errors (useful for CI)
-This enables a pre-commit hook: `ishoo lint --strict || exit 1`
-
-**Resolution:** 
-
----
-
 ## [28] Support arbitrary issue file names
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/workspace.rs`
@@ -137,6 +97,20 @@ Write property-based or snapshot tests that:
 - Mutate status and verify correct file routing
 
 **Resolution:** Descoped. Dumb to make this an issue, lets just do actual mutation testing.
+
+---
+
+## [36] Validate and lint issue files
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/parse.rs`
+
+There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+
+- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
+- `ishoo lint --strict` — treats warnings as errors (useful for CI)
+This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+
+**Resolution:** 
 
 ---
 
@@ -228,16 +202,6 @@ Provide documentation and a ready-made pre-commit hook config that runs `ishoo l
 - Dangling dependency references
 - Issues left in IN PROGRESS on a branch that's being merged to main
 Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
-
-**Resolution:** 
-
----
-
-## [109] Add issue count badges per section in sidebar
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`
-
-The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names ([28]), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
 
 **Resolution:** 
 

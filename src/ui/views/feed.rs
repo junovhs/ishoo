@@ -2,8 +2,7 @@
 mod card;
 
 use crate::model::{Issue, Status};
-use crate::ui::components::label_tone_class;
-use card::IssueCard;
+use crate::ui::components::LabelList;
 use dioxus::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -86,6 +85,15 @@ pub struct FeedViewProps {
     pub on_section_toggle: EventHandler<()>,
 }
 
+fn modal_neighbor_id(issues: &[Issue], current_id: u32, delta: isize) -> Option<u32> {
+    let current_idx = issues.iter().position(|issue| issue.id == current_id)?;
+    let next_idx = current_idx as isize + delta;
+    if next_idx < 0 {
+        return None;
+    }
+    issues.get(next_idx as usize).map(|issue| issue.id)
+}
+
 #[component]
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
@@ -106,6 +114,15 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     
     // We need to track which sections are currently collapsed
     let mut collapsed = use_signal(std::collections::HashSet::<String>::new);
+    let active_modal = modal_id().and_then(|id| {
+        props.issues.iter().find(|issue| issue.id == id).cloned().map(|issue| {
+            (
+                issue,
+                modal_neighbor_id(&props.issues, id, -1),
+                modal_neighbor_id(&props.issues, id, 1),
+            )
+        })
+    });
 
     rsx! {
         div {
@@ -351,7 +368,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                             }
                             
                             elements.push(rsx! {
-                                IssueCard {
+                                card::IssueCard {
                                     key: "card-{issue.id}",
                                     issue: issue.clone(),
                                     idx: idx,
@@ -375,16 +392,26 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             }
         }
 
-        if let Some(id) = modal_id() {
-            if let Some(issue) = props.issues.iter().find(|i| i.id == id) {
+        if let Some((issue, prev_id, next_id)) = active_modal {
                 IssueModal {
-                    issue: issue.clone(),
+                    issue: issue,
+                    prev_id: prev_id,
+                    next_id: next_id,
                     on_close: move |_| modal_id.set(None),
+                    on_prev: move |_| {
+                        if let Some(prev_id) = prev_id {
+                            modal_id.set(Some(prev_id));
+                        }
+                    },
+                    on_next: move |_| {
+                        if let Some(next_id) = next_id {
+                            modal_id.set(Some(next_id));
+                        }
+                    },
                     on_status: props.on_status,
                     on_resolution: props.on_resolution,
                     on_labels: props.on_labels,
                 }
-            }
         }
     }
 }
@@ -392,7 +419,11 @@ pub fn FeedView(props: FeedViewProps) -> Element {
 #[derive(Clone, PartialEq, Props)]
 struct IssueModalProps {
     issue: Issue,
+    prev_id: Option<u32>,
+    next_id: Option<u32>,
     on_close: EventHandler<()>,
+    on_prev: EventHandler<()>,
+    on_next: EventHandler<()>,
     on_status: EventHandler<(u32, String)>,
     on_resolution: EventHandler<(u32, String)>,
     on_labels: EventHandler<(u32, String)>,
@@ -412,6 +443,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
     let i = &props.issue;
     let id = i.id;
     let mut labels_input = use_signal(|| i.labels.join(", "));
+    let modal_dom_id = format!("issue-modal-{}", i.id);
 
     let section = i.section.to_ascii_lowercase();
     let color = if section.contains("done") || i.status == Status::Done || i.status == Status::Descoped {
@@ -428,12 +460,33 @@ fn IssueModal(props: IssueModalProps) -> Element {
     
     let html_desc = render_markdown(&i.description);
 
+    use_effect({
+        let modal_dom_id = modal_dom_id.clone();
+        move || {
+            let modal_dom_id = modal_dom_id.clone();
+            spawn(async move {
+                let script = format!(
+                    "const el = document.getElementById({modal_dom_id:?}); if (el) el.focus();"
+                );
+                let _ = document::eval(&script);
+            });
+        }
+    });
+
     rsx! {
         div {
             class: "modal-overlay open", // We use Dioxus conditional rendering so it's always open when mounted
             onclick: move |_| props.on_close.call(()),
             div {
+                id: "{modal_dom_id}",
                 class: "modal",
+                tabindex: 0,
+                onkeydown: move |e| match e.key() {
+                    Key::ArrowUp if props.prev_id.is_some() => props.on_prev.call(()),
+                    Key::ArrowDown if props.next_id.is_some() => props.on_next.call(()),
+                    Key::Escape => props.on_close.call(()),
+                    _ => {}
+                },
                 onclick: move |e| e.stop_propagation(),
                 div { class: "m-accent", style: "background:{color}" }
                 div { class: "m-head",
@@ -452,9 +505,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
                     span { class: "m-status-text", "{i.status.label()}" }
                     div { class: "m-labels",
                         span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
-                        for label in &i.labels {
-                            span { class: "label {label_tone_class(label)}", "{label}" }
-                        }
+                        LabelList { labels: i.labels.clone() }
                     }
                 }
                 hr { class: "m-divider" }
@@ -529,7 +580,13 @@ fn IssueModal(props: IssueModalProps) -> Element {
                     }
                 }
                 div { class: "m-nav",
-                    span { kbd { "↑" } kbd { "↓" } " prev / next" }
+                    span {
+                        if props.prev_id.is_some() || props.next_id.is_some() {
+                            kbd { "↑" } kbd { "↓" } " prev / next"
+                        } else {
+                            kbd { "↑" } kbd { "↓" } " no neighbors"
+                        }
+                    }
                     span { kbd { "Esc" } " close" }
                 }
             }
@@ -539,7 +596,22 @@ fn IssueModal(props: IssueModalProps) -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_hover_target, HoverTarget};
+    use super::{compute_hover_target, modal_neighbor_id, HoverTarget};
+    use crate::model::{Issue, Status};
+
+    fn make_issue(id: u32) -> Issue {
+        Issue {
+            id,
+            title: format!("Issue {id}"),
+            status: Status::Open,
+            files: vec![],
+            labels: vec![],
+            description: String::new(),
+            resolution: String::new(),
+            section: "ACTIVE Issues".to_string(),
+            depends_on: vec![],
+        }
+    }
 
     #[test]
     fn tiny_downward_motion_does_not_reorder() {
@@ -578,5 +650,19 @@ mod tests {
                 y: 138.0
             }
         );
+    }
+
+    #[test]
+    fn modal_neighbor_id_tracks_previous_and_next_in_filtered_order() {
+        let issues = vec![make_issue(10), make_issue(20), make_issue(30)];
+        assert_eq!(modal_neighbor_id(&issues, 20, -1), Some(10));
+        assert_eq!(modal_neighbor_id(&issues, 20, 1), Some(30));
+    }
+
+    #[test]
+    fn modal_neighbor_id_stops_at_list_edges() {
+        let issues = vec![make_issue(10), make_issue(20)];
+        assert_eq!(modal_neighbor_id(&issues, 10, -1), None);
+        assert_eq!(modal_neighbor_id(&issues, 20, 1), None);
     }
 }

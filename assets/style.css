@@ -224,6 +224,38 @@ body.is-scrolling .issue-row {
     font-family: "Instrument Serif", serif;
     font-size: 22px;
 }
+.section-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--rule);
+}
+.section-badge-row:first-of-type {
+    border-top: 1px solid var(--rule);
+}
+.section-badge-label {
+    font-size: 12px;
+    color: var(--ink3);
+    line-height: 1.4;
+    max-width: 110px;
+}
+.section-badge-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+    background: color-mix(in srgb, var(--paper) 78%, var(--orange) 22%);
+    color: var(--ink);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
 .btn-n {
     margin-top: 24px;
     font: inherit;

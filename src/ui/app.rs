@@ -5,6 +5,8 @@ use super::{components, get_workspace_path, views, View};
 use crate::model::{reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
 use dioxus::document::eval;
 use dioxus::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 #[derive(Clone, Copy, PartialEq)]
 struct AppState {
@@ -13,6 +15,14 @@ struct AppState {
     toast_id: Signal<u64>,
     is_compact: Signal<bool>,
     zoom: Signal<f32>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FeedLens {
+    MyOrder,
+    NextUp,
+    HotPath,
+    QuickWins,
 }
 
 const STYLESHEET: &str = include_str!("../../assets/style.css");
@@ -41,6 +51,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let mut issues = use_signal(|| initial.issues);
     let search = use_signal(String::new);
     let active_label = use_signal(|| None::<String>);
+    let active_lens = use_signal(|| FeedLens::MyOrder);
     let view = use_signal(|| View::Feed);
     let dirty = use_signal(|| false);
     let modal = use_signal(|| false);
@@ -90,8 +101,13 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     };
 
     let stats = compute_stats(&(state.issues)());
+    let sections = section_counts(&(state.issues)());
     let available_labels = collect_labels(&(state.issues)());
-    let filtered = filter_issues(&(state.issues)(), &search(), active_label().as_deref());
+    let filtered = apply_feed_lens(
+        &(state.issues)(),
+        filter_issues(&(state.issues)(), &search(), active_label().as_deref()),
+        active_lens(),
+    );
 
 
     rsx! {
@@ -106,9 +122,9 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         if reinit_modal() { ReinitModal { modal: reinit_modal, state: state } }
 
         div { class: "app",
-            {render_sidebar(view, stats.clone(), dirty, modal, reinit_modal, state)}
+            {render_sidebar(view, stats.clone(), sections, dirty, modal, reinit_modal, state)}
             main { class: "mn",
-                {render_topbar(search, active_label, available_labels, state, physics, animating)}
+                {render_topbar(search, active_label, active_lens, available_labels, state, physics, animating)}
                 {render_content(view, filtered, dirty, state, physics, animating)}
             }
         }
@@ -263,6 +279,7 @@ fn ReinitModal(mut modal: Signal<bool>, state: AppState) -> Element {
 fn render_sidebar(
     mut view: Signal<View>,
     stats: Stats,
+    sections: Vec<(String, usize)>,
     mut dirty: Signal<bool>,
     mut modal: Signal<bool>,
     mut reinit_modal: Signal<bool>,
@@ -313,6 +330,14 @@ fn render_sidebar(
                     span { class: "v", style: "color: var(--green)", "{stats.done}" }
                 }
             }
+            if !sections.is_empty() {
+                div { class: "vl",
+                    div { class: "sl", "Sections" }
+                    for (label, count) in sections {
+                        components::SectionBadgeRow { key: "{label}", label: label.clone(), count: count }
+                    }
+                }
+            }
             div { class: "sidebar-foot",
                 button { class: "btn-n", onclick: move |_| modal.set(true), "+ New Issue" }
                 div { class: if dirty() { "sync-status dirty" } else { "sync-status" }, if dirty() { "⚠ Unsaved" } else { "✓ Synced" } }
@@ -336,6 +361,7 @@ fn render_sidebar(
 fn render_topbar(
     mut search: Signal<String>, 
     mut active_label: Signal<Option<String>>,
+    mut active_lens: Signal<FeedLens>,
     available_labels: Vec<String>,
     state: AppState,
     mut physics: Signal<super::scroll::ScrollPhysics>,
@@ -343,7 +369,6 @@ fn render_topbar(
 ) -> Element {
     let mut is_compact = state.is_compact;
     let mut zoom = state.zoom;
-    let mut active_lens = use_signal(|| "My Order".to_string());
     
     rsx! {
         div { class: "sticky-header",
@@ -380,23 +405,23 @@ fn render_topbar(
             }
             div { class: "lens-row",
                 button { 
-                    class: if active_lens() == "My Order" { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set("My Order".to_string()), 
+                    class: if active_lens() == FeedLens::MyOrder { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set(FeedLens::MyOrder), 
                     "My Order" 
                 }
                 button { 
-                    class: if active_lens() == "Next Up" { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set("Next Up".to_string()), 
+                    class: if active_lens() == FeedLens::NextUp { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set(FeedLens::NextUp), 
                     "Next Up" 
                 }
                 button { 
-                    class: if active_lens() == "Hot Path" { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set("Hot Path".to_string()), 
+                    class: if active_lens() == FeedLens::HotPath { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set(FeedLens::HotPath), 
                     "Hot Path" 
                 }
                 button { 
-                    class: if active_lens() == "Quick Wins" { "lens active" } else { "lens" },
-                    onclick: move |_| active_lens.set("Quick Wins".to_string()), 
+                    class: if active_lens() == FeedLens::QuickWins { "lens active" } else { "lens" },
+                    onclick: move |_| active_lens.set(FeedLens::QuickWins), 
                     "Quick Wins" 
                 }
             }
@@ -610,6 +635,160 @@ fn compute_stats(issues: &[Issue]) -> Stats {
     s
 }
 
+fn section_counts(issues: &[Issue]) -> Vec<(String, usize)> {
+    let mut counts = std::collections::BTreeMap::<String, usize>::new();
+    for issue in issues {
+        *counts.entry(issue.section.clone()).or_default() += 1;
+    }
+
+    let mut sections: Vec<_> = counts.into_iter().collect();
+    sections.sort_by(|(left, _), (right, _)| {
+        section_sort_key(left)
+            .cmp(&section_sort_key(right))
+            .then_with(|| left.cmp(right))
+    });
+    sections
+}
+
+fn section_sort_key(section: &str) -> (u8, String) {
+    let normalized = section.trim().to_ascii_lowercase();
+    let rank = if normalized.contains("active") {
+        0
+    } else if normalized.contains("backlog") {
+        1
+    } else if normalized.contains("done") {
+        2
+    } else {
+        3
+    };
+    (rank, normalized)
+}
+
+fn apply_feed_lens(all_issues: &[Issue], mut issues: Vec<Issue>, lens: FeedLens) -> Vec<Issue> {
+    if lens == FeedLens::MyOrder {
+        return issues;
+    }
+
+    let metrics = LensMetrics::from_issues(all_issues);
+    issues.sort_by(|left, right| {
+        metrics
+            .sort_key(left, lens)
+            .cmp(&metrics.sort_key(right, lens))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    issues
+}
+
+#[derive(Debug, Default)]
+struct LensMetrics {
+    hot_scores: HashMap<u32, usize>,
+    unblock_scores: HashMap<u32, usize>,
+    quick_costs: HashMap<u32, usize>,
+}
+
+impl LensMetrics {
+    fn from_issues(issues: &[Issue]) -> Self {
+        let ws = Workspace {
+            root: PathBuf::new(),
+            issues: issues.to_vec(),
+        };
+
+        let mut file_weights = HashMap::<String, usize>::new();
+        for (file, ids) in ws.file_heatmap() {
+            file_weights.insert(file, ids.len());
+        }
+
+        let mut dependents = HashMap::<u32, Vec<u32>>::new();
+        for (dependency, dependent) in ws.dependency_edges() {
+            dependents.entry(dependency).or_default().push(dependent);
+        }
+
+        let active_issue_ids = issues
+            .iter()
+            .filter(|issue| issue.status != Status::Done && issue.status != Status::Descoped)
+            .map(|issue| issue.id)
+            .collect::<HashSet<_>>();
+
+        let hot_scores = issues
+            .iter()
+            .map(|issue| {
+                let score = issue
+                    .files
+                    .iter()
+                    .map(|file| file_weights.get(file).copied().unwrap_or(1))
+                    .sum::<usize>();
+                (issue.id, score)
+            })
+            .collect::<HashMap<_, _>>();
+
+        let quick_costs = issues
+            .iter()
+            .map(|issue| {
+                let heat = hot_scores.get(&issue.id).copied().unwrap_or_default();
+                let cost = heat + (issue.files.len() * 2) + (issue.depends_on.len() * 3);
+                (issue.id, cost)
+            })
+            .collect::<HashMap<_, _>>();
+
+        let mut unblock_scores = HashMap::<u32, usize>::new();
+        for issue in issues {
+            let mut visited = HashSet::new();
+            let score = transitive_dependents(issue.id, &dependents, &active_issue_ids, &mut visited);
+            unblock_scores.insert(issue.id, score);
+        }
+
+        Self {
+            hot_scores,
+            unblock_scores,
+            quick_costs,
+        }
+    }
+
+    fn sort_key(&self, issue: &Issue, lens: FeedLens) -> (usize, usize, usize, u32) {
+        match lens {
+            FeedLens::MyOrder => (0, 0, 0, issue.id),
+            FeedLens::NextUp => (
+                usize::MAX - self.unblock_scores.get(&issue.id).copied().unwrap_or_default(),
+                issue.status_ord() as usize,
+                self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
+                issue.id,
+            ),
+            FeedLens::HotPath => (
+                usize::MAX - self.hot_scores.get(&issue.id).copied().unwrap_or_default(),
+                issue.status_ord() as usize,
+                issue.files.len(),
+                issue.id,
+            ),
+            FeedLens::QuickWins => (
+                self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
+                issue.status_ord() as usize,
+                self.unblock_scores.get(&issue.id).copied().unwrap_or_default(),
+                issue.id,
+            ),
+        }
+    }
+}
+
+fn transitive_dependents(
+    id: u32,
+    dependents: &HashMap<u32, Vec<u32>>,
+    active_issue_ids: &HashSet<u32>,
+    visited: &mut HashSet<u32>,
+) -> usize {
+    let Some(children) = dependents.get(&id) else {
+        return 0;
+    };
+
+    let mut total = 0;
+    for child in children {
+        if !active_issue_ids.contains(child) || !visited.insert(*child) {
+            continue;
+        }
+        total += 1 + transitive_dependents(*child, dependents, active_issue_ids, visited);
+    }
+    total
+}
+
 fn collect_labels(issues: &[Issue]) -> Vec<String> {
     let mut labels = issues
         .iter()
@@ -651,7 +830,7 @@ fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<I
 
 #[cfg(test)]
 mod tests {
-    use super::{collect_labels, filter_issues, parse_label_input};
+    use super::{apply_feed_lens, collect_labels, filter_issues, parse_label_input, section_counts, FeedLens};
     use crate::model::{Issue, Status};
 
     fn make_issue(id: u32, title: &str, labels: &[&str]) -> Issue {
@@ -665,6 +844,26 @@ mod tests {
             resolution: String::new(),
             section: "ACTIVE Issues".to_string(),
             depends_on: vec![],
+        }
+    }
+
+    fn make_issue_with_graph(
+        id: u32,
+        title: &str,
+        status: Status,
+        files: &[&str],
+        depends_on: &[u32],
+    ) -> Issue {
+        Issue {
+            id,
+            title: title.to_string(),
+            status,
+            files: files.iter().map(|file| file.to_string()).collect(),
+            labels: vec![],
+            description: String::new(),
+            resolution: String::new(),
+            section: "ACTIVE Issues".to_string(),
+            depends_on: depends_on.to_vec(),
         }
     }
 
@@ -719,5 +918,62 @@ mod tests {
         ];
 
         assert_eq!(collect_labels(&issues), vec!["core", "frontend", "ux"]);
+    }
+
+    #[test]
+    fn section_counts_groups_and_orders_sections() {
+        let mut active = make_issue(1, "Parser cleanup", &[]);
+        active.section = "ACTIVE Issues".to_string();
+        let mut done = make_issue(2, "Resolved bug", &[]);
+        done.section = "DONE Issues".to_string();
+        let mut custom = make_issue(3, "Sprint issue", &[]);
+        custom.section = "Sprint 42".to_string();
+
+        assert_eq!(
+            section_counts(&[custom.clone(), done, active, custom]),
+            vec![
+                ("ACTIVE Issues".to_string(), 1),
+                ("DONE Issues".to_string(), 1),
+                ("Sprint 42".to_string(), 2),
+            ]
+        );
+    }
+
+    #[test]
+    fn next_up_lens_prioritizes_transitive_unblock_count() {
+        let issues = vec![
+            make_issue_with_graph(1, "Base", Status::Open, &["src/main.rs"], &[]),
+            make_issue_with_graph(2, "Middle", Status::Open, &["src/main.rs"], &[1]),
+            make_issue_with_graph(3, "Leaf", Status::Open, &["src/ui.rs"], &[2]),
+        ];
+
+        let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::NextUp);
+        assert_eq!(sorted.iter().map(|issue| issue.id).collect::<Vec<_>>(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn hot_path_lens_prioritizes_hotter_files() {
+        let issues = vec![
+            make_issue_with_graph(1, "Shared A", Status::Open, &["src/main.rs"], &[]),
+            make_issue_with_graph(2, "Shared B", Status::Open, &["src/main.rs"], &[]),
+            make_issue_with_graph(3, "Cold", Status::Open, &["src/cold.rs"], &[]),
+        ];
+
+        let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::HotPath);
+        assert_eq!(sorted[0].id, 1);
+        assert_eq!(sorted[1].id, 2);
+        assert_eq!(sorted[2].id, 3);
+    }
+
+    #[test]
+    fn quick_wins_lens_prefers_lower_cost_work() {
+        let issues = vec![
+            make_issue_with_graph(1, "Wide", Status::Open, &["a.rs", "b.rs"], &[9]),
+            make_issue_with_graph(2, "Tight", Status::Open, &["solo.rs"], &[]),
+        ];
+
+        let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::QuickWins);
+        assert_eq!(sorted[0].id, 2);
+        assert_eq!(sorted[1].id, 1);
     }
 }

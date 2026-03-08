@@ -331,3 +331,68 @@ Requirements:
 **Resolution:** Added a `RecentDropState` in `feed.rs` that tracks the just-released card and the pointer release position. The released card now suppresses hover lift/shadow until the pointer has moved at least 20px away, after which hover is re-armed. Added targeted CSS classes so the first hover return on that card uses a slower transition instead of the normal immediate lift. Starting a new drag clears the state. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
 ---
+
+## [115] Labels: Reuse the system across views
+**Status:** DONE
+**Files:** `src/ui/components.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/viz.rs`
+
+Once labels are promoted to first-class UI data, they need consistent rendering across the product rather than being feed-only details.
+
+Requirements:
+
+- Centralize label presentation so multiple views do not drift stylistically
+- Reuse the label color system anywhere issue metadata appears
+- Ensure future views can consume the same label rendering/model helpers
+- Avoid duplicating label formatting logic in each component
+
+**Resolution:** Extracted shared `LabelChip` and `LabelList` components into `src/ui/components.rs`, then replaced duplicated label markup in both the feed card and issue modal with the shared renderer. Extended the same shared label presentation into `src/ui/views/viz.rs` by surfacing issue labels in the timeline view, so labels are no longer a feed-only affordance. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [105] UI: Modal Accent Bar & Next/Prev Navigation
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`
+**Labels:** polish
+
+The issue modal is missing the top colored accent bar (`.m-accent`), properly styled header layout, and keyboard navigation hints.
+Note: The UI HTML layout has been completed. Keyboard `ArrowUp`/`ArrowDown` navigation logic still needs to be implemented.
+
+**Resolution:** Kept the existing modal accent/header shell and finished the missing interaction path: the modal now derives previous and next issue IDs from the currently filtered feed order, focuses itself on open, and handles `ArrowUp`, `ArrowDown`, and `Esc` so the keyboard hints are real. Added focused tests covering previous/next neighbor resolution at list edges. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [109] Add issue count badges per section in sidebar
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`
+
+The sidebar shows global stats (Backlog, In Flight, Resolved) but doesn't break down counts per section. When using custom file names ([28]), users need to see at a glance how many issues are in each section. Add small count badges next to each section name in the sidebar navigation or in a collapsible section list.
+
+**Resolution:** Added section aggregation in `src/ui/app.rs` based on each issue’s `section` string, ordered the built-in sections first (`Active`, `Backlog`, `Done`) with custom sections after them, and rendered the result in a new sidebar `Sections` block via a shared `SectionBadgeRow` component. Added tests for grouping and ordering so custom sections do not destabilize the sidebar presentation. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [57] Feed view lenses: Next Up, Hot Path, Quick Wins
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
+
+Add toggle pills at the top of the feed (`.lens-row`) for alternative lenses.
+Note: The HTML UI buttons have been added to the Topbar. Still requires wiring up sorting functions using existing dependency and heatmap data before rendering the feed.
+
+**Resolution:** Moved feed lens state up into `src/ui/app.rs` and wired the existing topbar pills to real sorting before rendering the feed. `Next Up` now sorts by transitive active dependent count using dependency edges, `Hot Path` sorts by weighted file heat using `Workspace::file_heatmap`, and `Quick Wins` favors lower-cost issues using cold file touches plus dependency count. Added tests for each lens so the sort intent is pinned in code. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [13] Prevent silent data loss from discover_root ambiguity
+**Status:** DONE
+**Files:** `src/model/mod.rs`
+
+`discover_root` checks 6 candidate directories and silently picks the first match. If a project has both `docs/issues/` and `issues/` (e.g., from a migration or misconfiguration), the user gets zero feedback about which was chosen.
+Fix:
+
+- If multiple candidates contain issue files, print a warning listing all matches and which was selected
+- Default to the first match but make the choice visible
+- The `init` command should print the chosen path explicitly
+
+**Resolution:** Changed `discover_root` so it first collects all matching candidate roots, then warns via stderr when more than one workspace root exists while still preserving the existing first-match preference. Added a regression test proving `docs/issues` still wins when both it and the repo root contain issue files. The CLI `init` path was already printed explicitly in `main.rs`, so no additional change was needed there. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---

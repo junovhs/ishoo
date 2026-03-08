@@ -85,10 +85,23 @@ pub fn discover_root(base: &Path) -> PathBuf {
         base.join(".issues"),
     ];
 
-    for candidate in &candidates {
-        if ISSUE_FILES.iter().any(|f| candidate.join(f).exists()) {
-            return candidate.clone();
+    let matches = candidates
+        .iter()
+        .filter(|candidate| ISSUE_FILES.iter().any(|f| candidate.join(f).exists()))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if let Some(chosen) = matches.first() {
+        if matches.len() > 1 {
+            eprintln!(
+                "Warning: multiple issue roots found; using {}",
+                chosen.display()
+            );
+            for candidate in &matches {
+                eprintln!("  - {}", candidate.display());
+            }
         }
+        return chosen.clone();
     }
 
     base.join(DEFAULT_SUBDIR)
@@ -213,6 +226,18 @@ mod tests {
         let docs_issues = dir.path().join("docs/issues");
         fs::create_dir_all(&docs_issues).unwrap();
         fs::write(docs_issues.join("issues-active.md"), "# Test").unwrap();
+        assert_eq!(discover_root(dir.path()), docs_issues);
+    }
+
+    #[test]
+    fn test_discover_still_picks_first_when_multiple_roots_exist() {
+        let dir = tempdir().unwrap();
+        let docs_issues = dir.path().join("docs/issues");
+        let bare_issues = dir.path().to_path_buf();
+        fs::create_dir_all(&docs_issues).unwrap();
+        fs::write(docs_issues.join("issues-active.md"), "# Docs").unwrap();
+        fs::write(bare_issues.join("issues-active.md"), "# Bare").unwrap();
+
         assert_eq!(discover_root(dir.path()), docs_issues);
     }
 }

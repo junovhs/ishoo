@@ -24,6 +24,22 @@ pub fn label_tone_class(label: &str) -> &'static str {
 }
 
 #[component]
+pub fn LabelChip(label: String) -> Element {
+    rsx! {
+        span { class: "label {label_tone_class(&label)}", "{label}" }
+    }
+}
+
+#[component]
+pub fn LabelList(labels: Vec<String>) -> Element {
+    rsx! {
+        for (idx, label) in labels.into_iter().enumerate() {
+            LabelChip { key: "{idx}-{label}", label: label }
+        }
+    }
+}
+
+#[component]
 pub fn NavBtn(label: String, active: bool, onclick: EventHandler<MouseEvent>) -> Element {
     rsx! {
         button {
@@ -41,6 +57,16 @@ pub fn StatRow(label: String, count: usize, color: String) -> Element {
         div { class: "mr",
             span { class: "l", "{label}" }
             span { class: "v", style: "color:{color}", "{count}" }
+        }
+    }
+}
+
+#[component]
+pub fn SectionBadgeRow(label: String, count: usize) -> Element {
+    rsx! {
+        div { class: "section-badge-row",
+            span { class: "section-badge-label", "{label}" }
+            span { class: "section-badge-count", "{count}" }
         }
     }
 }

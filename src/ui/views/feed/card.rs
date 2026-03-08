@@ -1,5 +1,5 @@
 use crate::model::Issue;
-use crate::ui::components::label_tone_class;
+use crate::ui::components::LabelList;
 use crate::ui::views::feed::{apply_drag_deadzone, DragState, RecentDropState, DRAG_DEADZONE_PX};
 use dioxus::prelude::*;
 
@@ -155,9 +155,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                         }
                         div { class: "labels-row", style: "display:flex;gap:4px;margin-top:4px;",
                             span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
-                            for label in &i.labels {
-                                span { class: "label {label_tone_class(label)}", "{label}" }
-                            }
+                            LabelList { labels: i.labels.clone() }
                         }
                     }
                 }

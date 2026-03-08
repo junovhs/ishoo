@@ -1,4 +1,5 @@
 use crate::model::{Issue, Status, Workspace};
+use crate::ui::components::LabelList;
 use dioxus::prelude::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -150,6 +151,11 @@ pub fn TimelineView(issues: Vec<Issue>) -> Element {
                             span { class: "tl-id", "#{issue.id}" }
                             span { class: "tl-title", "{issue.title}" }
                             span { class: "badge b-{issue.status.css_class()}", "{issue.status.label()}" }
+                            if !issue.labels.is_empty() {
+                                div { class: "labels-row", style: "display:flex;gap:4px;margin-top:6px;",
+                                    LabelList { labels: issue.labels.clone() }
+                                }
+                            }
                         }
                     }
                 }
