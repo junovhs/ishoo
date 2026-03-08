@@ -1,4 +1,4 @@
-use super::Workspace;
+use super::{issue_id_sort_key, Workspace};
 
 pub fn cli_list(workspace: &Workspace, filter: Option<&str>) {
     let stats = workspace.stats();
@@ -16,7 +16,10 @@ pub fn cli_list(workspace: &Workspace, filter: Option<&str>) {
                 || i.files.iter().any(|file| file.to_lowercase().contains(&f))
         });
     }
-    issues.sort_by_key(|i| (i.status_ord(), i.id));
+    issues.sort_by(|left, right| {
+        (left.status_ord(), issue_id_sort_key(&left.id))
+            .cmp(&(right.status_ord(), issue_id_sort_key(&right.id)))
+    });
 
     let mut last_status = "";
     for issue in &issues {
@@ -35,9 +38,9 @@ pub fn cli_list(workspace: &Workspace, filter: Option<&str>) {
     println!("╰────────────────────────────────────────────────────────╯");
 }
 
-pub fn cli_show(workspace: &Workspace, id: u32) {
+pub fn cli_show(workspace: &Workspace, id: &str) {
     let Some(i) = workspace.issues.iter().find(|i| i.id == id) else {
-        eprintln!("Issue #{id} not found");
+        eprintln!("Issue {id} not found");
         return;
     };
     println!("┌─────────────────────────────────────────────");
@@ -57,12 +60,12 @@ pub fn cli_show(workspace: &Workspace, id: u32) {
     println!("└─────────────────────────────────────────────");
 }
 
-pub fn cli_set_status(workspace: &mut Workspace, id: u32, status: &str) -> Result<(), String> {
+pub fn cli_set_status(workspace: &mut Workspace, id: &str, status: &str) -> Result<(), String> {
     let issue = workspace
         .issues
         .iter_mut()
         .find(|i| i.id == id)
-        .ok_or_else(|| format!("Issue #{id} not found"))?;
+        .ok_or_else(|| format!("Issue {id} not found"))?;
     issue.status = super::Status::from_str(status);
     println!("Set [{}] → {}", id, issue.status.label());
     workspace.save()

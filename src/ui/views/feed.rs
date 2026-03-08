@@ -1,7 +1,7 @@
 // neti:allow(LAW OF ATOMICITY)
 mod card;
 
-use crate::model::{Issue, Status};
+use crate::model::{split_issue_id, Issue, Status};
 use crate::ui::components::LabelList;
 use dioxus::prelude::*;
 
@@ -54,7 +54,7 @@ fn compute_hover_target(
 
 #[derive(Clone, Default, PartialEq)]
 pub struct DragState {
-    pub dragging_id: Option<u32>,
+    pub dragging_id: Option<String>,
     pub start_idx: usize,
     pub hover_idx: usize,
     pub hover_after: bool,
@@ -67,7 +67,7 @@ pub struct DragState {
 
 #[derive(Clone, Default, PartialEq)]
 pub struct RecentDropState {
-    pub id: Option<u32>,
+    pub id: Option<String>,
     pub release_x: f32,
     pub release_y: f32,
     pub hover_armed: bool,
@@ -78,37 +78,37 @@ pub struct FeedViewProps {
     pub is_compact: bool,
     pub zoom: f32,
     pub issues: Vec<Issue>,
-    pub on_status: EventHandler<(u32, String)>,
-    pub on_resolution: EventHandler<(u32, String)>,
-    pub on_labels: EventHandler<(u32, String)>,
-    pub on_reorder: EventHandler<(u32, Option<u32>, bool, Option<String>)>,
+    pub on_status: EventHandler<(String, String)>,
+    pub on_resolution: EventHandler<(String, String)>,
+    pub on_labels: EventHandler<(String, String)>,
+    pub on_reorder: EventHandler<(String, Option<String>, bool, Option<String>)>,
     pub on_section_toggle: EventHandler<()>,
 }
 
-fn reverse_links(issues: &[Issue]) -> std::collections::HashMap<u32, Vec<u32>> {
-    let mut reverse = std::collections::HashMap::<u32, Vec<u32>>::new();
+fn reverse_links(issues: &[Issue]) -> std::collections::HashMap<String, Vec<String>> {
+    let mut reverse = std::collections::HashMap::<String, Vec<String>>::new();
     for issue in issues {
         for target in &issue.links {
-            reverse.entry(*target).or_default().push(issue.id);
+            reverse.entry(target.clone()).or_default().push(issue.id.clone());
         }
     }
     reverse
 }
 
-fn modal_neighbor_id(issues: &[Issue], current_id: u32, delta: isize) -> Option<u32> {
+fn modal_neighbor_id(issues: &[Issue], current_id: &str, delta: isize) -> Option<String> {
     let current_idx = issues.iter().position(|issue| issue.id == current_id)?;
     let next_idx = current_idx as isize + delta;
     if next_idx < 0 {
         return None;
     }
-    issues.get(next_idx as usize).map(|issue| issue.id)
+    issues.get(next_idx as usize).map(|issue| issue.id.clone())
 }
 
 #[component]
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
     let mut recent_drop = use_signal(RecentDropState::default);
-    let mut modal_id: Signal<Option<u32>> = use_signal(|| None);
+    let mut modal_id: Signal<Option<String>> = use_signal(|| None);
     let on_reorder = props.on_reorder;
     let on_section_toggle = props.on_section_toggle;
     
@@ -130,8 +130,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             (
                 issue,
                 mentioned_by.get(&id).cloned().unwrap_or_default(),
-                modal_neighbor_id(&props.issues, id, -1),
-                modal_neighbor_id(&props.issues, id, 1),
+                modal_neighbor_id(&props.issues, &id, -1),
+                modal_neighbor_id(&props.issues, &id, 1),
             )
         })
     });
@@ -142,7 +142,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             onpointermove: move |e| {
                 {
                     let rd = recent_drop.read();
-                    if let Some(_id) = rd.id {
+                    if let Some(_id) = &rd.id {
                         if !rd.hover_armed {
                             let dx = e.client_coordinates().x as f32 - rd.release_x;
                             let dy = e.client_coordinates().y as f32 - rd.release_y;
@@ -234,7 +234,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
             },
             onpointerup: move |e| {
                 let mut ds = drag_state.write();
-                if let Some(id) = ds.dragging_id {
+                if let Some(id) = ds.dragging_id.clone() {
                     if ds.releasing { return; }
 
                     // If it was just a tiny click/movement, clear drag and open the issue modal
@@ -248,7 +248,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     // Otherwise, trigger the snap-to-socket animation on the card
                     ds.releasing = true;
                     
-                    let drag_id = id;
+                    let drag_id = id.clone();
                     let start_idx = ds.start_idx;
                     let hover_idx = ds.hover_idx;
                     let hover_after = ds.hover_after;
@@ -273,7 +273,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         
                         if start_idx != hover_idx {
                             if let Some(target) = issues_clone.get(hover_idx) {
-                                let target_id = target.id;
+                                let target_id = target.id.clone();
                                 on_reorder_clone.call((drag_id, Some(target_id), hover_after, None));
                             }
                         }
@@ -409,16 +409,16 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 IssueModal {
                     issue: issue,
                     incoming_links: incoming_links,
-                    prev_id: prev_id,
-                    next_id: next_id,
+                    prev_id: prev_id.clone(),
+                    next_id: next_id.clone(),
                     on_close: move |_| modal_id.set(None),
                     on_prev: move |_| {
-                        if let Some(prev_id) = prev_id {
+                        if let Some(prev_id) = prev_id.clone() {
                             modal_id.set(Some(prev_id));
                         }
                     },
                     on_next: move |_| {
-                        if let Some(next_id) = next_id {
+                        if let Some(next_id) = next_id.clone() {
                             modal_id.set(Some(next_id));
                         }
                     },
@@ -433,15 +433,15 @@ pub fn FeedView(props: FeedViewProps) -> Element {
 #[derive(Clone, PartialEq, Props)]
 struct IssueModalProps {
     issue: Issue,
-    incoming_links: Vec<u32>,
-    prev_id: Option<u32>,
-    next_id: Option<u32>,
+    incoming_links: Vec<String>,
+    prev_id: Option<String>,
+    next_id: Option<String>,
     on_close: EventHandler<()>,
     on_prev: EventHandler<()>,
     on_next: EventHandler<()>,
-    on_status: EventHandler<(u32, String)>,
-    on_resolution: EventHandler<(u32, String)>,
-    on_labels: EventHandler<(u32, String)>,
+    on_status: EventHandler<(String, String)>,
+    on_resolution: EventHandler<(String, String)>,
+    on_labels: EventHandler<(String, String)>,
 }
 
 fn render_markdown(text: &str) -> String {
@@ -456,9 +456,13 @@ fn render_markdown(text: &str) -> String {
 #[component]
 fn IssueModal(props: IssueModalProps) -> Element {
     let i = &props.issue;
-    let id = i.id;
+    let id = i.id.clone();
     let mut labels_input = use_signal(|| i.labels.join(", "));
     let modal_dom_id = format!("issue-modal-{}", i.id);
+    let (id_category, id_number) = split_issue_id(&id);
+    let labels_id = id.clone();
+    let resolution_id = id.clone();
+    let status_id = id.clone();
 
     let section = i.section.to_ascii_lowercase();
     let color = if section.contains("done") || i.status == Status::Done || i.status == Status::Descoped {
@@ -506,8 +510,8 @@ fn IssueModal(props: IssueModalProps) -> Element {
                 div { class: "m-accent", style: "background:{color}" }
                 div { class: "m-head",
                     div {
-                        div { class: "m-id", "ISSUE-" }
-                        div { class: "m-id-num", "{id}" }
+                        div { class: "m-id", "{id_category}-" }
+                        div { class: "m-id-num", "{id_number}" }
                     }
                     div { class: "m-actions",
                         button { class: "m-btn", title: "Edit description", "✎ Edit" }
@@ -550,13 +554,13 @@ fn IssueModal(props: IssueModalProps) -> Element {
                         if !i.links.is_empty() {
                             div { class: "m-link-label", "Mentions" }
                             for d in &i.links {
-                                span { class: "m-link-item", "↗ ISSUE-{d}" }
+                                span { class: "m-link-item", "↗ {d}" }
                             }
                         }
                         if !props.incoming_links.is_empty() {
                             div { class: "m-link-label", "Mentioned By" }
                             for d in &props.incoming_links {
-                                span { class: "m-link-item", "↙ ISSUE-{d}" }
+                                span { class: "m-link-item", "↙ {d}" }
                             }
                         }
                     }
@@ -574,7 +578,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
                             value: "{labels_input}",
                             oninput: move |e| {
                                 labels_input.set(e.value().clone());
-                                props.on_labels.call((id, e.value()));
+                                props.on_labels.call((labels_id.clone(), e.value()));
                             },
                         }
                     }
@@ -586,7 +590,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
                             rows: "4",
                             placeholder: "Log your solution...",
                             value: "{i.resolution}",
-                            oninput: move |e| props.on_resolution.call((id, e.value())),
+                            oninput: move |e| props.on_resolution.call((resolution_id.clone(), e.value())),
                         }
                     }
                     div { style: "margin-top: 16px;",
@@ -594,7 +598,7 @@ fn IssueModal(props: IssueModalProps) -> Element {
                         select {
                             class: "sel",
                             value: "{i.status.label()}",
-                            onchange: move |e| props.on_status.call((id, e.value())),
+                            onchange: move |e| props.on_status.call((status_id.clone(), e.value())),
                             option { value: "OPEN", selected: i.status == Status::Open, "Open" }
                             option { value: "IN PROGRESS", selected: i.status == Status::InProgress, "In Progress" }
                             option { value: "DONE", selected: i.status == Status::Done, "Done" }
@@ -622,9 +626,9 @@ mod tests {
     use super::{compute_hover_target, modal_neighbor_id, reverse_links, HoverTarget};
     use crate::model::{Issue, Status};
 
-    fn make_issue(id: u32) -> Issue {
+    fn make_issue(id: &str) -> Issue {
         Issue {
-            id,
+            id: id.to_string(),
             title: format!("Issue {id}"),
             status: Status::Open,
             files: vec![],
@@ -678,25 +682,25 @@ mod tests {
 
     #[test]
     fn modal_neighbor_id_tracks_previous_and_next_in_filtered_order() {
-        let issues = vec![make_issue(10), make_issue(20), make_issue(30)];
-        assert_eq!(modal_neighbor_id(&issues, 20, -1), Some(10));
-        assert_eq!(modal_neighbor_id(&issues, 20, 1), Some(30));
+        let issues = vec![make_issue("BUG-10"), make_issue("BUG-20"), make_issue("BUG-30")];
+        assert_eq!(modal_neighbor_id(&issues, "BUG-20", -1), Some("BUG-10".to_string()));
+        assert_eq!(modal_neighbor_id(&issues, "BUG-20", 1), Some("BUG-30".to_string()));
     }
 
     #[test]
     fn modal_neighbor_id_stops_at_list_edges() {
-        let issues = vec![make_issue(10), make_issue(20)];
-        assert_eq!(modal_neighbor_id(&issues, 10, -1), None);
-        assert_eq!(modal_neighbor_id(&issues, 20, 1), None);
+        let issues = vec![make_issue("BUG-10"), make_issue("BUG-20")];
+        assert_eq!(modal_neighbor_id(&issues, "BUG-10", -1), None);
+        assert_eq!(modal_neighbor_id(&issues, "BUG-20", 1), None);
     }
 
     #[test]
     fn reverse_links_collects_incoming_mentions() {
-        let mut first = make_issue(10);
-        first.links = vec![30];
-        let mut second = make_issue(20);
-        second.links = vec![30];
-        let reverse = reverse_links(&[first, second, make_issue(30)]);
-        assert_eq!(reverse.get(&30), Some(&vec![10, 20]));
+        let mut first = make_issue("BUG-10");
+        first.links = vec!["BUG-30".to_string()];
+        let mut second = make_issue("BUG-20");
+        second.links = vec!["BUG-30".to_string()];
+        let reverse = reverse_links(&[first, second, make_issue("BUG-30")]);
+        assert_eq!(reverse.get("BUG-30"), Some(&vec!["BUG-10".to_string(), "BUG-20".to_string()]));
     }
 }

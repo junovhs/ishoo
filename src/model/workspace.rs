@@ -1,5 +1,8 @@
-use super::{parse_markdown, Issue, Stats, Status};
-use std::collections::BTreeMap;
+use super::{
+    format_issue_id, issue_id_sort_key, normalize_issue_category, parse_categorical_issue_id,
+    parse_markdown, Issue, Stats, Status,
+};
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -52,6 +55,23 @@ impl Workspace {
         Ok(())
     }
 
+    pub fn allocate_issue_id(&self, category: &str) -> Result<String, String> {
+        let category = normalize_issue_category(category);
+        let mut counters = read_id_counters(&self.root)?;
+        let existing_next = self
+            .issues
+            .iter()
+            .filter_map(|issue| parse_categorical_issue_id(&issue.id))
+            .filter(|(existing_category, _)| existing_category == &category)
+            .map(|(_, number)| number + 1)
+            .max()
+            .unwrap_or(1);
+        let next = counters.get(&category).copied().unwrap_or(1).max(existing_next);
+        counters.insert(category.clone(), next + 1);
+        write_id_counters(&self.root, &counters)?;
+        Ok(format_issue_id(&category, next))
+    }
+
     pub fn stats(&self) -> Stats {
         let mut s = Stats::default();
         for issue in &self.issues {
@@ -66,19 +86,19 @@ impl Workspace {
         s
     }
 
-    pub fn file_heatmap(&self) -> BTreeMap<String, Vec<u32>> {
-        let mut map: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+    pub fn file_heatmap(&self) -> BTreeMap<String, Vec<String>> {
+        let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
         self.issues
             .iter()
-            .flat_map(|i| i.files.iter().map(move |f| (f.clone(), i.id)))
+            .flat_map(|i| i.files.iter().map(move |f| (f.clone(), i.id.clone())))
             .for_each(|(f, id)| map.entry(f).or_default().push(id));
         map
     }
 
-    pub fn dependency_edges(&self) -> Vec<(u32, u32)> {
+    pub fn dependency_edges(&self) -> Vec<(String, String)> {
         self.issues
             .iter()
-            .flat_map(|i| i.depends_on.iter().map(move |&dep| (dep, i.id)))
+            .flat_map(|i| i.depends_on.iter().map(move |dep| (dep.clone(), i.id.clone())))
             .collect()
     }
 }
@@ -109,6 +129,49 @@ fn write_section(root: &Path, name: &str, title: &str, issues: &[&Issue]) -> Res
     fs::write(root.join(name), md).map_err(|e| format!("Failed to write {name}: {e}"))
 }
 
+fn id_counter_path(root: &Path) -> PathBuf {
+    root.join(".ishoo").join("id-counters.txt")
+}
+
+fn read_id_counters(root: &Path) -> Result<HashMap<String, u32>, String> {
+    let path = id_counter_path(root);
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+    let text = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+    let mut counters = HashMap::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((category, next)) = line.split_once('=') else {
+            continue;
+        };
+        if let Ok(next) = next.trim().parse::<u32>() {
+            counters.insert(normalize_issue_category(category), next);
+        }
+    }
+    Ok(counters)
+}
+
+fn write_id_counters(root: &Path, counters: &HashMap<String, u32>) -> Result<(), String> {
+    let dir = root.join(".ishoo");
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create {}: {e}", dir.display()))?;
+    let mut entries = counters.iter().collect::<Vec<_>>();
+    entries.sort_by(|(left, _), (right, _)| issue_id_sort_key(left).cmp(&issue_id_sort_key(right)));
+    let body = entries
+        .into_iter()
+        .map(|(category, next)| format!("{category}={next}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let path = id_counter_path(root);
+    fs::write(&path, format!("{body}\n"))
+        .map_err(|e| format!("Failed to write {}: {e}", path.display()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,7 +183,7 @@ mod tests {
         let ws = Workspace {
             root: dir.path().to_path_buf(),
             issues: vec![Issue {
-                id: 21,
+                id: "BUG-21".to_string(),
                 title: "Labels".to_string(),
                 status: Status::Open,
                 files: vec!["src/model/parse.rs".to_string()],
@@ -136,5 +199,29 @@ mod tests {
         ws.save().unwrap();
         let loaded = Workspace::load(dir.path()).unwrap();
         assert_eq!(loaded.issues[0].labels, vec!["parser", "ui"]);
+    }
+
+    #[test]
+    fn allocate_issue_id_tracks_next_number_per_category() {
+        let dir = tempdir().unwrap();
+        let ws = Workspace {
+            root: dir.path().to_path_buf(),
+            issues: vec![Issue {
+                id: "BUG-03".to_string(),
+                title: "Bug".to_string(),
+                status: Status::Open,
+                files: vec![],
+                labels: vec![],
+                links: vec![],
+                description: String::new(),
+                resolution: String::new(),
+                section: "ACTIVE Issues".to_string(),
+                depends_on: vec![],
+            }],
+        };
+
+        assert_eq!(ws.allocate_issue_id("bug").unwrap(), "BUG-04");
+        assert_eq!(ws.allocate_issue_id("ft").unwrap(), "FT-01");
+        assert_eq!(ws.allocate_issue_id("BUG").unwrap(), "BUG-05");
     }
 }

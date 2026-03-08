@@ -2,9 +2,10 @@
 use super::toast::{Toast, ToastContainer, ToastKind};
 use super::welcome::WelcomeScreen;
 use super::{components, get_workspace_path, views, View};
-use crate::model::{reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
+use crate::model::{issue_id_sort_key, reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
 use dioxus::document::eval;
 use dioxus::prelude::*;
+use notify::{recommended_watcher, Event as NotifyEvent, EventKind, RecursiveMode, Watcher};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -54,6 +55,7 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let active_lens = use_signal(|| FeedLens::MyOrder);
     let view = use_signal(|| View::Feed);
     let dirty = use_signal(|| false);
+    let edit_epoch = use_signal(|| 0u64);
     let modal = use_signal(|| false);
     let reinit_modal = use_signal(|| false);
     let mut toasts = use_signal(Vec::<Toast>::new);
@@ -69,6 +71,8 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         std::fs::read_to_string(&p).unwrap_or_else(|_| "1.0".to_string()).parse::<f32>().unwrap_or(1.0)
     });
 
+    use_context_provider(|| edit_epoch);
+
     use_effect(move || {
         let z = zoom();
         let p = get_workspace_path().join(".ishoo/zoom");
@@ -83,15 +87,39 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         zoom,
     };
 
-    let _poll = {
-        let poll_path = ws_path.clone();
+    let _watch = {
+        let watch_path = ws_path.clone();
         use_coroutine(move |_rx: UnboundedReceiver<()>| {
-            let path = poll_path.clone();
+            let path = watch_path.clone();
             async move {
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+                let mut watcher = match recommended_watcher(move |result: notify::Result<NotifyEvent>| {
+                    if let Ok(event) = result {
+                        if should_reload_for_event(&event) {
+                            let _ = event_tx.send(());
+                        }
+                    }
+                }) {
+                    Ok(watcher) => watcher,
+                    Err(error) => {
+                        eprintln!("Failed to create file watcher: {error}");
+                        return;
+                    }
+                };
+
+                if let Err(error) = watcher.watch(&path, RecursiveMode::NonRecursive) {
+                    eprintln!("Failed to watch {}: {error}", path.display());
+                    return;
+                }
+
+                while event_rx.recv().await.is_some() {
+                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                    while event_rx.try_recv().is_ok() {}
+
+                    let was_dirty = dirty();
+                    let epoch_before = edit_epoch();
                     if let Ok(ws) = Workspace::load(&path) {
-                        if !dirty() {
+                        if can_apply_external_reload(was_dirty, dirty(), epoch_before, edit_epoch()) {
                             issues.set(ws.issues);
                         }
                     }
@@ -161,12 +189,31 @@ fn save_workspace(state: AppState, msg: &str) {
     }
 }
 
+fn bump_edit_epoch(mut edit_epoch: Signal<u64>) {
+    edit_epoch.set(edit_epoch().wrapping_add(1));
+}
+
+fn can_apply_external_reload(
+    was_dirty: bool,
+    is_dirty_now: bool,
+    epoch_before: u64,
+    epoch_after: u64,
+) -> bool {
+    !was_dirty && !is_dirty_now && epoch_before == epoch_after
+}
+
+fn should_reload_for_event(event: &NotifyEvent) -> bool {
+    !matches!(event.kind, EventKind::Access(_))
+}
+
 #[component]
 fn NewIssueModal(mut modal: Signal<bool>, state: AppState) -> Element {
     let mut title = use_signal(String::new);
+    let mut category = use_signal(|| "ISS".to_string());
     let mut status = use_signal(|| "OPEN".to_string());
     let mut labels = use_signal(String::new);
     let mut issues = state.issues;
+    let edit_epoch = use_context::<Signal<u64>>();
 
     rsx! {
         div { class: "modal-overlay", onclick: move |_| modal.set(false),
@@ -182,6 +229,13 @@ fn NewIssueModal(mut modal: Signal<bool>, state: AppState) -> Element {
                         input {
                             class: "modal-input", placeholder: "What needs to be done?",
                             value: "{title}", oninput: move |e| title.set(e.value()),
+                        }
+                    }
+                    div { class: "fgroup",
+                        label { class: "flbl", "Category" }
+                        input {
+                            class: "modal-input", placeholder: "BUG",
+                            value: "{category}", oninput: move |e| category.set(e.value()),
                         }
                     }
                     div { class: "fgroup",
@@ -207,13 +261,18 @@ fn NewIssueModal(mut modal: Signal<bool>, state: AppState) -> Element {
                         onclick: move |_| {
                             let t = title().trim().to_string();
                             if !t.is_empty() {
-                                let max = issues().iter().map(|i| i.id).max().unwrap_or(0);
                                 let parsed_labels = parse_label_input(&labels());
+                                let ws = Workspace {
+                                    root: get_workspace_path(),
+                                    issues: issues(),
+                                };
+                                let id = ws.allocate_issue_id(&category()).unwrap_or_else(|_| "ISS-01".to_string());
                                 let issue = Issue {
-                                    id: max + 1, title: t.clone(), status: Status::from_str(&status()),
+                                    id, title: t.clone(), status: Status::from_str(&status()),
                                     files: vec![], labels: parsed_labels, links: vec![], description: String::new(), resolution: String::new(),
                                     section: "ACTIVE Issues".to_string(), depends_on: vec![],
                                 };
+                                bump_edit_epoch(edit_epoch);
                                 issues.write().insert(0, issue.clone());
                                 modal.set(false);
                                 save_workspace(state, &format!("Created #{} {}", issue.id, t));
@@ -232,6 +291,7 @@ fn ReinitModal(mut modal: Signal<bool>, state: AppState) -> Element {
     let mut confirm_text = use_signal(String::new);
     let confirmed = confirm_text().trim().to_lowercase() == "erase my issues";
     let mut issues = state.issues;
+    let edit_epoch = use_context::<Signal<u64>>();
 
     rsx! {
         div { class: "modal-overlay", onclick: move |_| modal.set(false),
@@ -260,6 +320,7 @@ fn ReinitModal(mut modal: Signal<bool>, state: AppState) -> Element {
                             if confirmed {
                                 match reinit_workspace(&get_workspace_path()) {
                                     Ok(()) => {
+                                        bump_edit_epoch(edit_epoch);
                                         issues.set(vec![]);
                                         modal.set(false);
                                         add_toast(state, "Reinitialized".to_string(), ToastKind::Success);
@@ -462,6 +523,7 @@ fn render_content(
     mut animating: Signal<bool>,
 ) -> Element {
     let mut issues = state.issues;
+    let edit_epoch = use_context::<Signal<u64>>();
 
     // ── Global Scroll physics ──────────────────────────────
     // physics and animating sigs passed from the root container
@@ -563,29 +625,32 @@ fn render_content(
                         is_compact: (state.is_compact)(),
                         zoom: (state.zoom)(),
                         issues: filtered.clone(),
-                        on_status: move |(id, s): (u32, String)| {
+                        on_status: move |(id, s): (String, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }
+                            bump_edit_epoch(edit_epoch);
                             dirty.set(true);
                         },
-                        on_resolution: move |(id, t): (u32, String)| {
+                        on_resolution: move |(id, t): (String, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.resolution = t; }
+                            bump_edit_epoch(edit_epoch);
                             dirty.set(true);
                         },
-                        on_labels: move |(id, labels): (u32, String)| {
+                        on_labels: move |(id, labels): (String, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) {
                                 i.labels = parse_label_input(&labels);
                             }
+                            bump_edit_epoch(edit_epoch);
                             dirty.set(true);
                         },
-                        on_reorder: move |(drag, target, after, section): (u32, Option<u32>, bool, Option<String>)| {
-                            if target == Some(drag) {
+                        on_reorder: move |(drag, target, after, section): (String, Option<String>, bool, Option<String>)| {
+                            if target.as_ref().is_some_and(|target_id| *target_id == drag) {
                                 return;
                             }
                             let mut all = issues();
                             if let Some(idx) = all.iter().position(|i| i.id == drag) {
                                 let mut iss = all.remove(idx);
-                                if let Some(target_id) = target {
-                                    if let Some(tidx) = all.iter().position(|i| i.id == target_id) {
+                                if let Some(ref target_id) = target {
+                                    if let Some(tidx) = all.iter().position(|i| i.id == *target_id) {
                                         iss.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
                                         let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
                                         all.insert(insert_at, iss);
@@ -603,13 +668,14 @@ fn render_content(
                                     let mut seen = std::collections::HashSet::new();
                                     for i in all.iter() {
                                         assert!(
-                                            seen.insert(i.id),
+                                            seen.insert(i.id.clone()),
                                             "on_reorder: duplicate id {} (drag={} target={:?} after={})",
                                             i.id, drag, target, after
                                         );
                                     }
                                 }
                             }
+                            bump_edit_epoch(edit_epoch);
                             issues.set(all);
                             save_workspace(state, "");
                         },
@@ -622,22 +688,25 @@ fn render_content(
                 View::Board => rsx! {
                     views::BoardView {
                         issues: filtered,
-                        on_status: move |(id, s): (u32, String)| {
+                        on_status: move |(id, s): (String, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.status = Status::from_str(&s); }
+                            bump_edit_epoch(edit_epoch);
                             dirty.set(true);
                         },
-                        on_resolution: move |(id, t): (u32, String)| {
+                        on_resolution: move |(id, t): (String, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) { i.resolution = t; }
+                            bump_edit_epoch(edit_epoch);
                             dirty.set(true);
                         },
-                        on_labels: move |(id, labels): (u32, String)| {
+                        on_labels: move |(id, labels): (String, String)| {
                             if let Some(i) = issues.write().iter_mut().find(|i| i.id == id) {
                                 i.labels = parse_label_input(&labels);
                             }
+                            bump_edit_epoch(edit_epoch);
                             dirty.set(true);
                         },
-                        on_reorder: move |payload: (u32, Option<u32>, bool, Option<String>)| {
-                            if payload.0 == payload.1.unwrap_or(0) {
+                        on_reorder: move |payload: (String, Option<String>, bool, Option<String>)| {
+                            if payload.1.as_ref().is_some_and(|target| payload.0 == *target) {
                                 return;
                             }
                             let (drag, target, after, section) = payload;
@@ -645,7 +714,7 @@ fn render_content(
                             if let Some(idx) = all.iter().position(|i| i.id == drag) {
                                 let mut iss = all.remove(idx);
                                 if let Some(target_id) = target {
-                                    if let Some(tidx) = all.iter().position(|i| i.id == target_id) {
+                                    if let Some(tidx) = all.iter().position(|i| i.id == *target_id) {
                                         iss.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
                                         let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
                                         all.insert(insert_at, iss);
@@ -659,6 +728,7 @@ fn render_content(
                                     all.insert(idx.min(all.len()), iss);
                                 }
                             }
+                            bump_edit_epoch(edit_epoch);
                             issues.set(all);
                             save_workspace(state, "");
                         }
@@ -725,16 +795,16 @@ fn apply_feed_lens(all_issues: &[Issue], mut issues: Vec<Issue>, lens: FeedLens)
         metrics
             .sort_key(left, lens)
             .cmp(&metrics.sort_key(right, lens))
-            .then_with(|| left.id.cmp(&right.id))
+            .then_with(|| issue_id_sort_key(&left.id).cmp(&issue_id_sort_key(&right.id)))
     });
     issues
 }
 
 #[derive(Debug, Default)]
 struct LensMetrics {
-    hot_scores: HashMap<u32, usize>,
-    unblock_scores: HashMap<u32, usize>,
-    quick_costs: HashMap<u32, usize>,
+    hot_scores: HashMap<String, usize>,
+    unblock_scores: HashMap<String, usize>,
+    quick_costs: HashMap<String, usize>,
 }
 
 impl LensMetrics {
@@ -749,7 +819,7 @@ impl LensMetrics {
             file_weights.insert(file, ids.len());
         }
 
-        let mut dependents = HashMap::<u32, Vec<u32>>::new();
+        let mut dependents = HashMap::<String, Vec<String>>::new();
         for (dependency, dependent) in ws.dependency_edges() {
             dependents.entry(dependency).or_default().push(dependent);
         }
@@ -757,7 +827,7 @@ impl LensMetrics {
         let active_issue_ids = issues
             .iter()
             .filter(|issue| issue.status != Status::Done && issue.status != Status::Descoped)
-            .map(|issue| issue.id)
+            .map(|issue| issue.id.clone())
             .collect::<HashSet<_>>();
 
         let hot_scores = issues
@@ -768,7 +838,7 @@ impl LensMetrics {
                     .iter()
                     .map(|file| file_weights.get(file).copied().unwrap_or(1))
                     .sum::<usize>();
-                (issue.id, score)
+                (issue.id.clone(), score)
             })
             .collect::<HashMap<_, _>>();
 
@@ -777,15 +847,15 @@ impl LensMetrics {
             .map(|issue| {
                 let heat = hot_scores.get(&issue.id).copied().unwrap_or_default();
                 let cost = heat + (issue.files.len() * 2) + (issue.depends_on.len() * 3);
-                (issue.id, cost)
+                (issue.id.clone(), cost)
             })
             .collect::<HashMap<_, _>>();
 
-        let mut unblock_scores = HashMap::<u32, usize>::new();
+        let mut unblock_scores = HashMap::<String, usize>::new();
         for issue in issues {
             let mut visited = HashSet::new();
-            let score = transitive_dependents(issue.id, &dependents, &active_issue_ids, &mut visited);
-            unblock_scores.insert(issue.id, score);
+            let score = transitive_dependents(&issue.id, &dependents, &active_issue_ids, &mut visited);
+            unblock_scores.insert(issue.id.clone(), score);
         }
 
         Self {
@@ -795,47 +865,47 @@ impl LensMetrics {
         }
     }
 
-    fn sort_key(&self, issue: &Issue, lens: FeedLens) -> (usize, usize, usize, u32) {
+    fn sort_key(&self, issue: &Issue, lens: FeedLens) -> (usize, usize, usize, (String, u32, String)) {
         match lens {
-            FeedLens::MyOrder => (0, 0, 0, issue.id),
+            FeedLens::MyOrder => (0, 0, 0, issue_id_sort_key(&issue.id)),
             FeedLens::NextUp => (
                 usize::MAX - self.unblock_scores.get(&issue.id).copied().unwrap_or_default(),
                 issue.status_ord() as usize,
                 self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
-                issue.id,
+                issue_id_sort_key(&issue.id),
             ),
             FeedLens::HotPath => (
                 usize::MAX - self.hot_scores.get(&issue.id).copied().unwrap_or_default(),
                 issue.status_ord() as usize,
                 issue.files.len(),
-                issue.id,
+                issue_id_sort_key(&issue.id),
             ),
             FeedLens::QuickWins => (
                 self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
                 issue.status_ord() as usize,
                 self.unblock_scores.get(&issue.id).copied().unwrap_or_default(),
-                issue.id,
+                issue_id_sort_key(&issue.id),
             ),
         }
     }
 }
 
 fn transitive_dependents(
-    id: u32,
-    dependents: &HashMap<u32, Vec<u32>>,
-    active_issue_ids: &HashSet<u32>,
-    visited: &mut HashSet<u32>,
+    id: &str,
+    dependents: &HashMap<String, Vec<String>>,
+    active_issue_ids: &HashSet<String>,
+    visited: &mut HashSet<String>,
 ) -> usize {
-    let Some(children) = dependents.get(&id) else {
+    let Some(children) = dependents.get(id) else {
         return 0;
     };
 
     let mut total = 0;
     for child in children {
-        if !active_issue_ids.contains(child) || !visited.insert(*child) {
+        if !active_issue_ids.contains(child) || !visited.insert(child.clone()) {
             continue;
         }
-        total += 1 + transitive_dependents(*child, dependents, active_issue_ids, visited);
+        total += 1 + transitive_dependents(child, dependents, active_issue_ids, visited);
     }
     total
 }
@@ -881,12 +951,18 @@ fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<I
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_feed_lens, collect_labels, filter_issues, parse_label_input, section_counts, FeedLens};
+    use super::{
+        apply_feed_lens, can_apply_external_reload, collect_labels, filter_issues,
+        parse_label_input, section_counts, should_reload_for_event, FeedLens,
+    };
     use crate::model::{Issue, Status};
+    use notify::event::{AccessKind, AccessMode, CreateKind, DataChange, ModifyKind};
+    use notify::{Event as NotifyEvent, EventKind};
+    use std::path::Path;
 
-    fn make_issue(id: u32, title: &str, labels: &[&str]) -> Issue {
+    fn make_issue(id: &str, title: &str, labels: &[&str]) -> Issue {
         Issue {
-            id,
+            id: id.to_string(),
             title: title.to_string(),
             status: Status::Open,
             files: vec![],
@@ -900,14 +976,14 @@ mod tests {
     }
 
     fn make_issue_with_graph(
-        id: u32,
+        id: &str,
         title: &str,
         status: Status,
         files: &[&str],
-        depends_on: &[u32],
+        depends_on: &[&str],
     ) -> Issue {
         Issue {
-            id,
+            id: id.to_string(),
             title: title.to_string(),
             status,
             files: files.iter().map(|file| file.to_string()).collect(),
@@ -916,27 +992,27 @@ mod tests {
             description: String::new(),
             resolution: String::new(),
             section: "ACTIVE Issues".to_string(),
-            depends_on: depends_on.to_vec(),
+            depends_on: depends_on.iter().map(|dep| dep.to_string()).collect(),
         }
     }
 
     #[test]
     fn filter_issues_matches_labels() {
         let issues = vec![
-            make_issue(1, "Parser cleanup", &["core", "frontend"]),
-            make_issue(2, "Health pulse", &["ux"]),
+            make_issue("BUG-01", "Parser cleanup", &["core", "frontend"]),
+            make_issue("BUG-02", "Health pulse", &["ux"]),
         ];
 
         let filtered = filter_issues(&issues, "front", None);
         assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].id, 1);
+        assert_eq!(filtered[0].id, "BUG-01");
     }
 
     #[test]
     fn filter_issues_excludes_non_matching_labels() {
         let issues = vec![
-            make_issue(1, "Parser cleanup", &["core", "frontend"]),
-            make_issue(2, "Health pulse", &["ux"]),
+            make_issue("BUG-01", "Parser cleanup", &["core", "frontend"]),
+            make_issue("BUG-02", "Health pulse", &["ux"]),
         ];
 
         let filtered = filter_issues(&issues, "testing", None);
@@ -946,13 +1022,50 @@ mod tests {
     #[test]
     fn filter_issues_respects_active_label() {
         let issues = vec![
-            make_issue(1, "Parser cleanup", &["core", "frontend"]),
-            make_issue(2, "Health pulse", &["ux"]),
+            make_issue("BUG-01", "Parser cleanup", &["core", "frontend"]),
+            make_issue("BUG-02", "Health pulse", &["ux"]),
         ];
 
         let filtered = filter_issues(&issues, "", Some("ux"));
         assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].id, 2);
+        assert_eq!(filtered[0].id, "BUG-02");
+    }
+
+    #[test]
+    fn external_reload_requires_clean_unchanged_state() {
+        assert!(can_apply_external_reload(false, false, 9, 9));
+        assert!(!can_apply_external_reload(true, false, 9, 9));
+        assert!(!can_apply_external_reload(false, true, 9, 9));
+        assert!(!can_apply_external_reload(false, false, 9, 10));
+    }
+
+    #[test]
+    fn watcher_ignores_access_only_events() {
+        let access_event = NotifyEvent {
+            kind: EventKind::Access(AccessKind::Read),
+            paths: vec![Path::new("issues-active.md").to_path_buf()],
+            attrs: Default::default(),
+        };
+        let close_event = NotifyEvent {
+            kind: EventKind::Access(AccessKind::Close(AccessMode::Write)),
+            paths: vec![Path::new("issues-active.md").to_path_buf()],
+            attrs: Default::default(),
+        };
+        let modify_event = NotifyEvent {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec![Path::new("issues-active.md").to_path_buf()],
+            attrs: Default::default(),
+        };
+        let create_event = NotifyEvent {
+            kind: EventKind::Create(CreateKind::File),
+            paths: vec![Path::new("issues-active.md").to_path_buf()],
+            attrs: Default::default(),
+        };
+
+        assert!(!should_reload_for_event(&access_event));
+        assert!(!should_reload_for_event(&close_event));
+        assert!(should_reload_for_event(&modify_event));
+        assert!(should_reload_for_event(&create_event));
     }
 
     #[test]
@@ -966,8 +1079,8 @@ mod tests {
     #[test]
     fn collect_labels_deduplicates_case_insensitively() {
         let issues = vec![
-            make_issue(1, "Parser cleanup", &["core", "frontend"]),
-            make_issue(2, "Health pulse", &["Core", "ux"]),
+            make_issue("BUG-01", "Parser cleanup", &["core", "frontend"]),
+            make_issue("BUG-02", "Health pulse", &["Core", "ux"]),
         ];
 
         assert_eq!(collect_labels(&issues), vec!["core", "frontend", "ux"]);
@@ -975,11 +1088,11 @@ mod tests {
 
     #[test]
     fn section_counts_groups_and_orders_sections() {
-        let mut active = make_issue(1, "Parser cleanup", &[]);
+        let mut active = make_issue("BUG-01", "Parser cleanup", &[]);
         active.section = "ACTIVE Issues".to_string();
-        let mut done = make_issue(2, "Resolved bug", &[]);
+        let mut done = make_issue("BUG-02", "Resolved bug", &[]);
         done.section = "DONE Issues".to_string();
-        let mut custom = make_issue(3, "Sprint issue", &[]);
+        let mut custom = make_issue("BUG-03", "Sprint issue", &[]);
         custom.section = "Sprint 42".to_string();
 
         assert_eq!(
@@ -995,38 +1108,38 @@ mod tests {
     #[test]
     fn next_up_lens_prioritizes_transitive_unblock_count() {
         let issues = vec![
-            make_issue_with_graph(1, "Base", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph(2, "Middle", Status::Open, &["src/main.rs"], &[1]),
-            make_issue_with_graph(3, "Leaf", Status::Open, &["src/ui.rs"], &[2]),
+            make_issue_with_graph("BUG-01", "Base", Status::Open, &["src/main.rs"], &[]),
+            make_issue_with_graph("BUG-02", "Middle", Status::Open, &["src/main.rs"], &["BUG-01"]),
+            make_issue_with_graph("BUG-03", "Leaf", Status::Open, &["src/ui.rs"], &["BUG-02"]),
         ];
 
         let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::NextUp);
-        assert_eq!(sorted.iter().map(|issue| issue.id).collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert_eq!(sorted.iter().map(|issue| issue.id.clone()).collect::<Vec<_>>(), vec!["BUG-01", "BUG-02", "BUG-03"]);
     }
 
     #[test]
     fn hot_path_lens_prioritizes_hotter_files() {
         let issues = vec![
-            make_issue_with_graph(1, "Shared A", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph(2, "Shared B", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph(3, "Cold", Status::Open, &["src/cold.rs"], &[]),
+            make_issue_with_graph("BUG-01", "Shared A", Status::Open, &["src/main.rs"], &[]),
+            make_issue_with_graph("BUG-02", "Shared B", Status::Open, &["src/main.rs"], &[]),
+            make_issue_with_graph("BUG-03", "Cold", Status::Open, &["src/cold.rs"], &[]),
         ];
 
         let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::HotPath);
-        assert_eq!(sorted[0].id, 1);
-        assert_eq!(sorted[1].id, 2);
-        assert_eq!(sorted[2].id, 3);
+        assert_eq!(sorted[0].id, "BUG-01");
+        assert_eq!(sorted[1].id, "BUG-02");
+        assert_eq!(sorted[2].id, "BUG-03");
     }
 
     #[test]
     fn quick_wins_lens_prefers_lower_cost_work() {
         let issues = vec![
-            make_issue_with_graph(1, "Wide", Status::Open, &["a.rs", "b.rs"], &[9]),
-            make_issue_with_graph(2, "Tight", Status::Open, &["solo.rs"], &[]),
+            make_issue_with_graph("BUG-01", "Wide", Status::Open, &["a.rs", "b.rs"], &["BUG-09"]),
+            make_issue_with_graph("BUG-02", "Tight", Status::Open, &["solo.rs"], &[]),
         ];
 
         let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::QuickWins);
-        assert_eq!(sorted[0].id, 2);
-        assert_eq!(sorted[1].id, 1);
+        assert_eq!(sorted[0].id, "BUG-02");
+        assert_eq!(sorted[1].id, "BUG-01");
     }
 }

@@ -2,22 +2,16 @@
 
 ---
 
-## [11] Implement categorical issue IDs
+## [9] Add global keyboard shortcuts
 **Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+**Files:** `src/ui/app.rs`
+**Depends on:** [6]
 
-Replace numeric-only issue IDs with categorical alphanumeric IDs (e.g., `BUG-01`, `FT-12`, `UI-03`, `DX-07`). The current system uses sequential integers which are fragile — deleting the highest-numbered issue causes ID reuse on the next create.
-New ID format: `<CATEGORY>-<NUMBER>` where:
+Essential keyboard shortcuts for the desktop app:
 
-- Category is a 1-4 letter uppercase prefix chosen at creation (e.g., BUG, FT, UI, DX, ARCH, PERF)
-- Number is zero-padded, monotonically increasing per category, never reused
-- A `.ishoo` metadata file (or comment header in each markdown file) tracks the next number per category
-This requires updating:
-- The `Issue` struct (`id: u32` → `id: String`)
-- The parser heading regex (`## [47]` → `## [BUG-47]`)
-- All ID comparisons, sorting, and display logic
-- The CLI `show`, `set`, and `new` commands to accept string IDs
-- The `new` command to accept `--category` or infer from a default
+- `Cmd/Ctrl + S` — Save All
+- `Esc` — Close modal or collapse active card
+Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
 
 **Resolution:** 
 
@@ -28,17 +22,6 @@ This requires updating:
 **Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
 
 Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
-
-**Resolution:** 
-
----
-
-## [4] Replace polling with OS file system events
-**Status:** IN PROGRESS
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-
-The dashboard uses a 3-second `tokio::time::sleep` loop to poll for external changes. Replace with the `notify` crate for OS-level file system events (FSEvents/inotify/ReadDirectoryChanges).
-Note: switching to `notify` alone does NOT fix the race condition in the current poll handler. The `if !dirty() { issues.set(ws.issues); }` check-then-set is not atomic — a user edit between the check and the set gets silently overwritten. This must be addressed alongside the migration (see issue #5).
 
 **Resolution:** 
 
@@ -63,6 +46,7 @@ Add a pencil icon or double-click-to-edit interaction that swaps the description
 Board drag behavior is still a parallel implementation that only approximates Feed. That is the wrong architecture. Feed and Board must share the same drag state model, release timing, displacement math, and cursor anchoring. Only board lane targeting should differ.
 
 Requirements:
+
 - Extract the feed drag/release model into shared reusable code
 - Preserve Feed behavior exactly while moving logic out
 - Make Board consume the same engine instead of a separate approximation
@@ -80,6 +64,7 @@ Requirements:
 While dragging in Board, the held card must stay under the cursor with the same deadzone break, live follow, and no-drift behavior as Feed. No shrink, no offset drift, no alternate ghost logic that changes the feel.
 
 Requirements:
+
 - Use the same deadzone behavior as Feed
 - Keep the held card anchored identically under the cursor
 - Remove any visual shrink/compression behavior not present in Feed
@@ -97,6 +82,7 @@ Requirements:
 Board currently displaces cards in a way that is merely similar to Feed. It must use the same local displacement behavior: crossed cards glide one slot, never jump to final order during live drag, and never use bespoke board-only placeholder sockets.
 
 Requirements:
+
 - Replace board-specific drop indicators/sockets with Feed-style local displacement only
 - Crossed cards move one slot at a time exactly like Feed
 - No instant snap to final order during live drag
@@ -114,6 +100,7 @@ Requirements:
 Board drop/release still has its own sequencing. That creates risk of pop, dip, snap, or timing mismatch. Feed already solved these edge cases and Board must reuse that exact sequencing.
 
 Requirements:
+
 - Match Feed release timing and delayed reorder commit exactly
 - No dip/pop/rebound after release
 - No alternate board-only settle animation
@@ -131,6 +118,7 @@ Requirements:
 The only behavior Board should add on top of Feed drag is lane selection. Left/right movement should choose a target lane, but vertical drag behavior inside the chosen lane must remain Feed-identical.
 
 Requirements:
+
 - Lane targeting is the only board-specific drag extension
 - Switching lanes must not change drag feel, deadzone, or release behavior
 - Empty lanes must accept drops cleanly
@@ -148,6 +136,7 @@ Requirements:
 Board cards still differ too much from Feed in interaction language. The board should feel like Feed cards rearranged into columns, not a second card system.
 
 Requirements:
+
 - Reuse Feed hover, press, drag, and shadow language as closely as possible
 - Keep the open layout; avoid boxed sockets or custom board chrome that Feed does not use
 - Preserve Board-specific hierarchy improvement where IDs lead scanning
@@ -165,6 +154,7 @@ Requirements:
 Board must be a minimal rearrangement of Feed, not a new visual system. The columns should read as Feed sections laid side by side, with only enough structure to support columns and independent scroll.
 
 Requirements:
+
 - Strip remaining non-feed explanatory or decorative chrome
 - Keep separators/rules as faint as Feed
 - Maintain independent per-column scroll without introducing heavy lane boxes
@@ -182,6 +172,7 @@ Requirements:
 Board can open issues now, but modal behavior is not yet guaranteed to be on par with Feed. Board-opened issues should have the same editing confidence and interaction quality.
 
 Requirements:
+
 - Opening an issue from Board must feel identical in quality to opening from Feed
 - Status, labels, and resolution editing must persist the same way
 - Any modal layout/content drift from Feed should be eliminated unless explicitly intentional
@@ -199,6 +190,7 @@ Requirements:
 This work is too easy to hand-wave. Board drag parity must be verified explicitly, not described vaguely as "close" or "similar".
 
 Requirements:
+
 - Add targeted tests for shared drag math where possible
 - Add a manual verification checklist covering:
   - drag within lane down
@@ -209,4 +201,6 @@ Requirements:
   - cross-lane drag into empty lane
 - Issue can close only when Board is judged atom-for-atom identical in vertical feel to Feed
 
-**Resolution:**
+**Resolution:** 
+
+---

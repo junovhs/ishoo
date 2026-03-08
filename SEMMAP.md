@@ -33,6 +33,9 @@ Handles README.
 `SEMMAP.md`
 Handles SEMMAP.
 
+`north-star.md`
+Placeholder file.
+
 `src/model/cli.rs`
 Implements cli set status. [TYPE]
 → Exports: cli_set_status, cli_heatmap, cli_list, cli_show
@@ -58,8 +61,8 @@ Implements toast container.
 → Exports: ToastContainer, ToastKind, class, Toast
 
 `src/ui/views/board.rs`
-Implements board view.
-→ Exports: BoardView
+Implements board view props.
+→ Exports: BoardViewProps, BoardView
 
 `src/ui/views/feed.rs`
 Implements feed view props. [TYPE]
@@ -70,7 +73,7 @@ Implements issue card props.
 → Exports: IssueCardProps, IssueCard
 
 `src/ui/views/viz.rs`
-Implements timeline view.
+Implements heatmap view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -88,20 +91,14 @@ Parses markdown. [UTIL]
 `assets/style.css`
 Implements style functionality. styles.
 
-`board-view-spike.html`
-Ishoo Board View Spike
-
 `dragging-prototype.html`
 Smooth Reorder (Engine-grade, no release jitter)
-
-`graph-view-spike.html`
-Ishoo Graph View Spike
 
 `src/main.rs`
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Creates workspace at. [TYPE]
+Implements status ord. [TYPE]
 → Exports: default_init_path, init_workspace_at, css_class, discover_root
 
 `src/ui/mod.rs`

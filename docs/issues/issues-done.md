@@ -2,6 +2,26 @@
 
 ---
 
+## [11] Implement categorical issue IDs
+**Status:** DONE
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/model/cli.rs`, `src/main.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `src/ui/views/viz.rs`
+
+Replaced numeric-only issue IDs with categorical string IDs across the model, parser, CLI, persistence, and UI. New IDs use the `<CATEGORY>-<NUMBER>` shape, for example `BUG-01` and `FT-12`, and new issue creation now allocates monotonically increasing numbers per category through `.ishoo/id-counters.txt` so deleting a high-numbered issue no longer causes ID reuse.
+
+**Resolution:** Changed `Issue.id` from `u32` to `String`, and changed link/dependency references to `Vec<String>` so authored references can point at real categorical IDs. Added shared ID helpers in `src/model/mod.rs` for normalization, formatting, splitting, parsing, and stable sort keys. Updated `parse_markdown` to accept categorical H2 headings, preserve categorical `Depends on` metadata, and extract `#BUG-12`-style mentions from title/description/resolution text. Added `Workspace::allocate_issue_id` plus `.ishoo/id-counters.txt` persistence so new IDs advance per category even if issues are later deleted. Updated CLI `show`, `set`, and `new` to accept string IDs and added `--category` to `new`. Updated the dashboard, feed modal/card shells, board view, and viz surfaces to render and compare string IDs consistently instead of assuming integers or hardcoded `ISS-` prefixes. Added and updated tests for parser round-trips, mention extraction, dependency parsing, per-category ID allocation, feed lens ordering, board ordering, and view helpers. Verified with `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [4] Replace polling with OS file system events
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `Cargo.toml`
+
+The dashboard used a 3-second `tokio::time::sleep` loop to poll for external changes. The issue also called out the race in the old `if !dirty() { issues.set(...) }` reload path, where a local edit could land between the check and the overwrite.
+
+**Resolution:** Replaced the poll coroutine in `src/ui/app.rs` with a `notify` watcher on the workspace directory and added the `notify` dependency in `Cargo.toml`. The watcher debounces bursts, ignores access-only events, and reloads from disk only when the UI is still clean and the local edit epoch is unchanged before and after the disk read, which closes the old check-then-set race without claiming to solve the broader conflict-resolution work tracked separately in issue #5. Added targeted tests for the reload guard and for event filtering. Verified with `cargo test watcher_ignores_access_only_events`, `cargo test external_reload_requires_clean_unchanged_state`, and `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining neti red state is the pre-existing 2 violations in `src/model/workspace.rs`).
+
+---
+
 ## [103] UI: Feed Collapsible Sections
 **Status:** DONE
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`

@@ -1,4 +1,4 @@
-use crate::model::{Issue, Status, Workspace};
+use crate::model::{issue_id_sort_key, Issue, Status, Workspace};
 use crate::ui::components::LabelList;
 use dioxus::prelude::*;
 use std::collections::HashMap;
@@ -115,7 +115,10 @@ pub fn TimelineView(issues: Vec<Issue>) -> Element {
     let open_pct = 100u32.saturating_sub(done_pct).saturating_sub(wip_pct);
 
     let mut sorted = issues.clone();
-    sorted.sort_by_key(|i| (i.status_ord(), i.id));
+    sorted.sort_by(|left, right| {
+        (left.status_ord(), issue_id_sort_key(&left.id))
+            .cmp(&(right.status_ord(), issue_id_sort_key(&right.id)))
+    });
 
     rsx! {
         div { class: "viz view-shell",
@@ -170,12 +173,12 @@ fn pct(part: usize, total: usize) -> u32 {
 
 /// Build a file→issue-IDs map for active (non-done, non-descoped) issues,
 /// returning only files touched by two or more issues (i.e. real overlaps).
-fn shared_file_overlaps(issues: &[Issue]) -> Vec<(String, Vec<u32>)> {
-    let mut map: HashMap<&str, Vec<u32>> = HashMap::new();
+fn shared_file_overlaps(issues: &[Issue]) -> Vec<(String, Vec<String>)> {
+    let mut map: HashMap<&str, Vec<String>> = HashMap::new();
     issues
         .iter()
         .filter(|i| i.status != Status::Done && i.status != Status::Descoped)
-        .flat_map(|i| i.files.iter().map(move |f| (f.as_str(), i.id)))
+        .flat_map(|i| i.files.iter().map(move |f| (f.as_str(), i.id.clone())))
         .for_each(|(f, id)| map.entry(f).or_default().push(id));
     map.into_iter()
         .filter(|(_, ids)| ids.len() >= 2)
@@ -188,9 +191,9 @@ mod tests {
     use super::*;
     use crate::model::{Issue, Status};
 
-    fn make_issue(id: u32, status: Status, files: &[&str]) -> Issue {
+    fn make_issue(id: &str, status: Status, files: &[&str]) -> Issue {
         Issue {
-            id,
+            id: id.to_string(),
             title: format!("Issue {id}"),
             status,
             files: files.iter().map(|s| s.to_string()).collect(),
@@ -208,14 +211,14 @@ mod tests {
     #[test]
     fn overlaps_found_when_two_active_issues_share_file() {
         let issues = vec![
-            make_issue(1, Status::Open, &["src/main.rs", "src/lib.rs"]),
-            make_issue(2, Status::InProgress, &["src/main.rs"]),
+            make_issue("BUG-01", Status::Open, &["src/main.rs", "src/lib.rs"]),
+            make_issue("BUG-02", Status::InProgress, &["src/main.rs"]),
         ];
         let result = shared_file_overlaps(&issues);
         let main_entry = result.iter().find(|(f, _)| f == "src/main.rs");
         assert!(main_entry.is_some(), "shared file must appear in overlaps");
         let ids = &main_entry.unwrap().1;
-        assert!(ids.contains(&1) && ids.contains(&2), "both issue IDs must be present");
+        assert!(ids.contains(&"BUG-01".to_string()) && ids.contains(&"BUG-02".to_string()), "both issue IDs must be present");
         // src/lib.rs is only touched by issue 1 — must NOT appear.
         assert!(result.iter().all(|(f, _)| f != "src/lib.rs"), "single-issue file must be excluded");
     }
@@ -228,8 +231,8 @@ mod tests {
     #[test]
     fn done_issue_not_counted_toward_overlap() {
         let issues = vec![
-            make_issue(1, Status::Open, &["src/model.rs"]),
-            make_issue(2, Status::Done, &["src/model.rs"]),
+            make_issue("BUG-01", Status::Open, &["src/model.rs"]),
+            make_issue("BUG-02", Status::Done, &["src/model.rs"]),
         ];
         let result = shared_file_overlaps(&issues);
         assert!(result.is_empty(), "file shared with only one active issue must not appear");
@@ -239,8 +242,8 @@ mod tests {
     #[test]
     fn descoped_issue_not_counted_toward_overlap() {
         let issues = vec![
-            make_issue(1, Status::Open, &["src/ui.rs"]),
-            make_issue(2, Status::Descoped, &["src/ui.rs"]),
+            make_issue("BUG-01", Status::Open, &["src/ui.rs"]),
+            make_issue("BUG-02", Status::Descoped, &["src/ui.rs"]),
         ];
         let result = shared_file_overlaps(&issues);
         assert!(result.is_empty(), "file shared with a Descoped issue must not appear");

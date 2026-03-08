@@ -56,19 +56,6 @@ Resolution should include:
 
 ---
 
-## [28] Support arbitrary issue file names
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
-
-The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
-Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
-This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
-If a new issue is created and has no source file, default to `issues-active.md`.
-
-**Resolution:** 
-
----
-
 ## [58] Bottleneck highlighting in Graph view
 **Status:** OPEN
 **Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
@@ -127,16 +114,14 @@ This enables a pre-commit hook: `ishoo lint --strict || exit 1`
 
 ---
 
-## [9] Add global keyboard shortcuts
+## [28] Support arbitrary issue file names
 **Status:** OPEN
-**Files:** `src/ui/app.rs`
-**Depends on:** [6]
+**Files:** `src/model/mod.rs`, `src/model/workspace.rs`
 
-Essential keyboard shortcuts for the desktop app:
-
-- `Cmd/Ctrl + S` — Save All
-- `Esc` — Close modal or collapse active card
-Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
+The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.md`) is mostly hardcoded. But the app already parses the `# HEADING` at the top of each file as the section name, so the file name is nearly irrelevant.
+Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
+This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
+If a new issue is created and has no source file, default to `issues-active.md`.
 
 **Resolution:** 
 
@@ -181,18 +166,6 @@ Add integration tests that exercise `init → new → save → load` with both f
 
 ---
 
-## [44] Add notification/badge for externally changed issues
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
-**Depends on:** [4]
-
-When the file watcher detects external changes, the UI silently refreshes. The user has no idea which issues changed or what changed about them.
-After reload, diff the old and new issue lists. For any issue that changed, show a subtle "updated" indicator on the card (e.g., a blue dot that fades after 10 seconds). Optionally show a toast: "3 issues updated externally".
-
-**Resolution:** 
-
----
-
 ## [37] Add CI/pre-commit hook integration
 **Status:** OPEN
 **Files:** `src/main.rs`, `docs/`
@@ -204,6 +177,18 @@ Provide documentation and a ready-made pre-commit hook config that runs `ishoo l
 - Dangling dependency references
 - Issues left in IN PROGRESS on a branch that's being merged to main
 Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
+
+**Resolution:** 
+
+---
+
+## [44] Add notification/badge for externally changed issues
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`
+**Depends on:** [4]
+
+When the file watcher detects external changes, the UI silently refreshes. The user has no idea which issues changed or what changed about them.
+After reload, diff the old and new issue lists. For any issue that changed, show a subtle "updated" indicator on the card (e.g., a blue dot that fades after 10 seconds). Optionally show a toast: "3 issues updated externally".
 
 **Resolution:** 
 
@@ -258,18 +243,6 @@ This answers "what's stalled and why am I pretending it isn't?"
 
 ---
 
-## [63] Velocity visualization in Timeline view
-**Status:** OPEN
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-
-The Timeline view should show completed issues plotted over time (derived from git history of when issues moved to DONE status). A simple cumulative line or bar chart showing resolved issues per week/month.
-
-Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
-
-**Resolution:** 
-
----
-
 ## [64] Focus mode
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
@@ -284,6 +257,18 @@ Add a "Focus" action on any issue card (click a target icon, or double-click the
 A single-issue view with full context and zero noise. Press Esc or click "Back to Feed" to return.
 
 This answers "I've decided what to work on, now show me everything I need to know about just this one thing."
+
+**Resolution:** 
+
+---
+
+## [63] Velocity visualization in Timeline view
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+
+The Timeline view should show completed issues plotted over time (derived from git history of when issues moved to DONE status). A simple cumulative line or bar chart showing resolved issues per week/month.
+
+Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
 
 **Resolution:** 
 

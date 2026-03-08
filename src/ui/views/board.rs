@@ -1,5 +1,5 @@
 // neti:allow(LAW OF ATOMICITY)
-use crate::model::{Issue, Status};
+use crate::model::{split_issue_id, Issue, Status};
 use crate::ui::components::LabelList;
 use dioxus::prelude::*;
 use std::collections::BTreeMap;
@@ -10,15 +10,15 @@ const BOARD_DROP_MS: u64 = 400;
 #[derive(Clone, PartialEq, Props)]
 pub struct BoardViewProps {
     pub issues: Vec<Issue>,
-    pub on_status: EventHandler<(u32, String)>,
-    pub on_resolution: EventHandler<(u32, String)>,
-    pub on_labels: EventHandler<(u32, String)>,
-    pub on_reorder: EventHandler<(u32, Option<u32>, bool, Option<String>)>,
+    pub on_status: EventHandler<(String, String)>,
+    pub on_resolution: EventHandler<(String, String)>,
+    pub on_labels: EventHandler<(String, String)>,
+    pub on_reorder: EventHandler<(String, Option<String>, bool, Option<String>)>,
 }
 
 #[derive(Clone, Default, PartialEq)]
 struct BoardDragState {
-    dragging_id: Option<u32>,
+    dragging_id: Option<String>,
     start_section: Option<String>,
     hover_section: Option<String>,
     start_idx: usize,
@@ -37,7 +37,7 @@ struct BoardDragState {
 pub fn BoardView(props: BoardViewProps) -> Element {
     let sections = grouped_sections(&props.issues);
     let mut drag = use_signal(BoardDragState::default);
-    let mut modal_id = use_signal(|| None::<u32>);
+    let mut modal_id = use_signal(|| None::<String>);
     let dragged_issue = drag()
         .dragging_id
         .and_then(|id| props.issues.iter().find(|issue| issue.id == id).cloned());
@@ -85,7 +85,7 @@ pub fn BoardView(props: BoardViewProps) -> Element {
                         let target = hover_section.as_ref().and_then(|section| {
                             section_items(&issues, section)
                                 .get(hover_idx)
-                                .map(|issue| issue.id)
+                                .map(|issue| issue.id.clone())
                         });
                         let section_for_drop = hover_section.or(dragged_section);
                         on_reorder.call((dragging_id, target, hover_after, section_for_drop));
@@ -183,7 +183,8 @@ struct BoardCardProps {
 #[component]
 fn BoardCard(mut props: BoardCardProps) -> Element {
     let ds = (props.drag_state)();
-    let is_dragging = ds.dragging_id == Some(props.issue.id);
+    let issue_id = props.issue.id.clone();
+    let is_dragging = ds.dragging_id == Some(issue_id.clone());
     let same_hover_lane = ds.hover_section.as_deref() == Some(props.lane_title.as_str());
     let same_start_lane = ds.start_section.as_deref() == Some(props.lane_title.as_str());
 
@@ -208,6 +209,7 @@ fn BoardCard(mut props: BoardCardProps) -> Element {
     let transition = "transform 400ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease";
     let style = if is_dragging { "opacity:0.14;".to_string() } else { format!("transform: translate3d(0, {shift}px, 0); transition: {transition};") };
     let issue_section = props.issue.section.clone();
+    let (id_category, id_number) = split_issue_id(&issue_id);
 
     rsx! {
         div {
@@ -219,7 +221,7 @@ fn BoardCard(mut props: BoardCardProps) -> Element {
                     e.prevent_default();
                     let rect = e.element_coordinates();
                     props.drag_state.set(BoardDragState {
-                        dragging_id: Some(props.issue.id),
+                        dragging_id: Some(issue_id.clone()),
                         start_section: Some(issue_section.clone()),
                         hover_section: Some(issue_section.clone()),
                         start_idx: props.lane_idx,
@@ -243,7 +245,7 @@ fn BoardCard(mut props: BoardCardProps) -> Element {
                     }
                 },
                 div { class: "board-card-top",
-                    div { class: "board-card-id", "#{props.issue.id}" }
+                    div { class: "board-card-id", "{id_category}-{id_number}" }
                     span { class: "badge b-{props.issue.status.css_class()}", "{props.issue.status.label()}" }
                 }
                 div { class: "board-card-section", "{props.issue.section}" }
@@ -280,13 +282,14 @@ struct BoardDragGhostProps {
 fn BoardDragGhost(props: BoardDragGhostProps) -> Element {
     let left = props.drag_state.pointer_x - props.drag_state.offset_x;
     let top = props.drag_state.pointer_y - props.drag_state.offset_y;
+    let (id_category, id_number) = split_issue_id(&props.issue.id);
 
     rsx! {
         article {
             class: if props.drag_state.releasing { "board-card board-card-ghost board-card-ghost-settling" } else { "board-card board-card-ghost" },
             style: "left:{left}px; top:{top}px;",
             div { class: "board-card-top",
-                div { class: "board-card-id", "#{props.issue.id}" }
+                div { class: "board-card-id", "{id_category}-{id_number}" }
                 span { class: "badge b-{props.issue.status.css_class()}", "{props.issue.status.label()}" }
             }
             div { class: "board-card-section", "{props.issue.section}" }
@@ -339,16 +342,20 @@ fn section_color(section: &str) -> &'static str {
 struct BoardIssueModalProps {
     issue: Issue,
     on_close: EventHandler<()>,
-    on_status: EventHandler<(u32, String)>,
-    on_resolution: EventHandler<(u32, String)>,
-    on_labels: EventHandler<(u32, String)>,
+    on_status: EventHandler<(String, String)>,
+    on_resolution: EventHandler<(String, String)>,
+    on_labels: EventHandler<(String, String)>,
 }
 
 #[component]
 fn BoardIssueModal(props: BoardIssueModalProps) -> Element {
     let i = &props.issue;
-    let id = i.id;
+    let id = i.id.clone();
     let mut labels_input = use_signal(|| i.labels.join(", "));
+    let (id_category, id_number) = split_issue_id(&id);
+    let labels_id = id.clone();
+    let resolution_id = id.clone();
+    let status_id = id.clone();
     let section = i.section.to_ascii_lowercase();
     let color = if section.contains("done") || i.status == Status::Done || i.status == Status::Descoped {
         "var(--green)"
@@ -368,8 +375,8 @@ fn BoardIssueModal(props: BoardIssueModalProps) -> Element {
                 div { class: "m-accent", style: "background:{color}" }
                 div { class: "m-head",
                     div {
-                        div { class: "m-id", "ISSUE-" }
-                        div { class: "m-id-num", "{id}" }
+                        div { class: "m-id", "{id_category}-" }
+                        div { class: "m-id-num", "{id_number}" }
                     }
                     button { class: "m-close", onclick: move |_| props.on_close.call(()), "×" }
                 }
@@ -393,7 +400,7 @@ fn BoardIssueModal(props: BoardIssueModalProps) -> Element {
                             value: "{labels_input}",
                             oninput: move |e| {
                                 labels_input.set(e.value().clone());
-                                props.on_labels.call((id, e.value()));
+                                props.on_labels.call((labels_id.clone(), e.value()));
                             },
                         }
                     }
@@ -403,7 +410,7 @@ fn BoardIssueModal(props: BoardIssueModalProps) -> Element {
                             class: "res-input",
                             rows: "4",
                             value: "{i.resolution}",
-                            oninput: move |e| props.on_resolution.call((id, e.value())),
+                            oninput: move |e| props.on_resolution.call((resolution_id.clone(), e.value())),
                         }
                     }
                     div { style: "margin-top: 16px;",
@@ -411,7 +418,7 @@ fn BoardIssueModal(props: BoardIssueModalProps) -> Element {
                         select {
                             class: "sel",
                             value: "{i.status.label()}",
-                            onchange: move |e| props.on_status.call((id, e.value())),
+                            onchange: move |e| props.on_status.call((status_id.clone(), e.value())),
                             option { value: "OPEN", selected: i.status == Status::Open, "Open" }
                             option { value: "IN PROGRESS", selected: i.status == Status::InProgress, "In Progress" }
                             option { value: "DONE", selected: i.status == Status::Done, "Done" }
@@ -429,9 +436,9 @@ mod tests {
     use super::grouped_sections;
     use crate::model::{Issue, Status};
 
-    fn issue(id: u32, section: &str) -> Issue {
+    fn issue(id: &str, section: &str) -> Issue {
         Issue {
-            id,
+            id: id.to_string(),
             title: format!("Issue {id}"),
             status: Status::Open,
             files: vec![],
@@ -447,10 +454,10 @@ mod tests {
     #[test]
     fn grouped_sections_follow_feed_ordering() {
         let sections = grouped_sections(&[
-            issue(1, "DONE Issues"),
-            issue(2, "Sprint 42"),
-            issue(3, "ACTIVE Issues"),
-            issue(4, "BACKLOG Issues"),
+            issue("BUG-01", "DONE Issues"),
+            issue("BUG-02", "Sprint 42"),
+            issue("BUG-03", "ACTIVE Issues"),
+            issue("BUG-04", "BACKLOG Issues"),
         ]);
 
         let labels: Vec<_> = sections.into_iter().map(|(name, _)| name).collect();

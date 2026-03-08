@@ -1,4 +1,4 @@
-use crate::model::Issue;
+use crate::model::{split_issue_id, Issue};
 use crate::ui::components::LabelList;
 use crate::ui::views::feed::{apply_drag_deadzone, DragState, RecentDropState, DRAG_DEADZONE_PX};
 use dioxus::document::eval;
@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 #[derive(Clone, PartialEq, Props)]
 pub struct IssueCardProps {
     pub issue: Issue,
-    pub incoming_links: Vec<u32>,
+    pub incoming_links: Vec<String>,
     pub idx: usize,
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
     pub drag_state: Signal<DragState>,
@@ -21,14 +21,14 @@ pub struct IssueCardProps {
 // neti:allow(LAW OF COMPLEXITY)
 pub fn IssueCard(props: IssueCardProps) -> Element {
     let i = &props.issue;
-    let id = i.id;
+    let id = i.id.clone();
     let idx = props.idx;
     let ds = props.drag_state.read();
     let rd = props.recent_drop.read();
 
-    let is_dragging = ds.dragging_id == Some(id);
+    let is_dragging = ds.dragging_id == Some(id.clone());
     let array_reordered = props.array_reordered;
-    let is_recent_drop = rd.id == Some(id);
+    let is_recent_drop = rd.id == Some(id.clone());
     let hover_armed = rd.hover_armed;
 
     // Keep live drag displacement local to the card layer instead of simulating
@@ -123,15 +123,16 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let mut related_links = i.links.clone();
     for incoming in &props.incoming_links {
         if !related_links.contains(incoming) {
-            related_links.push(*incoming);
+            related_links.push(incoming.clone());
         }
     }
-    let link_ids = related_links.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
+    let link_ids = related_links.join(",");
     let outgoing_count = i.links.len();
     let incoming_count = props.incoming_links.len();
     let link_count = related_links.len();
     let row_dom_id = format!("issue-row-{id}");
     let section_dom_key = i.section.to_ascii_lowercase().replace(' ', "-");
+    let (id_category, id_number) = split_issue_id(&id);
 
     rsx! {
         div { 
@@ -146,7 +147,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     e.prevent_default();
                     recent_drop_signal.set(RecentDropState::default());
                     let mut ds_write = drag_state_signal.write();
-                    ds_write.dragging_id = Some(id);
+                    ds_write.dragging_id = Some(id.clone());
                     ds_write.start_idx = idx;
                     ds_write.hover_idx = idx;
                     ds_write.hover_after = false;
@@ -252,8 +253,8 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     );
                 },
                 div { class: "id-badge",
-                    span { class: "id-cat", "ISS-" }
-                    span { class: "id-num", "{id}" }
+                    span { class: "id-cat", "{id_category}-" }
+                    span { class: "id-num", "{id_number}" }
                 }
                 div { class: "issue-body",
                     div { class: "issue-title",

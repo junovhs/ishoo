@@ -140,7 +140,7 @@ fn skip_and_extract_text<'a>(parser: &mut impl Iterator<Item = (Event<'a>, std::
     extracted
 }
 
-fn new_issue(id: u32, title: String, section: &str) -> Issue {
+fn new_issue(id: String, title: String, section: &str) -> Issue {
     Issue {
         id,
         title,
@@ -201,10 +201,13 @@ fn parse_labels(val: &str) -> Vec<String> {
         .collect()
 }
 
-fn parse_dep_ids(rest: &str) -> Vec<u32> {
-    rest.split(|c: char| !c.is_ascii_digit())
-        .filter(|s| !s.is_empty())
-        .filter_map(|s| s.parse().ok())
+fn parse_dep_ids(rest: &str) -> Vec<String> {
+    rest.split(',')
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(|token| token.trim_matches(|ch| ch == '[' || ch == ']'))
+        .filter(|token| !token.is_empty())
+        .map(str::to_owned)
         .collect()
 }
 
@@ -220,22 +223,25 @@ fn accumulate_text(cur: &mut Issue, line: &str, in_resolution: bool) {
     target.push_str(line);
 }
 
-fn try_parse_heading(line: &str) -> Option<(u32, String)> {
+fn try_parse_heading(line: &str) -> Option<(String, String)> {
     let line = line.trim();
     let rest = line.strip_prefix("## [")?;
     let close = rest.find(']')?;
-    let id: u32 = rest[..close].parse().ok()?;
+    let id = rest[..close].trim().to_owned();
+    if id.is_empty() {
+        return None;
+    }
     let title = rest[close + 1..].trim().to_owned();
     Some((id, title))
 }
 
-fn extract_links(issue: &Issue) -> Vec<u32> {
+fn extract_links(issue: &Issue) -> Vec<String> {
     let mut links = vec![];
     let mut seen = std::collections::BTreeSet::new();
 
     for text in [&issue.title, &issue.description, &issue.resolution] { // neti:allow(P04)
         for link in extract_mentions(text) {
-            if link != issue.id && seen.insert(link) {
+            if link != issue.id && seen.insert(link.clone()) {
                 links.push(link);
             }
         }
@@ -244,7 +250,7 @@ fn extract_links(issue: &Issue) -> Vec<u32> {
     links
 }
 
-fn extract_mentions(text: &str) -> Vec<u32> {
+fn extract_mentions(text: &str) -> Vec<String> {
     let bytes = text.as_bytes();
     let mut links = vec![];
     let mut idx = 0;
@@ -257,15 +263,20 @@ fn extract_mentions(text: &str) -> Vec<u32> {
 
         let start = idx + 1;
         let mut end = start;
-        while end < bytes.len() && bytes[end].is_ascii_digit() { // neti:allow(P04)
+        while end < bytes.len() // neti:allow(P04)
+            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'-')
+        {
             end += 1;
         }
 
         if end > start {
             let prev = idx.checked_sub(1).map(|prev_idx| bytes[prev_idx]);
             if prev.is_none_or(|prev| !prev.is_ascii_alphanumeric() && prev != b'-') {
-                if let Ok(id) = text[start..end].parse::<u32>() {
-                    links.push(id);
+                let candidate = &text[start..end];
+                if candidate.chars().all(|ch| ch.is_ascii_digit())
+                    || super::parse_categorical_issue_id(candidate).is_some()
+                {
+                    links.push(candidate.to_string()); // neti:allow(P02)
                 }
             }
         }
@@ -282,8 +293,8 @@ mod tests {
 
     #[test]
     fn test_parse_heading() {
-        let (id, title) = try_parse_heading("## [47] Dep Extraction Silent Failure").unwrap();
-        assert_eq!(id, 47);
+        let (id, title) = try_parse_heading("## [BUG-47] Dep Extraction Silent Failure").unwrap();
+        assert_eq!(id, "BUG-47");
         assert_eq!(title, "Dep Extraction Silent Failure");
     }
 
@@ -299,24 +310,25 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let md = "# Test\n\n---\n\n## [1] First\n**Status:** OPEN\n**Files:** `a.rs`, `b.rs`\n**Labels:** parser, ui polish\n\nDesc here.\n\n**Resolution:** \n\n---\n";
+        let md = "# Test\n\n---\n\n## [BUG-01] First\n**Status:** OPEN\n**Files:** `a.rs`, `b.rs`\n**Labels:** parser, ui polish\n**Depends on:** [FT-02], [3]\n\nDesc here.\n\n**Resolution:** \n\n---\n";
         let issues = parse_markdown(md, "Test");
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].id, 1);
+        assert_eq!(issues[0].id, "BUG-01");
         assert_eq!(issues[0].files, vec!["a.rs", "b.rs"]);
         assert_eq!(issues[0].labels, vec!["parser", "ui polish"]);
+        assert_eq!(issues[0].depends_on, vec!["FT-02", "3"]);
     }
 
     #[test]
     fn parse_markdown_extracts_unique_issue_mentions_from_body_and_resolution() {
-        let md = "# Test\n\n---\n\n## [8] Mentioned links\n**Status:** OPEN\n\nFollow up after #3 and #12.\nRepeat #3 here.\n\n**Resolution:** Closed by #9\n\n---\n";
+        let md = "# Test\n\n---\n\n## [BUG-08] Mentioned links\n**Status:** OPEN\n\nFollow up after #FT-03 and #BUG-12.\nRepeat #FT-03 here.\n\n**Resolution:** Closed by #UI-09\n\n---\n";
         let issues = parse_markdown(md, "Test");
-        assert_eq!(issues[0].links, vec![3, 12, 9]);
+        assert_eq!(issues[0].links, vec!["FT-03", "BUG-12", "UI-09"]);
     }
 
     #[test]
     fn parse_markdown_ignores_self_mentions_and_embedded_hashes() {
-        let md = "# Test\n\n---\n\n## [8] Mentioned links\n**Status:** OPEN\n\nIgnore self #8 and wordabc#9 and slug-#7.\n\n**Resolution:** \n\n---\n";
+        let md = "# Test\n\n---\n\n## [BUG-08] Mentioned links\n**Status:** OPEN\n\nIgnore self #BUG-08 and wordabc#BUG-09 and slug-#BUG-07.\n\n**Resolution:** \n\n---\n";
         let issues = parse_markdown(md, "Test");
         assert!(issues[0].links.is_empty());
     }
@@ -331,9 +343,9 @@ mod tests {
 
     #[test]
     fn test_depends_on_parsing() {
-        let md = "# Test\n\n## [3] Third\n**Status:** OPEN\n**Depends on:** [1], [2]\n\n**Resolution:** \n";
+        let md = "# Test\n\n## [BUG-03] Third\n**Status:** OPEN\n**Depends on:** [FT-01], [UI-02]\n\n**Resolution:** \n";
         let issues = parse_markdown(md, "Test");
-        assert_eq!(issues[0].depends_on, vec![1, 2]);
+        assert_eq!(issues[0].depends_on, vec!["FT-01", "UI-02"]);
     }
 
     #[test]

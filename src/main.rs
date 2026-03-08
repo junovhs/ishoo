@@ -26,16 +26,18 @@ enum Commands {
         filter: Option<String>,
     },
     Show {
-        id: u32,
+        id: String,
     },
     Set {
-        id: u32,
+        id: String,
         status: String,
     },
     Heatmap,
     Dash,
     New {
         title: String,
+        #[arg(long, default_value = "iss")]
+        category: String,
         #[arg(short, long, default_value = "open")]
         status: String,
     },
@@ -67,21 +69,20 @@ fn main() {
                 }
                 Some(Commands::Show { id }) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
-                    model::cli_show(&ws, *id);
+                    model::cli_show(&ws, id);
                 }
                 Some(Commands::Set { id, status }) => {
                     let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
-                    model::cli_set_status(&mut ws, *id, status).expect("Failed to set status");
+                    model::cli_set_status(&mut ws, id, status).expect("Failed to set status");
                 }
                 Some(Commands::Heatmap) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     model::cli_heatmap(&ws);
                 }
-                Some(Commands::New { title, status }) => {
+                Some(Commands::New { title, category, status }) => {
                     let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
-                    let max_id = ws.issues.iter().map(|i| i.id).max().unwrap_or(0);
                     let issue = model::Issue {
-                        id: max_id + 1,
+                        id: ws.allocate_issue_id(category).expect("Failed to allocate issue ID"),
                         title: title.clone(),
                         status: model::Status::from_str(status),
                         files: vec![],

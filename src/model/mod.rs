@@ -12,6 +12,7 @@ pub use workspace::Workspace;
 
 const ISSUE_FILES: [&str; 3] = ["issues-active.md", "issues-backlog.md", "issues-done.md"];
 const DEFAULT_SUBDIR: &str = "docs/issues";
+const DEFAULT_ISSUE_CATEGORY: &str = "ISS";
 
 /// Returns the default init path (base/docs/issues)
 pub fn default_init_path(base: &Path) -> PathBuf {
@@ -150,16 +151,16 @@ impl Status {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Issue {
-    pub id: u32,
+    pub id: String,
     pub title: String,
     pub status: Status,
     pub files: Vec<String>,
     pub labels: Vec<String>,
-    pub links: Vec<u32>,
+    pub links: Vec<String>,
     pub description: String,
     pub resolution: String,
     pub section: String,
-    pub depends_on: Vec<u32>,
+    pub depends_on: Vec<String>,
 }
 
 impl Issue {
@@ -180,6 +181,62 @@ pub struct Stats {
     pub done: usize,
     pub descoped: usize,
     pub total: usize,
+}
+
+pub fn normalize_issue_category(raw: &str) -> String {
+    let cleaned = raw
+        .chars()
+        .filter(|ch| ch.is_ascii_alphabetic())
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        DEFAULT_ISSUE_CATEGORY.to_string()
+    } else {
+        trimmed.chars().take(4).collect()
+    }
+}
+
+pub fn format_issue_id(category: &str, number: u32) -> String {
+    format!("{}-{number:02}", normalize_issue_category(category))
+}
+
+pub fn split_issue_id(id: &str) -> (String, String) {
+    let trimmed = id.trim();
+    if let Some((category, number)) = parse_categorical_issue_id(trimmed) {
+        return (category, format!("{number:02}"));
+    }
+    if trimmed.chars().all(|ch| ch.is_ascii_digit()) && !trimmed.is_empty() {
+        return (DEFAULT_ISSUE_CATEGORY.to_string(), trimmed.to_string());
+    }
+    if let Some((category, suffix)) = trimmed.split_once('-') {
+        return (category.to_ascii_uppercase(), suffix.to_string());
+    }
+    (DEFAULT_ISSUE_CATEGORY.to_string(), trimmed.to_string())
+}
+
+pub fn issue_id_sort_key(id: &str) -> (String, u32, String) {
+    if let Some((category, number)) = parse_categorical_issue_id(id) {
+        return (category, number, id.to_string());
+    }
+    if let Ok(number) = id.parse::<u32>() {
+        return (DEFAULT_ISSUE_CATEGORY.to_string(), number, id.to_string());
+    }
+    let (category, suffix) = split_issue_id(id);
+    (category, 0, suffix)
+}
+
+pub fn parse_categorical_issue_id(id: &str) -> Option<(String, u32)> {
+    let (category, number) = id.trim().split_once('-')?;
+    if category.is_empty()
+        || category.len() > 4
+        || !category.chars().all(|ch| ch.is_ascii_uppercase())
+        || number.is_empty()
+        || !number.chars().all(|ch| ch.is_ascii_digit())
+    {
+        return None;
+    }
+    Some((category.to_string(), number.parse().ok()?))
 }
 
 #[cfg(test)]

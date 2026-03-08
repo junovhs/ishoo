@@ -8,8 +8,9 @@ description = "A portable markdown-based issue tracker with a beautiful Dioxus d
 dioxus = { version = "0.7", features = ["desktop"] }
 serde = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
-tokio = { version = "1", features = ["time", "rt"] }
+tokio = { version = "1", features = ["time", "rt", "sync"] }
 pulldown-cmark = "0.13.1"
+notify = "8"
 
 [dev-dependencies]
 tempfile = "3"

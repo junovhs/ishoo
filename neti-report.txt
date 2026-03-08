@@ -2,40 +2,40 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 35 files | 108314 tokens | 2 violations
+SCAN SUMMARY: 34 files | 100426 tokens | 2 violations
 
 ALL VIOLATING FILES:
     2 violations | src/model/workspace.rs
 
-warn: Class 'Workspace' is tightly coupled (CBO: 18)
-  --> src/model/workspace.rs:7
+warn: Class 'Workspace' is tightly coupled (CBO: 37)
+  --> src/model/workspace.rs:10
    |
-     6 | #[derive(Debug, Clone)]
-     7 | pub struct Workspace { // neti:allow(CBO, SFOUT)
+     9 | #[derive(Debug, Clone)]
+    10 | pub struct Workspace { // neti:allow(CBO, SFOUT)
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     8 |     pub root: PathBuf,
+    11 |     pub root: PathBuf,
    = CBO: Review recommended — accurate measurement, but may be expected for central/hub types
    |
    = ANALYSIS:
-   |   External dependencies: 18
+   |   External dependencies: 37
    |
    = SUPPRESS: // neti:allow(CBO) on the line, or CBO = "warn" in neti.toml [rules]
 
-warn: Class 'Workspace' has high fan-out (SFOUT: 8)
-  --> src/model/workspace.rs:7
+warn: Class 'Workspace' has high fan-out (SFOUT: 18)
+  --> src/model/workspace.rs:10
    |
-     6 | #[derive(Debug, Clone)]
-     7 | pub struct Workspace { // neti:allow(CBO, SFOUT)
+     9 | #[derive(Debug, Clone)]
+    10 | pub struct Workspace { // neti:allow(CBO, SFOUT)
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     8 |     pub root: PathBuf,
+    11 |     pub root: PathBuf,
    = SFOUT: Review recommended — high fan-out may be intentional for orchestrator/coordinator functions
    |
    = ANALYSIS:
-   |   Max outgoing calls: 8
+   |   Max outgoing calls: 18
    |
    = SUPPRESS: // neti:allow(SFOUT) on the line, or SFOUT = "warn" in neti.toml [rules]
 
-~ Neti found 2 warnings (410ms).
+~ Neti found 2 warnings (413ms).
 
 
 ========================================
@@ -54,8 +54,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (2056ms)
+> PASS (358ms)
 
 $ cargo test
-> PASS (1725ms)
+> PASS (342ms)
 
