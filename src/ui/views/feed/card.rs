@@ -1,6 +1,6 @@
 use crate::model::Issue;
 use crate::ui::components::label_tone_class;
-use crate::ui::views::feed::{apply_drag_deadzone, DragState, DRAG_DEADZONE_PX};
+use crate::ui::views::feed::{apply_drag_deadzone, DragState, RecentDropState, DRAG_DEADZONE_PX};
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq, Props)]
@@ -9,6 +9,7 @@ pub struct IssueCardProps {
     pub idx: usize,
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
     pub drag_state: Signal<DragState>,
+    pub recent_drop: Signal<RecentDropState>,
     pub is_compact: bool,
     pub array_reordered: bool,
     pub is_hidden: bool,
@@ -21,9 +22,12 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let id = i.id;
     let idx = props.idx;
     let ds = props.drag_state.read();
+    let rd = props.recent_drop.read();
 
     let is_dragging = ds.dragging_id == Some(id);
     let array_reordered = props.array_reordered;
+    let is_recent_drop = rd.id == Some(id);
+    let hover_armed = rd.hover_armed;
 
     // Keep live drag displacement local to the card layer instead of simulating
     // array reorder in the parent; this avoids downward cards appearing to jump
@@ -86,6 +90,12 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     if ds.releasing && is_dragging {
         cls.push_str(" settling");
     }
+    if is_recent_drop {
+        cls.push_str(" recent-drop");
+        if hover_armed {
+            cls.push_str(" hover-armed");
+        }
+    }
 
     let outer_style = format!(
         "position: absolute; top: 0; left: 0px; right: 0px; transform: translate3d(0, {y_pos}px, 0){}; transition: {transition}; opacity: {}; pointer-events: {};",
@@ -95,6 +105,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     );
 
     let mut drag_state_signal = props.drag_state;
+    let mut recent_drop_signal = props.recent_drop;
 
     let is_done = i.status == crate::model::Status::Done || i.status == crate::model::Status::Descoped;
     let sec_lower = i.section.to_lowercase();
@@ -116,6 +127,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                 class: "issue-row",
                 onpointerdown: move |e| {
                     e.prevent_default();
+                    recent_drop_signal.set(RecentDropState::default());
                     let mut ds_write = drag_state_signal.write();
                     ds_write.dragging_id = Some(id);
                     ds_write.start_idx = idx;

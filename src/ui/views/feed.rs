@@ -66,6 +66,14 @@ pub struct DragState {
     pub releasing: bool,
 }
 
+#[derive(Clone, Default, PartialEq)]
+pub struct RecentDropState {
+    pub id: Option<u32>,
+    pub release_x: f32,
+    pub release_y: f32,
+    pub hover_armed: bool,
+}
+
 #[derive(Clone, PartialEq, Props)]
 pub struct FeedViewProps {
     pub is_compact: bool,
@@ -81,6 +89,7 @@ pub struct FeedViewProps {
 #[component]
 pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
+    let mut recent_drop = use_signal(RecentDropState::default);
     let mut modal_id: Signal<Option<u32>> = use_signal(|| None);
     let on_reorder = props.on_reorder;
     let on_section_toggle = props.on_section_toggle;
@@ -102,6 +111,21 @@ pub fn FeedView(props: FeedViewProps) -> Element {
         div {
             class: if props.is_compact { "feed compact" } else { "feed" },
             onpointermove: move |e| {
+                {
+                    let rd = recent_drop.read();
+                    if let Some(_id) = rd.id {
+                        if !rd.hover_armed {
+                            let dx = e.client_coordinates().x as f32 - rd.release_x;
+                            let dy = e.client_coordinates().y as f32 - rd.release_y;
+                            if (dx * dx + dy * dy).sqrt() >= 20.0 {
+                                drop(rd);
+                                let mut rdw = recent_drop.write();
+                                rdw.hover_armed = true;
+                            }
+                        }
+                    }
+                }
+
                 // BUG FIX: Do not unconditionally call drag_state.write() here!
                 // Calling .write() dirties the signal and forces every single IssueCard
                 // to re-render on *every single mouse move*. Read first, write only if dragging.
@@ -179,7 +203,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     .map(|(_, _, after)| *after)
                     .unwrap_or(false);
             },
-            onpointerup: move |_| {
+            onpointerup: move |e| {
                 let mut ds = drag_state.write();
                 if let Some(id) = ds.dragging_id {
                     if ds.releasing { return; }
@@ -199,6 +223,12 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     let start_idx = ds.start_idx;
                     let hover_idx = ds.hover_idx;
                     let hover_after = ds.hover_after;
+                    recent_drop.set(RecentDropState {
+                        id: Some(id),
+                        release_x: e.client_coordinates().x as f32,
+                        release_y: e.client_coordinates().y as f32,
+                        hover_armed: false,
+                    });
                     
                     // MUST drop the write lock before we can copy the drag_state signal
                     // into the spawned future
@@ -327,6 +357,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                                     idx: idx,
                                     virtual_y: target_y,
                                     drag_state: drag_state,
+                                    recent_drop: recent_drop,
                                     is_compact: props.is_compact,
                                     array_reordered: array_reordered,
                                     is_hidden: is_collapsed,

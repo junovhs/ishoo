@@ -298,3 +298,36 @@ Requirements:
 **Resolution:** Added comma-separated label input to the new-issue modal and to the issue modal, wiring both through the existing markdown persistence path so edits save back as `**Labels:**` metadata. Added parsing tests to cover trimming and empty-value removal. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
 ---
+
+## [117] Feed Drag-and-Drop: Restore symmetric live displacement and stable release
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+
+Recent tag and UI work exposed multiple regressions in the feed drag-and-drop interaction. Dragging upward still felt correct, but dragging downward caused displaced cards to snap across the held card, release into the wrong slot, or correct themselves with visible secondary pops.
+
+Requirements:
+
+- Keep the held card pinned under the pointer throughout drag
+- Make upward and downward displacement feel symmetric
+- Eliminate release snapback, overshoot, and secondary correction pops
+- Preserve the tuned drag deadzone and settle feel
+
+**Resolution:** Reworked the feed drag model so live drag no longer simulates a reordered array; instead, crossed cards apply a local one-slot displacement while the held card stays anchored to its original pickup slot plus cursor offset. Extracted tested hover-slot logic in `feed.rs`, unified hover selection and visual drag motion behind a shared drag deadzone helper, and corrected the release path so reorder commit and drag-state clearing no longer create dip/pop artifacts for passed-over cards. Added focused tests for tiny downward movement, first-boundary downward crossing, and upward parity. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
+## [118] Feed UX: Suppress immediate post-drop re-hover on released card
+**Status:** DONE
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+
+After a drag settles into place, the released card immediately re-enters its hover animation if the pointer is still over it. This creates an ugly second lift/shadow pulse right after the card has already nestled into its slot.
+
+Requirements:
+
+- Prevent the released card from immediately re-triggering hover lift/shadow
+- Re-arm hover only after the pointer has moved meaningfully away from the release point
+- If the pointer is still over the card once re-armed, bring the hover effect back more gently than normal
+
+**Resolution:** Added a `RecentDropState` in `feed.rs` that tracks the just-released card and the pointer release position. The released card now suppresses hover lift/shadow until the pointer has moved at least 20px away, after which hover is re-armed. Added targeted CSS classes so the first hover return on that card uses a slower transition instead of the normal immediate lift. Starting a new drag clears the state. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---

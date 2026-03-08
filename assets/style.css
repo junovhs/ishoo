@@ -524,6 +524,20 @@ html.dark .label-filter.active {
     z-index: 10;
 }
 
+.item.recent-drop {
+    z-index: 20;
+}
+
+.item.recent-drop:not(.hover-armed) .issue-row:hover {
+    background: var(--bg);
+    box-shadow: none;
+    transform: none;
+}
+
+.item.recent-drop.hover-armed .issue-row {
+    transition: background 0.3s ease, box-shadow 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
 /* Base hover - gently lift towards user */
 .issue-row:hover {
     background: var(--bg);
