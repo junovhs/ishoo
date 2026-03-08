@@ -2,6 +2,42 @@
 
 ---
 
+## [131] Feed/Text Crispness: eliminate transform-induced fuzz during scroll settle and hover
+**Status:** OPEN
+**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** feed, polish
+
+The feed text is not consistently crisp. In particular:
+
+- Scroll all the way to the top, let the motion settle, and issue text can land in a slightly fuzzy state
+- Hovering an issue can also soften the text briefly when the row lifts/expands
+- This is subtle, but once noticed it makes the UI feel less exact than it should
+
+This is likely a transform/rendering problem, not a typography problem. The most suspicious causes already in the code are:
+
+- Fractional `translate3d(...)` values applied during custom scrolling in `src/ui/scroll.rs`
+- Feed card positioning with transform-based movement in `src/ui/views/feed/card.rs`
+- Hover/press scaling on text-bearing issue rows in `assets/style.css`
+- App-level `zoom` usage in `src/ui/app.rs`, which may amplify subpixel softness in combination with transforms
+
+Requirements:
+
+- Keep issue text visually crisp at rest after scrolling settles
+- Keep issue text crisp during normal hover and press interactions
+- Preserve the existing feel as much as possible; this should be a rendering-quality fix, not a behavioral redesign
+- Prefer pixel-snapped movement and non-scaling hover treatments over text-bearing scale transforms
+- If there is still an unavoidable tradeoff, prioritize text crispness over tiny amounts of motion flourish
+
+Suggested direction:
+
+- Snap scroll and sticky-header transforms to whole pixels before writing them to the DOM
+- Remove or reduce scale transforms on `.issue-row` and preserve the feel through shadow, color, border, or slight translate-only motion
+- Audit whether app zoom plus transformed children is producing compounded softness, and tighten that path if needed
+
+**Resolution:** 
+
+---
+
 ## [121] Board Drag Feel: cursor anchoring must match Feed exactly
 **Status:** OPEN
 **Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`
