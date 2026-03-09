@@ -2,45 +2,23 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 39 files | 124274 tokens | 16 violations
+SCAN SUMMARY: 40 files | 125562 tokens | 15 violations
 
 ALL VIOLATING FILES:
     6 violations | src\ui\views\feed.rs
-    4 violations | src\model\parse.rs
+    3 violations | src\ui\feed_lens.rs
     2 violations | src\ui\app.rs
     2 violations | src\ui\views\feed\card.rs
-    1 violations | src\model\lint.rs
+    1 violations | src\model\parse.rs
     1 violations | src\ui\views\board.rs
 
-error: [1 of 3] String conversion inside loop
-  --> src\model\lint.rs:21
+warn: [1 of 6] Nested loop (O(n²)) detected
+  --> src\model\parse.rs:281
    |
-    20 |                     line: line_number,
-    21 |                     message: "invalid issue heading: missing closing ']'".to_owned(), // neti:allow(P02)
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    22 |                 });
-   = P02: Fix required
-   |
-   = ANALYSIS:
-   |   `"invalid issue heading: missing closing ']'".to_string()` allocates a new String on every iteration.
-   |
-   = WHY: String conversion inside a loop allocates a new String on every iteration.
-   |
-   = FIX: Hoist the conversion before the loop, or operate on borrowed string slices (&str).
-   |
-   = SUPPRESS: // neti:allow(P02) on the line, or P02 = "warn" in neti.toml [rules]
-
-error: [2 of 3] String conversion inside loop
-  --> src\model\parse.rs:22
-   = P02: `t.to_string()` allocates a new String on every iteration. — see first P02 above
-
-warn: [1 of 4] Nested loop (O(n²)) detected
-  --> src\model\parse.rs:257
-   |
-   256 |         // neti:allow(P04)
-   257 |         for link in extract_mentions(text) {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   258 |             if link != issue.id && seen.insert(link.clone()) {
+   280 |         let mut end = start;
+   281 |         while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'-') {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   282 |             end += 1;
    = P04: Review recommended — inner loop may be bounded to a small constant
    |
    = ANALYSIS:
@@ -52,20 +30,12 @@ warn: [1 of 4] Nested loop (O(n²)) detected
    |
    = SUPPRESS: // neti:allow(P04) on the line, or P04 = "warn" in neti.toml [rules]
 
-error: [3 of 3] String conversion inside loop
-  --> src\model\parse.rs:293
-   = P02: `candidate.to_string()` allocates a new String on every iteration. — see first P02 above
-
-warn: [2 of 4] Nested loop (O(n²)) detected
-  --> src\model\parse.rs:280
-   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
-
-error: [1 of 4] File size is 12453 tokens (Limit: 3300)
+error: [1 of 4] File size is 10842 tokens (Limit: 3300)
   --> src\ui\app.rs:1
    |
-     1 | // neti:allow(LAW OF ATOMICITY)
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     2 | use super::toast::{Toast, ToastContainer, ToastKind};
+     1 | use super::toast::{Toast, ToastContainer, ToastKind};
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     2 | use super::feed_lens::{apply_feed_lens, FeedLens};
    = LAW OF ATOMICITY: Fix required
    |
    = WHY: Files beyond the token limit are too large for a single unit of work, increasing cognitive load and merge conflict risk.
@@ -74,8 +44,20 @@ error: [1 of 4] File size is 12453 tokens (Limit: 3300)
    |
    = SUPPRESS: // neti:allow(LAW OF ATOMICITY) on the line, or LAW OF ATOMICITY = "warn" in neti.toml [rules]
 
-warn: [3 of 4] Nested loop (O(n²)) detected
-  --> src\ui\app.rs:133
+warn: [2 of 6] Nested loop (O(n²)) detected
+  --> src\ui\app.rs:122
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+warn: [3 of 6] Nested loop (O(n²)) detected
+  --> src\ui\feed_lens.rs:196
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+warn: [4 of 6] Nested loop (O(n²)) detected
+  --> src\ui\feed_lens.rs:245
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+warn: [5 of 6] Nested loop (O(n²)) detected
+  --> src\ui\feed_lens.rs:275
    = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
 error: [2 of 4] File size is 4179 tokens (Limit: 3300)
@@ -104,7 +86,7 @@ error: [4 of 4] File size is 8580 tokens (Limit: 3300)
   --> src\ui\views\feed.rs:1
    = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
 
-warn: [4 of 4] Nested loop (O(n²)) detected
+warn: [6 of 6] Nested loop (O(n²)) detected
   --> src\ui\views\feed.rs:180
    = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
@@ -139,7 +121,7 @@ warn: [4 of 4] Detected `.clone()` inside a loop
   --> src\ui\views\feed.rs:309
    = P01: Receiver `dp.dragging_key` appears to be a heap-owning type. — see first P01 above
 
-X Neti found 8 errors, 8 warnings (772ms).
+X Neti found 5 errors, 10 warnings (498ms).
 
 
 ========================================
@@ -147,7 +129,7 @@ NETI LOCALITY REPORT
 ========================================
 
 Mode: warn
-Edges analyzed: 15
+Edges analyzed: 16
 Violations: 0
 Cycles: 0
 Result: PASS
@@ -158,8 +140,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (3600ms)
+> PASS (488ms)
 
 $ cargo test
-> PASS (7032ms)
+> PASS (475ms)
 

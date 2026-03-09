@@ -32,7 +32,7 @@ If you cannot provide this evidence, stop and run the missing SEMMAP/Neti steps 
 3. Use `semmap trace <entry_file>` for flow-dependent work or unclear ownership.
 4. Declare a minimal working set, then read only those files (prefer `semmap cat`; use other tools if needed).
 5. Make minimal edits that respect SEMMAP boundaries; hotspots = smaller diffs + stronger tests.
-6. After the change set is in place, run `neti check` (view `neti-report.txt` in repo root for full output). Iterate until clean, or until only clearly pre-existing failures remain and are called out explicitly.
+6. After the change set is in place, run `neti check` (view `neti-report.txt` in repo root for full output). Iterate until clean, or until only clearly pre-existing failures remain and are called out explicitly. You must resolve all technical debt before moving forward, you are not allowed to say "I didnt break it so im leaving it broken", EVER. 
 7. If you manually exercise a CLI or user-facing flow, report the exact command, the important output, and the exit code when relevant.
 
 ## Issue discipline

@@ -1,5 +1,6 @@
 mod app;
 mod components;
+mod feed_lens;
 pub(crate) mod scroll;
 mod toast;
 mod views;

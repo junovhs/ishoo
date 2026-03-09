@@ -1,15 +1,13 @@
 use super::toast::{Toast, ToastContainer, ToastKind};
+use super::feed_lens::{apply_feed_lens, FeedLens};
 use super::welcome::WelcomeScreen;
 use super::{components, get_workspace_path, views, View};
-use crate::model::{
-    issue_id_sort_key, reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace,
-};
+use crate::model::{reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
 use dioxus::desktop::tao::window::{CursorIcon, ResizeDirection};
 use dioxus::desktop::use_window;
 use dioxus::document::eval;
 use dioxus::prelude::*;
 use notify::{recommended_watcher, Event as NotifyEvent, EventKind, RecursiveMode, Watcher};
-use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -27,14 +25,6 @@ struct TopbarState {
     active_label: Signal<Option<String>>,
     show_all_labels: Signal<bool>,
     active_lens: Signal<FeedLens>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum FeedLens {
-    MyOrder,
-    NextUp,
-    HotPath,
-    QuickWins,
 }
 
 const STYLESHEET: &str = include_str!("../../assets/style.css");
@@ -722,6 +712,16 @@ fn render_topbar(
                     },
                     "Quick Wins"
                 }
+                button {
+                    class: if active_lens() == FeedLens::LinkGroups { "lens active" } else { "lens" },
+                    onclick: move |_| {
+                        active_lens.set(FeedLens::LinkGroups);
+                        physics.write().reset();
+                        super::scroll::jump_to_top();
+                        animating.set(true);
+                    },
+                    "Linked"
+                }
             }
             if !available_labels.is_empty() {
                 div { class: "label-filter-bar",
@@ -1100,144 +1100,6 @@ fn section_sort_key(section: &str) -> (u8, String) {
     (rank, normalized)
 }
 
-fn apply_feed_lens(all_issues: &[Issue], mut issues: Vec<Issue>, lens: FeedLens) -> Vec<Issue> {
-    if lens == FeedLens::MyOrder {
-        return issues;
-    }
-
-    let metrics = LensMetrics::from_issues(all_issues);
-    issues.sort_by(|left, right| {
-        metrics
-            .sort_key(left, lens)
-            .cmp(&metrics.sort_key(right, lens))
-            .then_with(|| issue_id_sort_key(&left.id).cmp(&issue_id_sort_key(&right.id)))
-    });
-    issues
-}
-
-#[derive(Debug, Default)]
-struct LensMetrics {
-    hot_scores: HashMap<String, usize>,
-    unblock_scores: HashMap<String, usize>,
-    quick_costs: HashMap<String, usize>,
-}
-
-impl LensMetrics {
-    fn from_issues(issues: &[Issue]) -> Self {
-        let ws = Workspace {
-            root: PathBuf::new(),
-            issues: issues.to_vec(),
-        };
-
-        let mut file_weights = HashMap::<String, usize>::new();
-        for (file, ids) in ws.file_heatmap() {
-            file_weights.insert(file, ids.len());
-        }
-
-        let mut dependents = HashMap::<String, Vec<String>>::new();
-        for (dependency, dependent) in ws.dependency_edges() {
-            dependents.entry(dependency).or_default().push(dependent);
-        }
-
-        let active_issue_ids = issues
-            .iter()
-            .filter(|issue| issue.status != Status::Done && issue.status != Status::Descoped)
-            .map(|issue| issue.id.clone())
-            .collect::<HashSet<_>>();
-
-        let hot_scores = issues
-            .iter()
-            .map(|issue| {
-                let score = issue
-                    .files
-                    .iter()
-                    .map(|file| file_weights.get(file).copied().unwrap_or(1))
-                    .sum::<usize>();
-                (issue.id.clone(), score)
-            })
-            .collect::<HashMap<_, _>>();
-
-        let quick_costs = issues
-            .iter()
-            .map(|issue| {
-                let heat = hot_scores.get(&issue.id).copied().unwrap_or_default();
-                let cost = heat + (issue.files.len() * 2) + (issue.depends_on.len() * 3);
-                (issue.id.clone(), cost)
-            })
-            .collect::<HashMap<_, _>>();
-
-        let mut unblock_scores = HashMap::<String, usize>::new();
-        for issue in issues {
-            let mut visited = HashSet::new();
-            let score =
-                transitive_dependents(&issue.id, &dependents, &active_issue_ids, &mut visited);
-            unblock_scores.insert(issue.id.clone(), score);
-        }
-
-        Self {
-            hot_scores,
-            unblock_scores,
-            quick_costs,
-        }
-    }
-
-    fn sort_key(
-        &self,
-        issue: &Issue,
-        lens: FeedLens,
-    ) -> (usize, usize, usize, (String, u32, String)) {
-        match lens {
-            FeedLens::MyOrder => (0, 0, 0, issue_id_sort_key(&issue.id)),
-            FeedLens::NextUp => (
-                usize::MAX
-                    - self
-                        .unblock_scores
-                        .get(&issue.id)
-                        .copied()
-                        .unwrap_or_default(),
-                issue.status_ord() as usize,
-                self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
-                issue_id_sort_key(&issue.id),
-            ),
-            FeedLens::HotPath => (
-                usize::MAX - self.hot_scores.get(&issue.id).copied().unwrap_or_default(),
-                issue.status_ord() as usize,
-                issue.files.len(),
-                issue_id_sort_key(&issue.id),
-            ),
-            FeedLens::QuickWins => (
-                self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
-                issue.status_ord() as usize,
-                self.unblock_scores
-                    .get(&issue.id)
-                    .copied()
-                    .unwrap_or_default(),
-                issue_id_sort_key(&issue.id),
-            ),
-        }
-    }
-}
-
-fn transitive_dependents(
-    id: &str,
-    dependents: &HashMap<String, Vec<String>>,
-    active_issue_ids: &HashSet<String>,
-    visited: &mut HashSet<String>,
-) -> usize {
-    let Some(children) = dependents.get(id) else {
-        return 0;
-    };
-
-    let mut total = 0;
-    for child in children {
-        if !active_issue_ids.contains(child) || !visited.insert(child.clone()) {
-            continue;
-        }
-        total += 1 + transitive_dependents(child, dependents, active_issue_ids, visited);
-    }
-    total
-}
-
 fn collect_labels(issues: &[Issue]) -> Vec<String> {
     let mut labels = issues
         .iter()
@@ -1282,9 +1144,8 @@ fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<I
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_feed_lens, can_apply_external_reload, collect_labels, compute_breakdown,
-        filter_issues, parse_label_input, reorder_issues, section_counts, should_reload_for_event,
-        FeedLens,
+        can_apply_external_reload, collect_labels, compute_breakdown, filter_issues,
+        parse_label_input, reorder_issues, section_counts, should_reload_for_event,
     };
     use crate::model::{Issue, Status};
     use notify::event::{AccessKind, AccessMode, CreateKind, DataChange, ModifyKind};
@@ -1306,26 +1167,6 @@ mod tests {
         }
     }
 
-    fn make_issue_with_graph(
-        id: &str,
-        title: &str,
-        status: Status,
-        files: &[&str],
-        depends_on: &[&str],
-    ) -> Issue {
-        Issue {
-            id: id.to_string(),
-            title: title.to_string(),
-            status,
-            files: files.iter().map(|file| file.to_string()).collect(),
-            labels: vec![],
-            links: vec![],
-            description: String::new(),
-            resolution: String::new(),
-            section: "ACTIVE Issues".to_string(),
-            depends_on: depends_on.iter().map(|dep| dep.to_string()).collect(),
-        }
-    }
 
     #[test]
     fn reorder_issues_uses_section_scoped_instance_keys() {
@@ -1441,7 +1282,6 @@ mod tests {
 
         assert_eq!(collect_labels(&issues), vec!["core", "frontend", "ux"]);
     }
-
     #[test]
     fn section_counts_groups_and_orders_sections() {
         let mut active = make_issue("BUG-01", "Parser cleanup", &[]);
@@ -1460,6 +1300,7 @@ mod tests {
             ]
         );
     }
+
 
     #[test]
     fn compute_breakdown_uses_section_counts_instead_of_status_names() {
@@ -1481,59 +1322,7 @@ mod tests {
         assert_eq!(stats.done, 1);
     }
 
-    #[test]
-    fn next_up_lens_prioritizes_transitive_unblock_count() {
-        let issues = vec![
-            make_issue_with_graph("BUG-01", "Base", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph(
-                "BUG-02",
-                "Middle",
-                Status::Open,
-                &["src/main.rs"],
-                &["BUG-01"],
-            ),
-            make_issue_with_graph("BUG-03", "Leaf", Status::Open, &["src/ui.rs"], &["BUG-02"]),
-        ];
 
-        let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::NextUp);
-        assert_eq!(
-            sorted
-                .iter()
-                .map(|issue| issue.id.clone())
-                .collect::<Vec<_>>(),
-            vec!["BUG-01", "BUG-02", "BUG-03"]
-        );
-    }
 
-    #[test]
-    fn hot_path_lens_prioritizes_hotter_files() {
-        let issues = vec![
-            make_issue_with_graph("BUG-01", "Shared A", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph("BUG-02", "Shared B", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph("BUG-03", "Cold", Status::Open, &["src/cold.rs"], &[]),
-        ];
 
-        let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::HotPath);
-        assert_eq!(sorted[0].id, "BUG-01");
-        assert_eq!(sorted[1].id, "BUG-02");
-        assert_eq!(sorted[2].id, "BUG-03");
-    }
-
-    #[test]
-    fn quick_wins_lens_prefers_lower_cost_work() {
-        let issues = vec![
-            make_issue_with_graph(
-                "BUG-01",
-                "Wide",
-                Status::Open,
-                &["a.rs", "b.rs"],
-                &["BUG-09"],
-            ),
-            make_issue_with_graph("BUG-02", "Tight", Status::Open, &["solo.rs"], &[]),
-        ];
-
-        let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::QuickWins);
-        assert_eq!(sorted[0].id, "BUG-02");
-        assert_eq!(sorted[1].id, "BUG-01");
-    }
 }

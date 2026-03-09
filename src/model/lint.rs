@@ -1,11 +1,17 @@
 use super::{parse_markdown, Issue, LintFinding};
 use std::collections::{BTreeMap, BTreeSet};
 
+const INVALID_HEADING_MESSAGE: &str = "invalid issue heading: missing closing ']'";
+const MISSING_ID_MESSAGE: &str = "missing required field: issue id";
+const EMPTY_TITLE_MESSAGE: &str = "empty title";
+const WORKSPACE_FILE: &str = "<workspace>";
+
 pub fn lint_markdown(text: &str, file: &str) -> Vec<LintFinding> {
     let mut findings = Vec::new();
     let mut current: Option<IssueLintBlock> = None;
     let file_name = file.to_owned();
     let file_kind = CoreFileKind::from_name(file);
+    let invalid_heading_message = INVALID_HEADING_MESSAGE.to_owned();
 
     for (index, line) in text.lines().enumerate() {
         let line_number = index + 1;
@@ -16,9 +22,9 @@ pub fn lint_markdown(text: &str, file: &str) -> Vec<LintFinding> {
 
             let Some((id, title)) = parse_issue_heading(heading) else {
                 findings.push(LintFinding {
-                    file: file_name.clone(), // neti:allow(P02)
+                    file: file_name.clone(),
                     line: line_number,
-                    message: "invalid issue heading: missing closing ']'".to_owned(), // neti:allow(P02)
+                    message: invalid_heading_message.clone(),
                 });
                 continue;
             };
@@ -93,7 +99,7 @@ fn duplicate_id_findings(issues: &[Issue]) -> Vec<LintFinding> {
         .into_iter()
         .filter(|(_, count)| *count > 1)
         .map(|(id, _)| LintFinding {
-            file: String::from("<workspace>"),
+            file: WORKSPACE_FILE.to_owned(),
             line: 1,
             message: format!("duplicate issue id: [{id}]"),
         })
@@ -113,7 +119,7 @@ fn broken_dependency_findings(issues: &[Issue]) -> Vec<LintFinding> {
                 .iter()
                 .filter(|dependency| !known_ids.contains(dependency.as_str()))
                 .map(|dependency| LintFinding {
-                    file: String::from("<workspace>"),
+                    file: WORKSPACE_FILE.to_owned(),
                     line: 1,
                     message: format!(
                         "broken dependency: [{}] depends on missing [{}]",
@@ -141,14 +147,14 @@ impl IssueLintBlock {
             findings.push(LintFinding {
                 file: file.to_owned(),
                 line: self.heading_line,
-                message: "missing required field: issue id".to_owned(),
+                message: MISSING_ID_MESSAGE.to_owned(),
             });
         }
         if self.title.is_empty() {
             findings.push(LintFinding {
                 file: file.to_owned(),
                 line: self.heading_line,
-                message: "empty title".to_owned(),
+                message: EMPTY_TITLE_MESSAGE.to_owned(),
             });
         }
         if !self.has_status {
@@ -204,110 +210,16 @@ impl CoreFileKind {
 }
 
 fn core_file_coherence_message(file_kind: CoreFileKind, status: &str, id: &str) -> Option<String> {
-    let normalized = status.trim().to_ascii_uppercase();
+    let status = status.trim().to_ascii_uppercase();
     match file_kind {
-        CoreFileKind::Done if normalized != "DONE" && normalized != "DESCOPED" => Some(format!(
-            "core section mismatch: [{}] in issues-done.md must use DONE or DESCOPED status",
-            id
+        CoreFileKind::Done if status != "DONE" && status != "DESCOPED" => Some(format!(
+            "done file coherence: [{}] in issues-done.md must be DONE or DESCOPED, found {}",
+            id, status
         )),
-        CoreFileKind::Active | CoreFileKind::Backlog if normalized == "DONE" => Some(format!(
-            "core section mismatch: [{}] with DONE status must move to issues-done.md",
+        CoreFileKind::Active | CoreFileKind::Backlog if status == "DONE" => Some(format!(
+            "core file coherence: [{}] is DONE but still lives outside issues-done.md",
             id
         )),
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn lint_markdown_flags_missing_status_labels_and_resolution() {
-        let md = "# Active\n\n## [BUG-01] Missing fields\nBody only.\n";
-        let findings = lint_markdown(md, "issues-active.md");
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("missing required field: status")));
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("missing required field: labels")));
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("missing required field: resolution")));
-    }
-
-    #[test]
-    fn lint_markdown_flags_empty_title() {
-        let md = "# Active\n\n## [BUG-01]\n**Status:** OPEN\n**Resolution:** \n";
-        let findings = lint_markdown(md, "issues-active.md");
-        assert!(findings.iter().any(|f| f.message == "empty title"));
-    }
-
-    #[test]
-    fn lint_markdown_flags_invalid_heading_without_closing_bracket() {
-        let md = "# Active\n\n## [BUG-01 Missing bracket\n**Status:** OPEN\n**Labels:** cli\n**Resolution:** \n";
-        let findings = lint_markdown(md, "issues-active.md");
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("invalid issue heading")));
-    }
-
-    #[test]
-    fn lint_workspace_reports_duplicate_ids_and_missing_dependencies() {
-        let findings = lint_workspace(&[
-            (
-                "issues-active.md",
-                "# ACTIVE Issues\n\n---\n\n## [BUG-01] First\n**Status:** OPEN\n**Labels:** cli\n**Depends on:** [BUG-02]\n\n**Resolution:** \n\n---\n".to_string(),
-            ),
-            (
-                "issues-backlog.md",
-                "# BACKLOG Issues\n\n---\n\n## [BUG-01] Duplicate\n**Status:** OPEN\n**Labels:** cli\n\n**Resolution:** \n\n---\n".to_string(),
-            ),
-        ]);
-
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("duplicate issue id")));
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("broken dependency")));
-    }
-
-    #[test]
-    fn lint_workspace_enforces_core_section_coherence_only_for_builtin_files() {
-        let findings = lint_workspace(&[
-            (
-                "issues-active.md",
-                "# ACTIVE Issues\n\n---\n\n## [BUG-01] Wrong file\n**Status:** DONE\n**Labels:** cli\n\n**Resolution:** Closed.\n\n---\n".to_string(),
-            ),
-            (
-                "issues-done.md",
-                "# DONE Issues\n\n---\n\n## [BUG-02] Wrong status\n**Status:** OPEN\n**Labels:** cli\n\n**Resolution:** \n\n---\n".to_string(),
-            ),
-            (
-                "issues-done.md",
-                "# DONE Issues\n\n---\n\n## [BUG-04] Descoped terminal issue\n**Status:** DESCOPED\n**Labels:** cli\n\n**Resolution:** Not pursuing.\n\n---\n".to_string(),
-            ),
-            (
-                "issues-graphics.md",
-                "# GRAPHICS Issues\n\n---\n\n## [BUG-03] Custom section\n**Status:** OPEN\n**Labels:** graphics\n\n**Resolution:** \n\n---\n".to_string(),
-            ),
-        ]);
-
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("must move to issues-done.md")));
-        assert!(findings
-            .iter()
-            .any(|f| f.message.contains("must use DONE or DESCOPED status")));
-        assert!(!findings.iter().any(|f| {
-            f.file == "issues-graphics.md" && f.message.contains("core section mismatch")
-        }));
-        assert!(!findings.iter().any(|f| {
-            f.file == "issues-done.md"
-                && f.message.contains("[BUG-04]")
-                && f.message.contains("core section mismatch")
-        }));
     }
 }

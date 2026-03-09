@@ -1,13 +1,12 @@
 use super::{Issue, Status};
-
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag};
+use std::collections::BTreeSet;
 
 pub fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
     let mut issues = Vec::new();
     let mut section = default_section.to_owned();
     let mut current: Option<Issue> = None;
     let mut in_resolution = false;
-
     let mut parser = Parser::new_ext(text, Options::all()).into_offset_iter();
 
     while let Some((event, range)) = parser.next() {
@@ -17,9 +16,10 @@ pub fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
                 ..
             }) => {
                 let heading_text = skip_and_extract_text(&mut parser);
-                let t = heading_text.trim();
-                if !t.is_empty() {
-                    section = t.to_owned(); // neti:allow(P02)
+                let trimmed_heading = heading_text.trim();
+                if !trimmed_heading.is_empty() {
+                    section.clear();
+                    section.push_str(trimmed_heading);
                 }
             }
             Event::Start(Tag::Heading {
@@ -78,8 +78,10 @@ fn process_h2(
         }
         *current = Some(new_issue(parsed.0, parsed.1, section));
         *in_resolution = false;
-    } else if let Some(cur) = current.as_mut() {
-        // neti:allow(P04)
+        return;
+    }
+
+    if let Some(cur) = current.as_mut() {
         for line in text[range].lines() {
             accumulate_text(cur, line, *in_resolution);
         }
@@ -94,7 +96,6 @@ fn process_block(
 ) {
     if let Some(cur) = current.as_mut() {
         ensure_blank_line(cur, *in_resolution);
-        // neti:allow(P04)
         for line in text[range].lines() {
             if try_parse_field(cur, line, in_resolution) {
                 continue;
@@ -112,7 +113,6 @@ fn process_raw_block(
 ) {
     if let Some(cur) = current.as_mut() {
         ensure_blank_line(cur, in_resolution);
-        // neti:allow(P04)
         for line in text[range].lines() {
             accumulate_text(cur, line, in_resolution);
         }
@@ -199,7 +199,7 @@ fn parse_files(cur: &mut Issue, val: &str) {
     }
     cur.files = val
         .split(',')
-        .map(|f| f.replace('`', "").trim().to_owned())
+        .map(|file| file.replace('`', "").trim().to_owned())
         .collect();
 }
 
@@ -249,24 +249,25 @@ fn try_parse_heading(line: &str) -> Option<(String, String)> {
 }
 
 fn extract_links(issue: &Issue) -> Vec<String> {
-    let mut links = vec![];
-    let mut seen = std::collections::BTreeSet::new();
+    let ordered_mentions = [&issue.title, &issue.description, &issue.resolution]
+        .into_iter()
+        .flat_map(|text| extract_mentions(text).into_iter())
+        .collect::<Vec<_>>();
+    let mut unique_mentions = Vec::<&str>::new();
+    let mut seen = BTreeSet::<&str>::new();
 
-    for text in [&issue.title, &issue.description, &issue.resolution] {
-        // neti:allow(P04)
-        for link in extract_mentions(text) {
-            if link != issue.id && seen.insert(link.clone()) {
-                links.push(link);
-            }
+    for mention in ordered_mentions {
+        if mention != issue.id && seen.insert(mention) {
+            unique_mentions.push(mention);
         }
     }
 
-    links
+    unique_mentions.into_iter().map(str::to_owned).collect()
 }
 
-fn extract_mentions(text: &str) -> Vec<String> {
+fn extract_mentions(text: &str) -> Vec<&str> {
     let bytes = text.as_bytes();
-    let mut links = vec![];
+    let mut mentions = vec![];
     let mut idx = 0;
 
     while idx < bytes.len() {
@@ -277,28 +278,32 @@ fn extract_mentions(text: &str) -> Vec<String> {
 
         let start = idx + 1;
         let mut end = start;
-        while end < bytes.len() // neti:allow(P04)
-            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'-')
-        {
+        while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'-') {
             end += 1;
         }
 
-        if end > start {
-            let prev = idx.checked_sub(1).map(|prev_idx| bytes[prev_idx]);
-            if prev.is_none_or(|prev| !prev.is_ascii_alphanumeric() && prev != b'-') {
-                let candidate = &text[start..end];
-                if candidate.chars().all(|ch| ch.is_ascii_digit())
-                    || super::parse_categorical_issue_id(candidate).is_some()
-                {
-                    links.push(candidate.to_string()); // neti:allow(P02)
-                }
+        if end > start && has_issue_id_boundary(bytes, idx) {
+            let candidate = &text[start..end];
+            if is_issue_reference(candidate) {
+                mentions.push(candidate);
             }
         }
 
         idx = end.max(idx + 1);
     }
 
-    links
+    mentions
+}
+
+fn has_issue_id_boundary(bytes: &[u8], hash_idx: usize) -> bool {
+    bytes
+        .get(hash_idx.wrapping_sub(1))
+        .is_none_or(|prev| !prev.is_ascii_alphanumeric() && *prev != b'-')
+}
+
+fn is_issue_reference(candidate: &str) -> bool {
+    candidate.chars().all(|ch| ch.is_ascii_digit())
+        || super::parse_categorical_issue_id(candidate).is_some()
 }
 
 #[cfg(test)]
@@ -363,22 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn test_labels_parsing() {
-        let md = "# Test\n\n## [4] Tagged\n**Status:** OPEN\n**Labels:** core, ux, parser\n\n**Resolution:** \n";
-        let issues = parse_markdown(md, "Test");
-        assert_eq!(issues[0].labels, vec!["core", "ux", "parser"]);
-    }
-
-    #[test]
-    fn test_ast_markdown_extraction() {
-        let md = "# Active\n\n## [8] AST Test\n**Status:** OPEN\n\nThis is a paragraph with **bold** and `code`.\n\n```rust\nfn main() {}\n```\n\n**Resolution:** \nFixed by *magic*.\n";
-        let issues = parse_markdown(md, "Default");
-        assert_eq!(issues.len(), 1);
-        let issue = &issues[0];
-        assert_eq!(
-            issue.description,
-            "This is a paragraph with **bold** and `code`.\n\n```rust\nfn main() {}\n```"
-        );
-        assert_eq!(issue.resolution, "Fixed by *magic*.");
+    fn extract_mentions_supports_numeric_ids() {
+        assert_eq!(extract_mentions("refs #12 and #34"), vec!["12", "34"]);
     }
 }

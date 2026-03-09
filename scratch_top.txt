@@ -1,0 +1,79 @@
+use super::toast::{Toast, ToastContainer, ToastKind};
+use super::welcome::WelcomeScreen;
+use super::{components, get_workspace_path, views, View};
+use crate::model::{
+    issue_id_sort_key, reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace,
+};
+use dioxus::desktop::tao::window::{CursorIcon, ResizeDirection};
+use dioxus::desktop::use_window;
+use dioxus::document::eval;
+use dioxus::prelude::*;
+use notify::{recommended_watcher, Event as NotifyEvent, EventKind, RecursiveMode, Watcher};
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+
+#[derive(Clone, Copy, PartialEq)]
+struct AppState {
+    issues: Signal<Vec<Issue>>,
+    toasts: Signal<Vec<Toast>>,
+    toast_id: Signal<u64>,
+    is_compact: Signal<bool>,
+    zoom: Signal<f32>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct TopbarState {
+    search: Signal<String>,
+    active_label: Signal<Option<String>>,
+    show_all_labels: Signal<bool>,
+    active_lens: Signal<FeedLens>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FeedLens {
+    MyOrder,
+    NextUp,
+    HotPath,
+    QuickWins,
+    LinkGroups,
+}
+
+const STYLESHEET: &str = include_str!("../../assets/style.css");
+
+#[component]
+pub fn App() -> Element {
+    let ws_path = get_workspace_path();
+    let mut initialized = use_signal(|| workspace_exists(&ws_path));
+
+    if !initialized() {
+        return rsx! {
+            style { "{STYLESHEET}" }
+            WelcomeScreen { path: ws_path, on_init: move |_| initialized.set(true) }
+        };
+    }
+
+    render_dashboard(ws_path)
+}
+
+fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
+    let initial = Workspace::load(&ws_path).unwrap_or_else(|_| Workspace {
+        root: ws_path.clone(),
+        issues: vec![],
+    });
+
+    let mut issues = use_signal(|| initial.issues);
+    let search = use_signal(String::new);
+    let active_label = use_signal(|| None::<String>);
+    let show_all_labels = use_signal(|| false);
+    let active_lens = use_signal(|| FeedLens::MyOrder);
+    let view = use_signal(|| View::Feed);
+    let dirty = use_signal(|| false);
+    let edit_epoch = use_signal(|| 0u64);
+    let modal = use_signal(|| false);
+    let reinit_modal = use_signal(|| false);
+    let mut toasts = use_signal(Vec::<Toast>::new);
+    let toast_id = use_signal(|| 0u64);
+    let is_compact = use_signal(|| false);
+
+    let physics = use_signal(super::scroll::ScrollPhysics::default);
+    let animating = use_signal(|| false);
