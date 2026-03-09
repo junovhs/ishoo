@@ -13,6 +13,24 @@ Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to
 
 ---
 
+## [123] Board Release: settle, commit delay, and post-drop state must match Feed exactly
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+**Labels:** board, drag
+
+Board drop/release still has its own sequencing. That creates risk of pop, dip, snap, or timing mismatch. Feed already solved these edge cases and Board must reuse that exact sequencing.
+
+Requirements:
+
+- Match Feed release timing and delayed reorder commit exactly
+- No dip/pop/rebound after release
+- No alternate board-only settle animation
+- Post-drop hover suppression/re-arm should match Feed behavior where applicable
+
+**Resolution:** 
+
+---
+
 ## [121] Board Drag Feel: cursor anchoring must match Feed exactly
 **Status:** OPEN
 **Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`
@@ -26,17 +44,6 @@ Requirements:
 - Keep the held card anchored identically under the cursor
 - Remove any visual shrink/compression behavior not present in Feed
 - Match Feed lift/shadow/scale treatment while dragging
-
-**Resolution:** 
-
----
-
-## [61] Project health pulse & Issue Age
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
-**Labels:** viz, git
-
-Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
 
 **Resolution:** 
 

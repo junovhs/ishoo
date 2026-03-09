@@ -22,6 +22,7 @@ pub fn launch_dashboard(path: PathBuf) {
             Config::new().with_window(
                 WindowBuilder::new()
                     .with_title("Ishoo")
+                    .with_decorations(false)
                     .with_always_on_top(false),
             ),
         )

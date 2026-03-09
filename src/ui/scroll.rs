@@ -157,12 +157,23 @@ pub fn set_is_scrolling(scrolling: bool) {
     ));
 }
 
-pub async fn measure_max_scroll() -> f64 {
+pub async fn measure_scroll_metrics() -> (f64, f64, f64) {
     let mut result = eval(
         "var c=document.getElementById('scroll-content'),v=document.querySelector('.content');\
-         dioxus.send(c&&v?c.scrollHeight-v.clientHeight:0)",
+         var scrollHeight=c?c.scrollHeight:0;\
+         var viewportHeight=v?v.clientHeight:0;\
+         var maxScroll=Math.max(scrollHeight-viewportHeight,0);\
+         dioxus.send([maxScroll, viewportHeight, scrollHeight])",
     );
-    result.recv::<f64>().await.unwrap_or_default().max(0.0)
+    let values = result.recv::<Vec<f64>>().await.unwrap_or_default();
+    match values.as_slice() {
+        [max_scroll, viewport_height, scroll_height, ..] => (
+            (*max_scroll).max(0.0),
+            (*viewport_height).max(0.0),
+            (*scroll_height).max(0.0),
+        ),
+        _ => (0.0, 0.0, 0.0),
+    }
 }
 
 pub async fn measure_header_positions() -> Vec<f64> {

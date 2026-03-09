@@ -5,6 +5,8 @@ use super::{components, get_workspace_path, views, View};
 use crate::model::{
     issue_id_sort_key, reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace,
 };
+use dioxus::desktop::tao::window::{CursorIcon, ResizeDirection};
+use dioxus::desktop::use_window;
 use dioxus::document::eval;
 use dioxus::prelude::*;
 use notify::{recommended_watcher, Event as NotifyEvent, EventKind, RecursiveMode, Watcher};
@@ -173,11 +175,150 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
         if modal() { NewIssueModal { modal: modal, state: state } }
         if reinit_modal() { ReinitModal { modal: reinit_modal, state: state } }
 
-        div { class: "app",
-            {render_sidebar(view, stats.clone(), sections, dirty, modal, reinit_modal, state)}
-            main { class: "mn",
-                {render_topbar(topbar, available_labels, state, physics, animating)}
-                {render_content(view, filtered, dirty, state, physics, animating)}
+        div { class: "app-shell",
+            {render_window_bar(ws_path.clone())}
+            div { class: "app",
+                {render_sidebar(view, stats.clone(), sections, dirty, modal, reinit_modal, state)}
+                main { class: "mn",
+                    {render_topbar(topbar, available_labels, state, physics, animating)}
+                    {render_content(view, filtered, dirty, state, physics, animating)}
+                }
+            }
+            {render_resize_handles()}
+        }
+    }
+}
+
+fn render_window_bar(ws_path: PathBuf) -> Element {
+    let window = use_window();
+    let drag_window = window.clone();
+    let maximize_window = window.clone();
+    let minimize_window = window.clone();
+    let toggle_window = window.clone();
+    let close_window = window.clone();
+    let workspace_path = ws_path.display().to_string();
+
+    rsx! {
+        header {
+            class: "window-bar",
+            onmousedown: move |_| drag_window.drag(),
+            ondoubleclick: move |_| maximize_window.toggle_maximized(),
+            div { class: "window-bar__spacer" }
+            div { class: "window-bar__path", title: "{workspace_path}", "{workspace_path}" }
+            div { class: "window-bar__actions",
+                button {
+                    class: "window-btn",
+                    title: "Minimize",
+                    onmousedown: move |evt| evt.stop_propagation(),
+                    onclick: move |_| minimize_window.set_minimized(true),
+                    "−"
+                }
+                button {
+                    class: "window-btn",
+                    title: "Maximize",
+                    onmousedown: move |evt| evt.stop_propagation(),
+                    onclick: move |_| toggle_window.toggle_maximized(),
+                    "□"
+                }
+                button {
+                    class: "window-btn window-btn--close",
+                    title: "Close",
+                    onmousedown: move |evt| evt.stop_propagation(),
+                    onclick: move |_| close_window.close(),
+                    "×"
+                }
+            }
+        }
+    }
+}
+
+fn render_resize_handles() -> Element {
+    let window = use_window();
+    let north = window.clone();
+    let south = window.clone();
+    let east = window.clone();
+    let west = window.clone();
+    let northeast = window.clone();
+    let northwest = window.clone();
+    let southeast = window.clone();
+    let southwest = window.clone();
+    let leave_cursor = window.clone();
+    let north_cursor = window.clone();
+    let south_cursor = window.clone();
+    let east_cursor = window.clone();
+    let west_cursor = window.clone();
+    let ne_cursor = window.clone();
+    let nw_cursor = window.clone();
+    let se_cursor = window.clone();
+    let sw_cursor = window.clone();
+
+    rsx! {
+        div {
+            class: "resize-handles",
+            onmouseleave: move |_| leave_cursor.set_cursor_icon(CursorIcon::Default),
+            div {
+                class: "resize-handle resize-handle-n",
+                onmouseenter: move |_| north_cursor.set_cursor_icon(CursorIcon::NResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = north.drag_resize_window(ResizeDirection::North);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-s",
+                onmouseenter: move |_| south_cursor.set_cursor_icon(CursorIcon::SResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = south.drag_resize_window(ResizeDirection::South);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-e",
+                onmouseenter: move |_| east_cursor.set_cursor_icon(CursorIcon::EResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = east.drag_resize_window(ResizeDirection::East);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-w",
+                onmouseenter: move |_| west_cursor.set_cursor_icon(CursorIcon::WResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = west.drag_resize_window(ResizeDirection::West);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-ne",
+                onmouseenter: move |_| ne_cursor.set_cursor_icon(CursorIcon::NeResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = northeast.drag_resize_window(ResizeDirection::NorthEast);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-nw",
+                onmouseenter: move |_| nw_cursor.set_cursor_icon(CursorIcon::NwResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = northwest.drag_resize_window(ResizeDirection::NorthWest);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-se",
+                onmouseenter: move |_| se_cursor.set_cursor_icon(CursorIcon::SeResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = southeast.drag_resize_window(ResizeDirection::SouthEast);
+                },
+            }
+            div {
+                class: "resize-handle resize-handle-sw",
+                onmouseenter: move |_| sw_cursor.set_cursor_icon(CursorIcon::SwResize),
+                onmousedown: move |evt| {
+                    evt.stop_propagation();
+                    let _ = southwest.drag_resize_window(ResizeDirection::SouthWest);
+                },
             }
         }
     }
@@ -649,7 +790,29 @@ fn render_content(
     let mut issues = state.issues;
     let edit_epoch = use_context::<Signal<u64>>();
     let mut max_scroll = use_signal(|| 0.0f64);
+    let mut viewport_height = use_signal(|| 0.0f64);
+    let mut content_height = use_signal(|| 0.0f64);
     let mut header_ys = use_signal(Vec::<f64>::new);
+    let mut visual_offset = use_signal(|| 0.0f64);
+    let filtered_len = filtered.len();
+
+    use_effect(move || {
+        let _ = view();
+        let _ = filtered_len;
+        let _ = (state.zoom)();
+        spawn(async move {
+            let (ms, vh, ch) = super::scroll::measure_scroll_metrics().await;
+            max_scroll.set(ms);
+            viewport_height.set(vh);
+            content_height.set(ch);
+            visual_offset.set(physics.read().visual_offset(ms));
+
+            let hys = super::scroll::measure_header_positions().await;
+            if !hys.is_empty() {
+                header_ys.set(hys);
+            }
+        });
+    });
 
     use_effect(move || {
         spawn(async move {
@@ -671,10 +834,10 @@ fn render_content(
                     total_time = 0.0;
                     max_frame_time = 0.0;
 
-                    let ms = super::scroll::measure_max_scroll().await;
-                    if ms > 0.0 {
-                        max_scroll.set(ms);
-                    }
+                    let (ms, vh, ch) = super::scroll::measure_scroll_metrics().await;
+                    max_scroll.set(ms);
+                    viewport_height.set(vh);
+                    content_height.set(ch);
 
                     let hys = super::scroll::measure_header_positions().await;
                     if !hys.is_empty() {
@@ -712,6 +875,7 @@ fn render_content(
                 };
 
                 let vis = physics.read().visual_offset(max_scroll());
+                visual_offset.set(vis);
                 super::scroll::write_transforms(vis, &header_ys());
 
                 if !still_moving {
@@ -720,6 +884,21 @@ fn render_content(
             }
         });
     });
+
+    let viewport = viewport_height();
+    let scrollable = content_height();
+    let track_height = (viewport - 32.0).max(0.0);
+    let thumb_height = if max_scroll() <= 0.0 || viewport <= 0.0 || scrollable <= 0.0 {
+        track_height
+    } else {
+        (viewport / scrollable * track_height).clamp(56.0, track_height)
+    };
+    let thumb_travel = (track_height - thumb_height).max(0.0);
+    let thumb_top = if max_scroll() <= 0.0 || thumb_travel <= 0.0 {
+        0.0
+    } else {
+        (visual_offset().clamp(0.0, max_scroll()) / max_scroll()) * thumb_travel
+    };
 
     rsx! {
         div {
@@ -741,6 +920,16 @@ fn render_content(
                     animating.set(true);
                 }
             },
+            if max_scroll() > 0.0 && viewport > 0.0 {
+                div {
+                    class: if animating() { "scrollbar visible moving" } else { "scrollbar visible" },
+                    div { class: "scrollbar__track" }
+                    div {
+                        class: "scrollbar__thumb",
+                        style: "height: {thumb_height}px; transform: translate3d(0, {thumb_top}px, 0);",
+                    }
+                }
+            }
             match view() {
                 View::Feed => rsx! {
                     views::FeedView {

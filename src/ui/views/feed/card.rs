@@ -95,7 +95,8 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
         ds.hover_y
     } else {
         virtual_y
-    };
+    }
+    .round();
     let transition = "transform 400ms cubic-bezier(0.25, 1, 0.5, 1)";
 
     let mut cls = "item".to_string();
@@ -302,7 +303,8 @@ pub fn DragOverlay(props: DragOverlayProps) -> Element {
         ds.hover_y
     } else {
         ds.start_virtual_y + effective_offset
-    };
+    }
+    .round();
 
     let outer_style = format!(
         "position: absolute; top: 0; left: 0; right: 0; transform: translate3d(0, {y_pos}px, 0); transition: {transition}; pointer-events: none;"

@@ -4,6 +4,7 @@ mod card;
 use crate::model::{split_issue_id, Issue, Status};
 use crate::ui::components::LabelList;
 use dioxus::prelude::*;
+use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct HoverTarget {
@@ -86,6 +87,81 @@ pub struct RecentDropState {
     pub hover_armed: bool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct DragDebugState {
+    pub active: bool,
+    pub issue_key: Option<String>,
+    pub elapsed_ms: f64,
+    pub pointer_events: u32,
+    pub hover_updates: u32,
+    pub avg_pointer_gap_ms: f64,
+    pub max_pointer_gap_ms: f64,
+    pub avg_frame_ms: f64,
+    pub max_frame_ms: f64,
+    pub frame_samples: u32,
+    pub logical_y: f32,
+    pub live_y: f32,
+    pub snapped_y: f32,
+    pub hover_y: f32,
+}
+
+impl Default for DragDebugState {
+    fn default() -> Self {
+        Self {
+            active: false,
+            issue_key: None,
+            elapsed_ms: 0.0,
+            pointer_events: 0,
+            hover_updates: 0,
+            avg_pointer_gap_ms: 0.0,
+            max_pointer_gap_ms: 0.0,
+            avg_frame_ms: 0.0,
+            max_frame_ms: 0.0,
+            frame_samples: 0,
+            logical_y: 0.0,
+            live_y: 0.0,
+            snapped_y: 0.0,
+            hover_y: 0.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DragMetrics {
+    issue_key: Option<String>,
+    started_at: Instant,
+    last_pointer_at: Option<Instant>,
+    last_frame_at: Option<Instant>,
+    last_log_at: Instant,
+    pointer_events: u32,
+    hover_updates: u32,
+    pointer_gap_total_ms: f64,
+    max_pointer_gap_ms: f64,
+    frame_samples: u32,
+    frame_total_ms: f64,
+    max_frame_ms: f64,
+}
+
+impl Default for DragMetrics {
+    fn default() -> Self {
+        let now = Instant::now();
+        Self {
+            issue_key: None,
+            started_at: now,
+            last_pointer_at: None,
+            last_frame_at: None,
+            last_log_at: now,
+            pointer_events: 0,
+            hover_updates: 0,
+            pointer_gap_total_ms: 0.0,
+            max_pointer_gap_ms: 0.0,
+            frame_samples: 0,
+            frame_total_ms: 0.0,
+            max_frame_ms: 0.0,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Props)]
 pub struct FeedViewProps {
     pub is_compact: bool,
@@ -128,6 +204,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
     let mut drag_state = use_signal(DragState::default);
     let mut drag_offset = use_signal(|| 0.0f32);
     let mut recent_drop = use_signal(RecentDropState::default);
+    let mut drag_debug = use_signal(DragDebugState::default);
+    let mut drag_metrics = use_signal(DragMetrics::default);
     let mut modal_id: Signal<Option<String>> = use_signal(|| None);
     let on_reorder = props.on_reorder;
     let on_section_toggle = props.on_section_toggle;
@@ -173,6 +251,99 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 (issue, incoming_links)
             })
     });
+    let drag_debug_state = drag_debug();
+    let debug_issue_key = drag_debug_state
+        .issue_key
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+
+    use_effect(move || {
+        spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+
+                let dp = drag_presence.read().clone();
+                if dp.dragging_key.is_none() {
+                    continue;
+                }
+
+                let now = Instant::now();
+                let ds = drag_state.read().clone();
+                let offset = drag_offset();
+                let logical_y = drag_logical_y(ds.start_virtual_y, offset);
+                let live_y = if dp.releasing {
+                    ds.hover_y
+                } else {
+                    ds.start_virtual_y + apply_drag_deadzone(offset)
+                };
+                let snapped_y = live_y.round();
+
+                {
+                    let mut metrics = drag_metrics.write();
+                    if metrics.issue_key.is_none() {
+                        metrics.issue_key = dp.dragging_key.clone();
+                        metrics.started_at = now;
+                        metrics.last_frame_at = Some(now);
+                        metrics.last_log_at = now;
+                    } else if let Some(last_frame_at) = metrics.last_frame_at.replace(now) {
+                        let frame_gap_ms = now.duration_since(last_frame_at).as_secs_f64() * 1000.0;
+                        metrics.frame_samples += 1;
+                        metrics.frame_total_ms += frame_gap_ms;
+                        metrics.max_frame_ms = metrics.max_frame_ms.max(frame_gap_ms);
+                    }
+
+                    let elapsed_ms = now.duration_since(metrics.started_at).as_secs_f64() * 1000.0;
+                    let avg_pointer_gap_ms = if metrics.pointer_events > 1 {
+                        metrics.pointer_gap_total_ms / (metrics.pointer_events - 1) as f64
+                    } else {
+                        0.0
+                    };
+                    let avg_frame_ms = if metrics.frame_samples > 0 {
+                        metrics.frame_total_ms / metrics.frame_samples as f64
+                    } else {
+                        0.0
+                    };
+
+                    drag_debug.set(DragDebugState {
+                        active: true,
+                        issue_key: dp.dragging_key.clone(),
+                        elapsed_ms,
+                        pointer_events: metrics.pointer_events,
+                        hover_updates: metrics.hover_updates,
+                        avg_pointer_gap_ms,
+                        max_pointer_gap_ms: metrics.max_pointer_gap_ms,
+                        avg_frame_ms,
+                        max_frame_ms: metrics.max_frame_ms,
+                        frame_samples: metrics.frame_samples,
+                        logical_y,
+                        live_y,
+                        snapped_y,
+                        hover_y: ds.hover_y,
+                    });
+
+                    if now.duration_since(metrics.last_log_at).as_millis() >= 250 {
+                        metrics.last_log_at = now;
+                        println!(
+                            "[Drag Metrics] key={} t={:.0}ms ptr={} avg_ptr={:.1}ms max_ptr={:.1}ms frames={} avg_frame={:.1}ms max_frame={:.1}ms hover={} logical={:.1} live={:.1} snapped={:.1} hover_y={:.1}",
+                            dp.dragging_key.as_deref().unwrap_or("-"),
+                            elapsed_ms,
+                            metrics.pointer_events,
+                            avg_pointer_gap_ms,
+                            metrics.max_pointer_gap_ms,
+                            metrics.frame_samples,
+                            avg_frame_ms,
+                            metrics.max_frame_ms,
+                            metrics.hover_updates,
+                            logical_y,
+                            live_y,
+                            snapped_y,
+                            ds.hover_y
+                        );
+                    }
+                }
+            }
+        });
+    });
 
     rsx! {
         div {
@@ -202,6 +373,18 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                 }
                 let ds_read = drag_state.read();
                 let next_offset = (e.client_coordinates().y as f32 - ds_read.start_y) / props.zoom;
+                let now = Instant::now();
+                {
+                    let mut metrics = drag_metrics.write();
+                    if let Some(last_pointer_at) = metrics.last_pointer_at.replace(now) {
+                        let pointer_gap_ms =
+                            now.duration_since(last_pointer_at).as_secs_f64() * 1000.0;
+                        metrics.pointer_gap_total_ms += pointer_gap_ms;
+                        metrics.max_pointer_gap_ms =
+                            metrics.max_pointer_gap_ms.max(pointer_gap_ms);
+                    }
+                    metrics.pointer_events += 1;
+                }
                 drop(dp);
                 drop(ds_read);
                 drag_offset.set(next_offset);
@@ -284,6 +467,7 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     ds.hover_y = hover.y;
                     ds.hover_after = hover_after;
                     ds.last_layout_probe_y = logical_y;
+                    drag_metrics.write().hover_updates += 1;
                 } else {
                     drag_state.write().last_layout_probe_y = logical_y;
                 }
@@ -324,6 +508,30 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     let mut ds_signal = drag_state;
                     let mut dp_signal = drag_presence;
                     let mut drag_offset_signal = drag_offset;
+                    let mut debug_signal = drag_debug;
+                    let mut metrics_signal = drag_metrics;
+                    let metrics_snapshot = drag_metrics.read().clone();
+
+                    println!(
+                        "[Drag Metrics] release key={} ptr={} avg_ptr={:.1}ms max_ptr={:.1}ms frames={} avg_frame={:.1}ms max_frame={:.1}ms hover={}",
+                        drag_key,
+                        metrics_snapshot.pointer_events,
+                        if metrics_snapshot.pointer_events > 1 {
+                            metrics_snapshot.pointer_gap_total_ms
+                                / (metrics_snapshot.pointer_events - 1) as f64
+                        } else {
+                            0.0
+                        },
+                        metrics_snapshot.max_pointer_gap_ms,
+                        metrics_snapshot.frame_samples,
+                        if metrics_snapshot.frame_samples > 0 {
+                            metrics_snapshot.frame_total_ms / metrics_snapshot.frame_samples as f64
+                        } else {
+                            0.0
+                        },
+                        metrics_snapshot.max_frame_ms,
+                        metrics_snapshot.hover_updates
+                    );
 
                     spawn(async move {
                         // Wait exactly the length of the 400ms CSS transition
@@ -337,6 +545,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         drag_offset_signal.set(0.0);
                         ds_signal.set(DragState::default());
                         dp_signal.set(DragPresence::default());
+                        debug_signal.set(DragDebugState::default());
+                        metrics_signal.set(DragMetrics::default());
                     });
                 }
             },
@@ -353,6 +563,8 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                     drag_offset.set(0.0);
                     drag_state.set(DragState::default());
                     drag_presence.set(DragPresence::default());
+                    drag_debug.set(DragDebugState::default());
+                    drag_metrics.set(DragMetrics::default());
                 }
             },
 
@@ -477,6 +689,19 @@ pub fn FeedView(props: FeedViewProps) -> Element {
                         drag_state: drag_state,
                         drag_offset: drag_offset,
                         is_compact: props.is_compact,
+                    }
+                }
+
+                if drag_debug_state.active {
+                    div {
+                        class: "drag-debug-hud",
+                        div { class: "drag-debug-hud__title", "drag telemetry" }
+                        div { class: "drag-debug-hud__row", "issue {debug_issue_key}" }
+                        div { class: "drag-debug-hud__row", "t {drag_debug_state.elapsed_ms.round()}ms  ptr {drag_debug_state.pointer_events}  hover {drag_debug_state.hover_updates}" }
+                        div { class: "drag-debug-hud__row", "ptr avg {drag_debug_state.avg_pointer_gap_ms:.1}ms  max {drag_debug_state.max_pointer_gap_ms:.1}ms" }
+                        div { class: "drag-debug-hud__row", "frame avg {drag_debug_state.avg_frame_ms:.1}ms  max {drag_debug_state.max_frame_ms:.1}ms" }
+                        div { class: "drag-debug-hud__row", "logical {drag_debug_state.logical_y:.1}  live {drag_debug_state.live_y:.1}" }
+                        div { class: "drag-debug-hud__row", "snapped {drag_debug_state.snapped_y:.1}  slot {drag_debug_state.hover_y:.1}" }
                     }
                 }
             }

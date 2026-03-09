@@ -43,7 +43,15 @@ body {
     font-family: "DM Mono", monospace;
     color: var(--ink);
     min-height: 100vh;
-    padding: 28px 20px;
+    padding: 0;
+    user-select: none;
+    overflow: hidden;
+}
+input,
+textarea,
+select,
+[contenteditable="true"] {
+    user-select: text;
 }
 body.is-scrolling .feed-inner {
     pointer-events: none !important;
@@ -78,24 +86,92 @@ html.dark body.is-scrolling .issue-row:hover,
 html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     background: var(--bg) !important;
 }
+.app-shell {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    border: 1px solid var(--rule);
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--bg) 92%, white) 0%, var(--bg) 100%);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
 .app {
     max-width: 100%;
     width: 100%;
     display: grid;
     grid-template-columns: 172px 1fr;
-    height: calc(100vh - 56px);
+    height: calc(100% - 44px);
+}
+.window-bar {
+    height: 44px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--rule);
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, white) 0%, var(--bg) 100%);
+    user-select: none;
+}
+.window-bar__spacer {
+    width: 120px;
+}
+.window-bar__path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink3);
+    justify-self: center;
+    max-width: 100%;
+}
+.window-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.window-btn {
+    width: 36px;
+    height: 31px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink2);
+    font: inherit;
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+.window-btn:hover {
+    background: rgba(0, 0, 0, 0.045);
+    border-color: rgba(0, 0, 0, 0.05);
+    color: var(--ink);
+}
+.window-btn--close:hover {
+    background: color-mix(in srgb, var(--pink) 16%, transparent);
+    border-color: color-mix(in srgb, var(--pink) 24%, transparent);
+    color: var(--pink);
 }
 
 /* Sidebar */
 .sb {
     padding-right: 24px;
     position: sticky;
-    top: 28px;
+    top: 18px;
     align-self: start;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 56px);
+    height: calc(100vh - 80px);
     justify-content: space-between;
+    padding-top: 18px;
+    padding-left: 16px;
+    padding-bottom: 18px;
 }
 .logo {
     font-family: "Instrument Serif", serif;
@@ -335,6 +411,7 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
 }
 .content {
     flex: 1;
@@ -343,16 +420,96 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     position: relative;
     padding-top: 20px;
     padding-left: 28px;
-    padding-right: 28px;
+    padding-right: 40px;
 }
 .sticky-header {
     position: sticky;
     top: 0;
-    margin-top: -28px;
-    padding-top: 28px;
+    margin-top: -18px;
+    padding-top: 18px;
     padding-bottom: 24px;
     background: var(--bg);
     z-index: 40;
+}
+.scrollbar {
+    position: absolute;
+    top: 14px;
+    right: 10px;
+    bottom: 18px;
+    width: 14px;
+    pointer-events: none;
+    z-index: 80;
+    opacity: 0.42;
+    transition: opacity 0.22s ease;
+}
+.scrollbar.visible {
+    opacity: 0.54;
+}
+.scrollbar.visible.moving {
+    opacity: 1;
+}
+.scrollbar__track {
+    position: absolute;
+    inset: 0 4px;
+    border-radius: 999px;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--ink3) 14%, transparent) 0%, color-mix(in srgb, var(--ink3) 7%, transparent) 100%);
+}
+.scrollbar__thumb {
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    top: 0;
+    border-radius: 999px;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--ink) 76%, white) 0%, color-mix(in srgb, var(--ink2) 86%, black) 100%);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg) 55%, transparent), 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+.resize-handles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 200;
+}
+.resize-handle {
+    position: absolute;
+    pointer-events: auto;
+}
+.resize-handle-n,
+.resize-handle-s {
+    left: 10px;
+    right: 10px;
+    height: 8px;
+}
+.resize-handle-e,
+.resize-handle-w {
+    top: 10px;
+    bottom: 10px;
+    width: 8px;
+}
+.resize-handle-n { top: 0; }
+.resize-handle-s { bottom: 0; }
+.resize-handle-e { right: 0; }
+.resize-handle-w { left: 0; }
+.resize-handle-ne,
+.resize-handle-nw,
+.resize-handle-se,
+.resize-handle-sw {
+    width: 16px;
+    height: 16px;
+}
+.resize-handle-ne { top: 0; right: 0; }
+.resize-handle-nw { top: 0; left: 0; }
+.resize-handle-se { right: 0; bottom: 0; }
+.resize-handle-sw { left: 0; bottom: 0; }
+html.dark .scrollbar__track {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+}
+html.dark .scrollbar__thumb {
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--ink) 86%, white) 0%, color-mix(in srgb, var(--ink2) 74%, black) 100%);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 10px 22px rgba(0, 0, 0, 0.32);
 }
 .topbar {
     display: flex;
@@ -418,6 +575,8 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     gap: 8px;
     margin: 10px 0 14px 10px;
     max-width: calc(100% - 10px);
+    position: relative;
+    z-index: 90;
 }
 .label-filter-clip {
     flex: 1;
@@ -483,6 +642,34 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
 .label-filter-more.active {
     transform: translateY(-1px) scale(1.03);
     box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.drag-debug-hud {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 900;
+    min-width: 260px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--ink3) 40%, var(--rule));
+    background: color-mix(in srgb, var(--bg) 90%, white);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(8px);
+}
+.drag-debug-hud__title {
+    font-size: 10px;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--ink3);
+    margin-bottom: 6px;
+}
+.drag-debug-hud__row {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--ink2);
+}
+html.dark .drag-debug-hud {
+    background: color-mix(in srgb, var(--bg) 92%, black);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
 }
 .label-filter:hover {
     color: var(--ink);
