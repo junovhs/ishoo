@@ -2,7 +2,9 @@
 use super::toast::{Toast, ToastContainer, ToastKind};
 use super::welcome::WelcomeScreen;
 use super::{components, get_workspace_path, views, View};
-use crate::model::{issue_id_sort_key, reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace};
+use crate::model::{
+    issue_id_sort_key, reinit_workspace, workspace_exists, Issue, Stats, Status, Workspace,
+};
 use dioxus::document::eval;
 use dioxus::prelude::*;
 use notify::{recommended_watcher, Event as NotifyEvent, EventKind, RecursiveMode, Watcher};
@@ -70,13 +72,16 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     let mut toasts = use_signal(Vec::<Toast>::new);
     let toast_id = use_signal(|| 0u64);
     let is_compact = use_signal(|| false);
-    
+
     let physics = use_signal(super::scroll::ScrollPhysics::default);
     let animating = use_signal(|| false);
-    
+
     let zoom = use_signal(|| {
         let p = ws_path.join(".ishoo/zoom");
-        std::fs::read_to_string(&p).unwrap_or_else(|_| "1.0".to_string()).parse::<f32>().unwrap_or(1.0)
+        std::fs::read_to_string(&p)
+            .unwrap_or_else(|_| "1.0".to_string())
+            .parse::<f32>()
+            .unwrap_or(1.0)
     });
 
     use_context_provider(|| edit_epoch);
@@ -101,19 +106,20 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
             let path = watch_path.clone();
             async move {
                 let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-                let mut watcher = match recommended_watcher(move |result: notify::Result<NotifyEvent>| {
-                    if let Ok(event) = result {
-                        if should_reload_for_event(&event) {
-                            let _ = event_tx.send(());
+                let mut watcher =
+                    match recommended_watcher(move |result: notify::Result<NotifyEvent>| {
+                        if let Ok(event) = result {
+                            if should_reload_for_event(&event) {
+                                let _ = event_tx.send(());
+                            }
                         }
-                    }
-                }) {
-                    Ok(watcher) => watcher,
-                    Err(error) => {
-                        eprintln!("Failed to create file watcher: {error}");
-                        return;
-                    }
-                };
+                    }) {
+                        Ok(watcher) => watcher,
+                        Err(error) => {
+                            eprintln!("Failed to create file watcher: {error}");
+                            return;
+                        }
+                    };
 
                 if let Err(error) = watcher.watch(&path, RecursiveMode::NonRecursive) {
                     eprintln!("Failed to watch {}: {error}", path.display());
@@ -127,7 +133,8 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
                     let was_dirty = dirty();
                     let epoch_before = edit_epoch();
                     if let Ok(ws) = Workspace::load(&path) {
-                        if can_apply_external_reload(was_dirty, dirty(), epoch_before, edit_epoch()) {
+                        if can_apply_external_reload(was_dirty, dirty(), epoch_before, edit_epoch())
+                        {
                             issues.set(ws.issues);
                         }
                     }
@@ -147,14 +154,17 @@ fn render_dashboard(ws_path: std::path::PathBuf) -> Element {
     };
     let filtered = apply_feed_lens(
         &(state.issues)(),
-        filter_issues(&(state.issues)(), &(topbar.search)(), (topbar.active_label)().as_deref()),
+        filter_issues(
+            &(state.issues)(),
+            &(topbar.search)(),
+            (topbar.active_label)().as_deref(),
+        ),
         (topbar.active_lens)(),
     );
 
-
     rsx! {
         style { "{STYLESHEET}" }
-        
+
         ToastContainer {
             toasts: toasts(),
             on_dismiss: move |id| { toasts.write().retain(|t| t.id != id); }
@@ -198,13 +208,53 @@ fn save_workspace(state: AppState, msg: &str) {
             if !msg.is_empty() {
                 add_toast(state, msg.to_string(), ToastKind::Success);
             }
-        },
+        }
         Err(e) => add_toast(state, format!("Save failed: {e}"), ToastKind::Error),
     }
 }
 
 fn bump_edit_epoch(mut edit_epoch: Signal<u64>) {
     edit_epoch.set(edit_epoch().wrapping_add(1));
+}
+
+fn issue_instance_key(issue: &Issue) -> String {
+    format!("{}::{}", issue.section.to_ascii_lowercase(), issue.id)
+}
+
+fn reorder_issues(
+    mut all: Vec<Issue>,
+    drag_key: &str,
+    target_key: Option<&str>,
+    after: bool,
+    section: Option<String>,
+) -> Vec<Issue> {
+    let Some(idx) = all
+        .iter()
+        .position(|issue| issue_instance_key(issue) == drag_key)
+    else {
+        return all;
+    };
+
+    let mut issue = all.remove(idx);
+    if let Some(target_key) = target_key {
+        if let Some(tidx) = all
+            .iter()
+            .position(|candidate| issue_instance_key(candidate) == target_key)
+        {
+            issue.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
+            let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
+            all.insert(insert_at, issue);
+        } else {
+            all.insert(idx.min(all.len()), issue);
+        }
+    } else if let Some(section_name) = section {
+        issue.section = section_name;
+        all.push(issue);
+    } else {
+        all.insert(idx.min(all.len()), issue);
+    }
+
+    all
 }
 
 fn can_apply_external_reload(
@@ -365,12 +415,12 @@ fn render_sidebar(
             div { class: "logo",
                 div { class: "logo-d" }
                 em { "Ishoo" }
-                button { 
-                    class: "dm-toggle", 
+                button {
+                    class: "dm-toggle",
                     title: "Toggle dark mode",
                     onclick: move |_| {
                         // We use a small JS eval to toggle the class on the html element
-                        let _ = eval("document.documentElement.classList.toggle('dark'); 
+                        let _ = eval("document.documentElement.classList.toggle('dark');
                                       let btn = document.getElementById('dm-toggle-btn');
                                       if (document.documentElement.classList.contains('dark')) {
                                           btn.innerHTML = '☀';
@@ -453,22 +503,22 @@ fn render_topbar(
     } else {
         format!("More {hidden_label_count}")
     };
-    
+
     rsx! {
         div { class: "sticky-header",
             div { class: "topbar",
-                input { 
-                    class: "si", 
-                    placeholder: "Search…", 
-                    value: "{search}", 
+                input {
+                    class: "si",
+                    placeholder: "Search…",
+                    value: "{search}",
                     oninput: move |e| {
                         search.set(e.value());
                         physics.write().reset();
                         super::scroll::jump_to_top();
                         animating.set(true);
-                    } 
+                    }
                 }
-                
+
                 div { class: "density-toggle", style: "margin-right: 12px;",
                     button { class: "dt-btn", onclick: move |_| zoom.set((zoom() - 0.25).max(1.0)), "-" }
                     button { class: "dt-btn active", style: "width: 50px; text-align: center; pointer-events: none;", "{zoom() * 100.0}%" }
@@ -476,58 +526,58 @@ fn render_topbar(
                 }
 
                 div { class: "density-toggle",
-                    button { 
-                        class: if !is_compact() { "dt-btn active" } else { "dt-btn" }, 
-                        onclick: move |_| is_compact.set(false), 
-                        "Comfortable" 
+                    button {
+                        class: if !is_compact() { "dt-btn active" } else { "dt-btn" },
+                        onclick: move |_| is_compact.set(false),
+                        "Comfortable"
                     }
-                    button { 
-                        class: if is_compact() { "dt-btn active" } else { "dt-btn" }, 
-                        onclick: move |_| is_compact.set(true), 
-                        "Compact" 
+                    button {
+                        class: if is_compact() { "dt-btn active" } else { "dt-btn" },
+                        onclick: move |_| is_compact.set(true),
+                        "Compact"
                     }
                 }
             }
             div { class: "lens-row",
-                button { 
+                button {
                     class: if active_lens() == FeedLens::MyOrder { "lens active" } else { "lens" },
                     onclick: move |_| {
                         active_lens.set(FeedLens::MyOrder);
                         physics.write().reset();
                         super::scroll::jump_to_top();
                         animating.set(true);
-                    }, 
-                    "My Order" 
+                    },
+                    "My Order"
                 }
-                button { 
+                button {
                     class: if active_lens() == FeedLens::NextUp { "lens active" } else { "lens" },
                     onclick: move |_| {
                         active_lens.set(FeedLens::NextUp);
                         physics.write().reset();
                         super::scroll::jump_to_top();
                         animating.set(true);
-                    }, 
-                    "Next Up" 
+                    },
+                    "Next Up"
                 }
-                button { 
+                button {
                     class: if active_lens() == FeedLens::HotPath { "lens active" } else { "lens" },
                     onclick: move |_| {
                         active_lens.set(FeedLens::HotPath);
                         physics.write().reset();
                         super::scroll::jump_to_top();
                         animating.set(true);
-                    }, 
-                    "Hot Path" 
+                    },
+                    "Hot Path"
                 }
-                button { 
+                button {
                     class: if active_lens() == FeedLens::QuickWins { "lens active" } else { "lens" },
                     onclick: move |_| {
                         active_lens.set(FeedLens::QuickWins);
                         physics.write().reset();
                         super::scroll::jump_to_top();
                         animating.set(true);
-                    }, 
-                    "Quick Wins" 
+                    },
+                    "Quick Wins"
                 }
             }
             if !available_labels.is_empty() {
@@ -718,35 +768,7 @@ fn render_content(
                             if target.as_ref().is_some_and(|target_id| *target_id == drag) {
                                 return;
                             }
-                            let mut all = issues();
-                            if let Some(idx) = all.iter().position(|i| i.id == drag) {
-                                let mut iss = all.remove(idx);
-                                if let Some(ref target_id) = target {
-                                    if let Some(tidx) = all.iter().position(|i| i.id == *target_id) {
-                                        iss.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
-                                        let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
-                                        all.insert(insert_at, iss);
-                                    } else {
-                                        all.insert(idx.min(all.len()), iss);
-                                    }
-                                } else if let Some(section_name) = section {
-                                    iss.section = section_name;
-                                    all.push(iss);
-                                } else {
-                                    all.insert(idx.min(all.len()), iss);
-                                }
-                                #[cfg(debug_assertions)]
-                                {
-                                    let mut seen = std::collections::HashSet::new();
-                                    for i in all.iter() {
-                                        assert!(
-                                            seen.insert(i.id.clone()),
-                                            "on_reorder: duplicate id {} (drag={} target={:?} after={})",
-                                            i.id, drag, target, after
-                                        );
-                                    }
-                                }
-                            }
+                            let all = reorder_issues(issues(), &drag, target.as_deref(), after, section);
                             bump_edit_epoch(edit_epoch);
                             issues.set(all);
                             save_workspace(state, "");
@@ -783,24 +805,7 @@ fn render_content(
                                 return;
                             }
                             let (drag, target, after, section) = payload;
-                            let mut all = issues();
-                            if let Some(idx) = all.iter().position(|i| i.id == drag) {
-                                let mut iss = all.remove(idx);
-                                if let Some(target_id) = target {
-                                    if let Some(tidx) = all.iter().position(|i| i.id == *target_id) {
-                                        iss.section = section.clone().unwrap_or_else(|| all[tidx].section.clone());
-                                        let insert_at = if after { tidx + 1 } else { tidx }.min(all.len());
-                                        all.insert(insert_at, iss);
-                                    } else {
-                                        all.insert(idx.min(all.len()), iss);
-                                    }
-                                } else if let Some(section_name) = section {
-                                    iss.section = section_name;
-                                    all.push(iss);
-                                } else {
-                                    all.insert(idx.min(all.len()), iss);
-                                }
-                            }
+                            let all = reorder_issues(issues(), &drag, target.as_deref(), after, section);
                             bump_edit_epoch(edit_epoch);
                             issues.set(all);
                             save_workspace(state, "");
@@ -947,7 +952,8 @@ impl LensMetrics {
         let mut unblock_scores = HashMap::<String, usize>::new();
         for issue in issues {
             let mut visited = HashSet::new();
-            let score = transitive_dependents(&issue.id, &dependents, &active_issue_ids, &mut visited);
+            let score =
+                transitive_dependents(&issue.id, &dependents, &active_issue_ids, &mut visited);
             unblock_scores.insert(issue.id.clone(), score);
         }
 
@@ -958,11 +964,20 @@ impl LensMetrics {
         }
     }
 
-    fn sort_key(&self, issue: &Issue, lens: FeedLens) -> (usize, usize, usize, (String, u32, String)) {
+    fn sort_key(
+        &self,
+        issue: &Issue,
+        lens: FeedLens,
+    ) -> (usize, usize, usize, (String, u32, String)) {
         match lens {
             FeedLens::MyOrder => (0, 0, 0, issue_id_sort_key(&issue.id)),
             FeedLens::NextUp => (
-                usize::MAX - self.unblock_scores.get(&issue.id).copied().unwrap_or_default(),
+                usize::MAX
+                    - self
+                        .unblock_scores
+                        .get(&issue.id)
+                        .copied()
+                        .unwrap_or_default(),
                 issue.status_ord() as usize,
                 self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
                 issue_id_sort_key(&issue.id),
@@ -976,7 +991,10 @@ impl LensMetrics {
             FeedLens::QuickWins => (
                 self.quick_costs.get(&issue.id).copied().unwrap_or_default(),
                 issue.status_ord() as usize,
-                self.unblock_scores.get(&issue.id).copied().unwrap_or_default(),
+                self.unblock_scores
+                    .get(&issue.id)
+                    .copied()
+                    .unwrap_or_default(),
                 issue_id_sort_key(&issue.id),
             ),
         }
@@ -1031,7 +1049,9 @@ fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<I
             (q.is_empty()
                 || i.title.to_lowercase().contains(&q)
                 || i.id.to_string().contains(&q)
-                || i.labels.iter().any(|label| label.to_lowercase().contains(&q)))
+                || i.labels
+                    .iter()
+                    .any(|label| label.to_lowercase().contains(&q)))
                 && active_label.as_ref().is_none_or(|selected| {
                     i.labels
                         .iter()
@@ -1046,7 +1066,8 @@ fn filter_issues(issues: &[Issue], q: &str, active_label: Option<&str>) -> Vec<I
 mod tests {
     use super::{
         apply_feed_lens, can_apply_external_reload, collect_labels, compute_breakdown,
-        filter_issues, parse_label_input, section_counts, should_reload_for_event, FeedLens,
+        filter_issues, parse_label_input, reorder_issues, section_counts, should_reload_for_event,
+        FeedLens,
     };
     use crate::model::{Issue, Status};
     use notify::event::{AccessKind, AccessMode, CreateKind, DataChange, ModifyKind};
@@ -1087,6 +1108,31 @@ mod tests {
             section: "ACTIVE Issues".to_string(),
             depends_on: depends_on.iter().map(|dep| dep.to_string()).collect(),
         }
+    }
+
+    #[test]
+    fn reorder_issues_uses_section_scoped_instance_keys() {
+        let active = make_issue("132", "Active 132", &[]);
+        let mut done = make_issue("132", "Done 132", &[]);
+        done.section = "DONE Issues".to_string();
+        let target = make_issue("124", "Target", &[]);
+
+        let reordered = reorder_issues(
+            vec![active.clone(), target.clone(), done.clone()],
+            "done issues::132",
+            Some("active issues::124"),
+            false,
+            None,
+        );
+
+        assert_eq!(
+            reordered
+                .iter()
+                .map(|issue| issue.title.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Active 132", "Done 132", "Target"]
+        );
+        assert_eq!(reordered[1].section, "ACTIVE Issues");
     }
 
     #[test]
@@ -1218,17 +1264,28 @@ mod tests {
         assert_eq!(stats.done, 1);
     }
 
-
     #[test]
     fn next_up_lens_prioritizes_transitive_unblock_count() {
         let issues = vec![
             make_issue_with_graph("BUG-01", "Base", Status::Open, &["src/main.rs"], &[]),
-            make_issue_with_graph("BUG-02", "Middle", Status::Open, &["src/main.rs"], &["BUG-01"]),
+            make_issue_with_graph(
+                "BUG-02",
+                "Middle",
+                Status::Open,
+                &["src/main.rs"],
+                &["BUG-01"],
+            ),
             make_issue_with_graph("BUG-03", "Leaf", Status::Open, &["src/ui.rs"], &["BUG-02"]),
         ];
 
         let sorted = apply_feed_lens(&issues, issues.clone(), FeedLens::NextUp);
-        assert_eq!(sorted.iter().map(|issue| issue.id.clone()).collect::<Vec<_>>(), vec!["BUG-01", "BUG-02", "BUG-03"]);
+        assert_eq!(
+            sorted
+                .iter()
+                .map(|issue| issue.id.clone())
+                .collect::<Vec<_>>(),
+            vec!["BUG-01", "BUG-02", "BUG-03"]
+        );
     }
 
     #[test]
@@ -1248,7 +1305,13 @@ mod tests {
     #[test]
     fn quick_wins_lens_prefers_lower_cost_work() {
         let issues = vec![
-            make_issue_with_graph("BUG-01", "Wide", Status::Open, &["a.rs", "b.rs"], &["BUG-09"]),
+            make_issue_with_graph(
+                "BUG-01",
+                "Wide",
+                Status::Open,
+                &["a.rs", "b.rs"],
+                &["BUG-09"],
+            ),
             make_issue_with_graph("BUG-02", "Tight", Status::Open, &["solo.rs"], &[]),
         ];
 

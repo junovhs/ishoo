@@ -57,6 +57,10 @@ body.is-scrolling .issue-row {
     transition: none !important;
 }
 
+body.is-scrolling .bracket-svg {
+    opacity: 0 !important;
+}
+
 body.is-scrolling .item:hover {
     z-index: 1 !important;
 }
@@ -631,9 +635,9 @@ html.dark .label-filter.active {
     stroke-width: 1.8;
     stroke-linecap: round;
 }
-.item { position: absolute; left: 0; right: 0; touch-action: none; will-change: transform; z-index: 1; height: var(--card-h); }
-.item.dragging { z-index: 500; }
-.item.settling { z-index: 400; pointer-events: none; }
+.item { position: absolute; left: 0; right: 0; touch-action: none; z-index: 1; height: var(--card-h); }
+.item.dragging { z-index: 500; will-change: transform; }
+.item.settling { z-index: 400; pointer-events: none; will-change: transform; }
 .item.dragging .issue-row {
     cursor: grabbing;
     background: var(--bg);
@@ -641,6 +645,11 @@ html.dark .label-filter.active {
     transform: translateY(-1px);
     border-radius: 6px;
     transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1), box-shadow 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+}
+.item.settling .issue-row {
+    background: var(--bg);
+    box-shadow: 0 0 0 rgba(0,0,0,0), 0 0 0 rgba(0,0,0,0);
+    transition: box-shadow 400ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* Issue rows */
@@ -657,7 +666,6 @@ html.dark .label-filter.active {
     transition: background 0.3s ease, box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1), transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
     position: relative;
     border-radius: 4px;
-    will-change: transform, box-shadow;
 }
 
 .item:hover {

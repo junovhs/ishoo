@@ -2,24 +2,177 @@
 
 ---
 
-## [7] Implement issue deletion via CLI
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-**Labels:** cli, save-load
-
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
-
-**Resolution:** 
-
----
-
 ## [27] Add comments per issue
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
 **Labels:** markdown, modal
 
 Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
+
+**Resolution:** 
+
+---
+
+## [121] Board Drag Feel: cursor anchoring must match Feed exactly
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`
+**Labels:** board, drag
+
+While dragging in Board, the held card must stay under the cursor with the same deadzone break, live follow, and no-drift behavior as Feed. No shrink, no offset drift, no alternate ghost logic that changes the feel.
+
+Requirements:
+
+- Use the same deadzone behavior as Feed
+- Keep the held card anchored identically under the cursor
+- Remove any visual shrink/compression behavior not present in Feed
+- Match Feed lift/shadow/scale treatment while dragging
+
+**Resolution:** 
+
+---
+
+## [61] Project health pulse & Issue Age
+**Status:** OPEN
+**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
+**Labels:** viz, git
+
+Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
+
+**Resolution:** 
+
+---
+
+## [43] Add issue description editing in the UI
+**Status:** OPEN
+**Files:** `src/ui/views/feed/card.rs`
+**Labels:** modal, feed
+
+The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
+Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
+
+**Resolution:** 
+
+---
+
+## [131] Feed/Text Crispness: eliminate transform-induced fuzz during scroll settle and hover
+**Status:** OPEN
+**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** feed, polish
+
+The feed text is not consistently crisp. In particular:
+
+- Scroll all the way to the top, let the motion settle, and issue text can land in a slightly fuzzy state
+- Hovering an issue can also soften the text briefly when the row lifts/expands
+- This is subtle, but once noticed it makes the UI feel less exact than it should
+
+This is likely a transform/rendering problem, not a typography problem. The most suspicious causes already in the code are:
+
+- Fractional `translate3d(...)` values applied during custom scrolling in `src/ui/scroll.rs`
+- Feed card positioning with transform-based movement in `src/ui/views/feed/card.rs`
+- Hover/press scaling on text-bearing issue rows in `assets/style.css`
+- App-level `zoom` usage in `src/ui/app.rs`, which may amplify subpixel softness in combination with transforms
+
+Requirements:
+
+- Keep issue text visually crisp at rest after scrolling settles
+- Keep issue text crisp during normal hover and press interactions
+- Preserve the existing feel as much as possible; this should be a rendering-quality fix, not a behavioral redesign
+- Prefer pixel-snapped movement and non-scaling hover treatments over text-bearing scale transforms
+- If there is still an unavoidable tradeoff, prioritize text crispness over tiny amounts of motion flourish
+
+Suggested direction:
+
+- Snap scroll and sticky-header transforms to whole pixels before writing them to the DOM
+- Remove or reduce scale transforms on `.issue-row` and preserve the feel through shadow, color, border, or slight translate-only motion
+- Audit whether app zoom plus transformed children is producing compounded softness, and tighten that path if needed
+
+**Resolution:** Snapped feed scroll/content and sticky-header transforms to whole pixels in `src/ui/scroll.rs`, snapped feed card Y positioning to whole pixels in `src/ui/views/feed/card.rs`, and removed text-bearing scale transforms from issue-row drag/hover/press states in `assets/style.css` in favor of translate-only motion. Verified with `neti check` on 2026-03-08: `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS, Neti scan reported only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`. Relevant labels remain `feed, polish`.
+
+---
+
+## [125] Board Cards: reuse Feed card interaction language at the atomic level
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** board, modal
+
+Board cards still differ too much from Feed in interaction language. The board should feel like Feed cards rearranged into columns, not a second card system.
+
+Requirements:
+
+- Reuse Feed hover, press, drag, and shadow language as closely as possible
+- Keep the open layout; avoid boxed sockets or custom board chrome that Feed does not use
+- Preserve Board-specific hierarchy improvement where IDs lead scanning
+- Clicking/tapping a non-dragged board card must open the issue modal reliably
+
+**Resolution:** 
+
+---
+
+## [127] Board Modal Parity: board-opened issue modal must match Feed modal behavior
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`
+**Labels:** board, modal
+
+Board can open issues now, but modal behavior is not yet guaranteed to be on par with Feed. Board-opened issues should have the same editing confidence and interaction quality.
+
+Requirements:
+
+- Opening an issue from Board must feel identical in quality to opening from Feed
+- Status, labels, and resolution editing must persist the same way
+- Any modal layout/content drift from Feed should be eliminated unless explicitly intentional
+- Do not fork modal behavior further while drag work is ongoing
+
+**Resolution:** 
+
+---
+
+## [120] Board Drag Engine: extract feed drag/release physics into a shared engine
+**Status:** OPEN
+**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `src/ui/views/mod.rs`
+**Labels:** board, drag
+
+Board drag behavior is still a parallel implementation that only approximates Feed. That is the wrong architecture. Feed and Board must share the same drag state model, release timing, displacement math, and cursor anchoring. Only board lane targeting should differ.
+
+Requirements:
+
+- Extract the feed drag/release model into shared reusable code
+- Preserve Feed behavior exactly while moving logic out
+- Make Board consume the same engine instead of a separate approximation
+- Do not change Feed feel while doing this refactor
+
+**Resolution:** 
+
+---
+
+## [9] Add global keyboard shortcuts
+**Status:** OPEN
+**Files:** `src/ui/app.rs`
+**Labels:** modal
+**Depends on:** [6]
+
+Essential keyboard shortcuts for the desktop app:
+
+- `Cmd/Ctrl + S` — Save All
+- `Esc` — Close modal or collapse active card
+Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
+
+**Resolution:** 
+
+---
+
+## [124] Board Cross-Lane Drag: add left/right lane targeting without altering Feed vertical physics
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`
+**Labels:** board, drag
+
+The only behavior Board should add on top of Feed drag is lane selection. Left/right movement should choose a target lane, but vertical drag behavior inside the chosen lane must remain Feed-identical.
+
+Requirements:
+
+- Lane targeting is the only board-specific drag extension
+- Switching lanes must not change drag feel, deadzone, or release behavior
+- Empty lanes must accept drops cleanly
+- Cross-lane insertion should still preserve Feed-style displacement inside the destination lane
 
 **Resolution:** 
 
@@ -52,19 +205,6 @@ Resolution should include:
 After #54 adds blocking visualization (green/red edges), add a "Bottlenecks" mode to the Graph view that highlights the issues with the highest transitive dependent count. The issue whose completion unblocks the most downstream work should visually glow or scale larger.
 
 This answers "what's the single most important thing to do right now" from a pure dependency perspective. Compute transitive dependents by walking the dependency graph — no new data source needed.
-
-**Resolution:** 
-
----
-
-## [15] Implement ishoo edit CLI command
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
-**Labels:** cli, markdown
-
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
 
@@ -107,16 +247,14 @@ Fix:
 
 ---
 
-## [36] Validate and lint issue files
+## [16] Preserve unknown markdown fields through save
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/parse.rs`
-**Labels:** cli, markdown, test-coverage
+**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
+**Labels:** markdown, save-load
+**Depends on:** [8]
 
-There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
-
-- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
-- `ishoo lint --strict` — treats warnings as errors (useful for CI)
-This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
+After #8 lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
 
 **Resolution:** 
 
@@ -131,36 +269,6 @@ The three-file structure (`issues-active.md`, `issues-backlog.md`, `issues-done.
 Change `Workspace::load` to scan for all `issues-*.md` files in the directory instead of only the three hardcoded names. On save, write each issue back to whichever file it was loaded from (tracked via a `source_file` field on Issue). The only special-case routing is DONE/DESCOPED issues, which always go to `issues-done.md`.
 This means users can create `issues-sprint-42.md`, `issues-frontend.md`, `issues-tech-debt.md` — whatever they want. No config file needed. The file is the config.
 If a new issue is created and has no source file, default to `issues-active.md`.
-
-**Resolution:** 
-
----
-
-## [16] Preserve unknown markdown fields through save
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/model/workspace.rs`
-**Labels:** markdown, save-load
-**Depends on:** [8]
-
-If a user manually adds `**Priority:** HIGH` or `**Assignee:** @alice` to an issue, `write_section` silently drops it because it only emits known fields. This is destructive and violates the "your markdown, your rules" philosophy.
-After #8 lands (AST parser), the parser should capture unknown `**Key:** Value` pairs into a `HashMap<String, String>` on the Issue struct, and `write_section` should emit them back.
-
-**Resolution:** 
-
----
-
-## [37] Add CI/pre-commit hook integration
-**Status:** OPEN
-**Files:** `src/main.rs`, `docs/`
-**Labels:** cli, docs, test-coverage
-**Depends on:** [36]
-
-Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
-
-- Duplicate issue IDs introduced by a bad merge
-- Dangling dependency references
-- Issues left in IN PROGRESS on a branch that's being merged to main
-Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
 
 **Resolution:** 
 
@@ -196,6 +304,21 @@ Add integration tests that exercise `init → new → save → load` with both f
 
 ---
 
+## [59] Stale issue detection
+**Status:** OPEN
+**Files:** `src/model/workspace.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
+**Labels:** git, feed
+
+Surface issues that haven't changed status in a long time. Derive staleness from git history on the issue markdown files (`git log --format=%aI -- <file>`) — no new metadata fields needed.
+
+Show a subtle "stale" indicator on cards that haven't been touched in N days (configurable, default 14). The Timeline view could also dim or desaturate stale issues.
+
+This answers "what's stalled and why am I pretending it isn't?"
+
+**Resolution:** 
+
+---
+
 ## [31] Status changes move issues between files automatically
 **Status:** OPEN
 **Files:** `src/model/workspace.rs`, `src/ui/app.rs`
@@ -203,6 +326,19 @@ Add integration tests that exercise `init → new → save → load` with both f
 
 When an issue's status is changed — via the UI dropdown, the CLI, or the Board view — it should automatically migrate to the appropriate file. DONE and DESCOPED go to `issues-done.md`. Reopening a DONE issue moves it back to `issues-active.md`.
 Currently this only happens on explicit "Save All" and only for the DONE→done-file case. Make it consistent and automatic for all status transitions. If arbitrary file names land (#28), the routing rules should be configurable or at least documented.
+
+**Resolution:** 
+
+---
+
+## [63] Velocity visualization in Timeline view
+**Status:** OPEN
+**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
+**Labels:** viz, git
+
+The Timeline view should show completed issues plotted over time (derived from git history of when issues moved to DONE status). A simple cumulative line or bar chart showing resolved issues per week/month.
+
+Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
 
 **Resolution:** 
 
@@ -230,19 +366,6 @@ This answers "if I'm already in these files, what else can I batch?" Reduces con
 
 ---
 
-## [63] Velocity visualization in Timeline view
-**Status:** OPEN
-**Files:** `src/ui/views/viz.rs`, `src/model/workspace.rs`
-**Labels:** viz, git
-
-The Timeline view should show completed issues plotted over time (derived from git history of when issues moved to DONE status). A simple cumulative line or bar chart showing resolved issues per week/month.
-
-Doesn't need to be fancy — even a stepped line that goes up by one each time an issue is resolved. The point is to see momentum. When you're grinding and it feels like nothing's moving, the upward slope is motivating.
-
-**Resolution:** 
-
----
-
 ## [54] Add issue dependency blocking visualization
 **Status:** OPEN
 **Files:** `src/ui/views/viz.rs`
@@ -253,21 +376,6 @@ The Graph view shows dependency edges, but doesn't highlight blocked chains. If 
 - Satisfied dependencies (dependency is DONE) — green edge
 - Blocking dependencies (dependency is not DONE) — red edge with a "BLOCKED" badge on the dependent issue
 The Feed view should also show a small "blocked" indicator on cards whose dependencies aren't met.
-
-**Resolution:** 
-
----
-
-## [59] Stale issue detection
-**Status:** OPEN
-**Files:** `src/model/workspace.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`
-**Labels:** git, feed
-
-Surface issues that haven't changed status in a long time. Derive staleness from git history on the issue markdown files (`git log --format=%aI -- <file>`) — no new metadata fields needed.
-
-Show a subtle "stale" indicator on cards that haven't been touched in N days (configurable, default 14). The Timeline view could also dim or desaturate stale issues.
-
-This answers "what's stalled and why am I pretending it isn't?"
 
 **Resolution:** 
 
@@ -605,32 +713,6 @@ This should feel like project memory with context, not just a markdown preview.
 
 ---
 
-## [78] Add “Create Brief from Issue” action
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
-**Labels:** brief, issue-brief-bridge
-
-A lot of decisions/insights/research conclusions will emerge while working an issue. There should be a fast path to promote that learning into a Brief directly from the issue card/modal.
-
-Add an action like:
-
-* “Promote to Decision”
-* “Extract Insight”
-* “Create Research Brief”
-* “Mark as Open Question”
-
-Should prefill:
-
-* title
-* related issue link
-* maybe files/context from the source issue
-
-This is one of the most important bridges between execution and understanding.
-
-**Resolution:** 
-
----
-
 ## [79] Add “Spawn Issue from Brief” action
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/views/`, `src/model/workspace.rs`
@@ -680,26 +762,6 @@ If lifecycle is fuzzy, the app will not solve the “what’s actually current?�
 
 ---
 
-## [81] Add size-cap validation for Brief kinds
-**Status:** OPEN
-**Files:** `src/model/parse.rs`, `src/main.rs`, `docs/`
-**Labels:** brief, test-coverage
-
-Part of the concept is that Briefs stay distilled. Add lint warnings/errors when Briefs exceed configured size caps by kind.
-
-Examples:
-
-* principle too long
-* decision bloated into essay
-* research brief becoming raw dump
-* guide turning into amorphous wiki page
-
-This can start as a soft lint warning and become stricter later. Without pressure, the whole Briefs layer will sludge up.
-
-**Resolution:** 
-
----
-
 ## [83] Add integrated search across Issues and Briefs
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/model/workspace.rs`, `src/ui/views/`
@@ -720,6 +782,52 @@ Add global search that spans:
 * maybe files for issues
 
 Results should clearly distinguish artifact type.
+
+**Resolution:** 
+
+---
+
+## [81] Add size-cap validation for Brief kinds
+**Status:** OPEN
+**Files:** `src/model/parse.rs`, `src/main.rs`, `docs/`
+**Labels:** brief, test-coverage
+
+Part of the concept is that Briefs stay distilled. Add lint warnings/errors when Briefs exceed configured size caps by kind.
+
+Examples:
+
+* principle too long
+* decision bloated into essay
+* research brief becoming raw dump
+* guide turning into amorphous wiki page
+
+This can start as a soft lint warning and become stricter later. Without pressure, the whole Briefs layer will sludge up.
+
+**Resolution:** 
+
+---
+
+## [78] Add “Create Brief from Issue” action
+**Status:** OPEN
+**Files:** `src/ui/views/feed/card.rs`, `src/ui/app.rs`, `src/model/workspace.rs`
+**Labels:** brief, issue-brief-bridge
+
+A lot of decisions/insights/research conclusions will emerge while working an issue. There should be a fast path to promote that learning into a Brief directly from the issue card/modal.
+
+Add an action like:
+
+* “Promote to Decision”
+* “Extract Insight”
+* “Create Research Brief”
+* “Mark as Open Question”
+
+Should prefill:
+
+* title
+* related issue link
+* maybe files/context from the source issue
+
+This is one of the most important bridges between execution and understanding.
 
 **Resolution:** 
 
@@ -803,6 +911,25 @@ This is necessary to preserve the “your markdown, your rules” philosophy for
 
 ---
 
+## [88] Add docs explaining boundary between Issues and Briefs
+**Status:** OPEN
+**Files:** `docs/`
+**Labels:** brief, docs
+
+This feature will fail if users don’t know where things belong. Need explicit docs that answer:
+
+* when is something an Issue vs a Brief?
+* when should research become project-facing?
+* what kinds of Briefs exist?
+* when should a Brief spawn an Issue?
+* when should a Question be archived vs resolved?
+
+This should be framed as a routing guide, not a giant theoretical essay.
+
+**Resolution:** 
+
+---
+
 ## [87] Add stale Brief detection
 **Status:** OPEN
 **Files:** `src/model/workspace.rs`, `src/ui/views/`, `src/ui/app.rs`
@@ -818,25 +945,6 @@ Examples:
 * `ADOPTED` guide that has not been revisited in a long time
 
 This should help prevent the Briefs layer from quietly turning into dead philosophy.
-
-**Resolution:** 
-
----
-
-## [88] Add docs explaining boundary between Issues and Briefs
-**Status:** OPEN
-**Files:** `docs/`
-**Labels:** brief, docs
-
-This feature will fail if users don’t know where things belong. Need explicit docs that answer:
-
-* when is something an Issue vs a Brief?
-* when should research become project-facing?
-* what kinds of Briefs exist?
-* when should a Brief spawn an Issue?
-* when should a Question be archived vs resolved?
-
-This should be framed as a routing guide, not a giant theoretical essay.
 
 **Resolution:** 
 

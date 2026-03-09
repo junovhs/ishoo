@@ -51,7 +51,6 @@ pub fn GraphView(issues: Vec<Issue>) -> Element {
 
     let file_overlaps = shared_file_overlaps(&issues);
 
-
     rsx! {
         div { class: "viz view-shell",
             div { class: "viz-hdr",
@@ -218,9 +217,15 @@ mod tests {
         let main_entry = result.iter().find(|(f, _)| f == "src/main.rs");
         assert!(main_entry.is_some(), "shared file must appear in overlaps");
         let ids = &main_entry.unwrap().1;
-        assert!(ids.contains(&"BUG-01".to_string()) && ids.contains(&"BUG-02".to_string()), "both issue IDs must be present");
+        assert!(
+            ids.contains(&"BUG-01".to_string()) && ids.contains(&"BUG-02".to_string()),
+            "both issue IDs must be present"
+        );
         // src/lib.rs is only touched by issue 1 — must NOT appear.
-        assert!(result.iter().all(|(f, _)| f != "src/lib.rs"), "single-issue file must be excluded");
+        assert!(
+            result.iter().all(|(f, _)| f != "src/lib.rs"),
+            "single-issue file must be excluded"
+        );
     }
 
     // Negative case: a file shared between one active and one Done issue must NOT
@@ -235,7 +240,10 @@ mod tests {
             make_issue("BUG-02", Status::Done, &["src/model.rs"]),
         ];
         let result = shared_file_overlaps(&issues);
-        assert!(result.is_empty(), "file shared with only one active issue must not appear");
+        assert!(
+            result.is_empty(),
+            "file shared with only one active issue must not appear"
+        );
     }
 
     // Edge case: descoped issues are also excluded.
@@ -246,6 +254,9 @@ mod tests {
             make_issue("BUG-02", Status::Descoped, &["src/ui.rs"]),
         ];
         let result = shared_file_overlaps(&issues);
-        assert!(result.is_empty(), "file shared with a Descoped issue must not appear");
+        assert!(
+            result.is_empty(),
+            "file shared with a Descoped issue must not appear"
+        );
     }
 }

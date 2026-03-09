@@ -1,6 +1,7 @@
 // neti:allow(LAW OF ATOMICITY)
 use crate::model::{split_issue_id, Issue, Status};
 use crate::ui::components::LabelList;
+use crate::ui::views::feed::issue_instance_key;
 use dioxus::prelude::*;
 use std::collections::BTreeMap;
 
@@ -18,7 +19,7 @@ pub struct BoardViewProps {
 
 #[derive(Clone, Default, PartialEq)]
 struct BoardDragState {
-    dragging_id: Option<String>,
+    dragging_key: Option<String>,
     start_section: Option<String>,
     hover_section: Option<String>,
     start_idx: usize,
@@ -38,17 +39,26 @@ pub fn BoardView(props: BoardViewProps) -> Element {
     let sections = grouped_sections(&props.issues);
     let mut drag = use_signal(BoardDragState::default);
     let mut modal_id = use_signal(|| None::<String>);
-    let dragged_issue = drag()
-        .dragging_id
-        .and_then(|id| props.issues.iter().find(|issue| issue.id == id).cloned());
-    let active_modal = modal_id()
-        .and_then(|id| props.issues.iter().find(|issue| issue.id == id).cloned());
+    let dragged_issue = drag().dragging_key.and_then(|key| {
+        props
+            .issues
+            .iter()
+            .find(|issue| issue_instance_key(issue) == key)
+            .cloned()
+    });
+    let active_modal = modal_id().and_then(|key| {
+        props
+            .issues
+            .iter()
+            .find(|issue| issue_instance_key(issue) == key)
+            .cloned()
+    });
 
     rsx! {
         div {
             class: "board-view",
             onpointermove: move |e| {
-                if drag.read().dragging_id.is_some() {
+                if drag.read().dragging_key.is_some() {
                     let mut state = drag.write();
                     state.pointer_x = e.client_coordinates().x as f32;
                     state.pointer_y = e.client_coordinates().y as f32;
@@ -56,20 +66,20 @@ pub fn BoardView(props: BoardViewProps) -> Element {
             },
             onpointerup: move |_| {
                 let state = drag();
-                if state.dragging_id.is_none() || state.releasing {
+                if state.dragging_key.is_none() || state.releasing {
                     return;
                 }
 
                 let moved = ((state.pointer_x - state.start_x).powi(2) + (state.pointer_y - state.start_y).powi(2)).sqrt() >= 5.0;
                 if !moved {
-                    if let Some(id) = state.dragging_id {
-                        modal_id.set(Some(id));
+                    if let Some(key) = state.dragging_key {
+                        modal_id.set(Some(key));
                     }
                     drag.set(BoardDragState::default());
                     return;
                 }
 
-                let drag_id = state.dragging_id;
+                let drag_key = state.dragging_key;
                 let hover_idx = state.hover_idx;
                 let hover_after = state.hover_after;
                 let hover_section = state.hover_section.clone();
@@ -81,14 +91,14 @@ pub fn BoardView(props: BoardViewProps) -> Element {
 
                 spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(BOARD_DROP_MS)).await;
-                    if let Some(dragging_id) = drag_id {
+                    if let Some(dragging_key) = drag_key {
                         let target = hover_section.as_ref().and_then(|section| {
                             section_items(&issues, section)
                                 .get(hover_idx)
-                                .map(|issue| issue.id.clone())
+                                .map(|issue| issue_instance_key(issue))
                         });
                         let section_for_drop = hover_section.or(dragged_section);
-                        on_reorder.call((dragging_id, target, hover_after, section_for_drop));
+                        on_reorder.call((dragging_key, target, hover_after, section_for_drop));
                     }
                     drag_signal.set(BoardDragState::default());
                 });
@@ -138,7 +148,7 @@ fn BoardLane(mut props: BoardLaneProps) -> Element {
         section {
             class: if lane_active { "board-lane board-lane-active" } else { "board-lane" },
             onmouseenter: move |_| {
-                if props.drag_state.read().dragging_id.is_some() {
+                if props.drag_state.read().dragging_key.is_some() {
                     let mut state = props.drag_state.write();
                     state.hover_section = Some(props.title.clone());
                     if props.items.is_empty() {
@@ -184,22 +194,33 @@ struct BoardCardProps {
 fn BoardCard(mut props: BoardCardProps) -> Element {
     let ds = (props.drag_state)();
     let issue_id = props.issue.id.clone();
-    let is_dragging = ds.dragging_id == Some(issue_id.clone());
+    let issue_key = issue_instance_key(&props.issue);
+    let is_dragging = ds.dragging_key == Some(issue_key.clone());
     let same_hover_lane = ds.hover_section.as_deref() == Some(props.lane_title.as_str());
     let same_start_lane = ds.start_section.as_deref() == Some(props.lane_title.as_str());
 
     let mut shift = 0.0;
-    if ds.dragging_id.is_some() && !is_dragging {
+    if ds.dragging_key.is_some() && !is_dragging {
         if same_start_lane && same_hover_lane {
-            if ds.hover_idx > ds.start_idx && props.lane_idx > ds.start_idx && props.lane_idx <= ds.hover_idx {
+            if ds.hover_idx > ds.start_idx
+                && props.lane_idx > ds.start_idx
+                && props.lane_idx <= ds.hover_idx
+            {
                 shift -= BOARD_CARD_H;
-            } else if ds.hover_idx < ds.start_idx && props.lane_idx >= ds.hover_idx && props.lane_idx < ds.start_idx {
+            } else if ds.hover_idx < ds.start_idx
+                && props.lane_idx >= ds.hover_idx
+                && props.lane_idx < ds.start_idx
+            {
                 shift += BOARD_CARD_H;
             }
         } else if same_start_lane && props.lane_idx > ds.start_idx {
             shift -= BOARD_CARD_H;
         } else if same_hover_lane {
-            let insert_idx = if ds.hover_after { ds.hover_idx + 1 } else { ds.hover_idx };
+            let insert_idx = if ds.hover_after {
+                ds.hover_idx + 1
+            } else {
+                ds.hover_idx
+            };
             if props.lane_idx >= insert_idx {
                 shift += BOARD_CARD_H;
             }
@@ -207,7 +228,11 @@ fn BoardCard(mut props: BoardCardProps) -> Element {
     }
 
     let transition = "transform 400ms cubic-bezier(0.25, 1, 0.5, 1), opacity 200ms ease";
-    let style = if is_dragging { "opacity:0.14;".to_string() } else { format!("transform: translate3d(0, {shift}px, 0); transition: {transition};") };
+    let style = if is_dragging {
+        "opacity:0.14;".to_string()
+    } else {
+        format!("transform: translate3d(0, {shift}px, 0); transition: {transition};")
+    };
     let issue_section = props.issue.section.clone();
     let (id_category, id_number) = split_issue_id(&issue_id);
 
@@ -221,7 +246,7 @@ fn BoardCard(mut props: BoardCardProps) -> Element {
                     e.prevent_default();
                     let rect = e.element_coordinates();
                     props.drag_state.set(BoardDragState {
-                        dragging_id: Some(issue_id.clone()),
+                        dragging_key: Some(issue_key.clone()),
                         start_section: Some(issue_section.clone()),
                         hover_section: Some(issue_section.clone()),
                         start_idx: props.lane_idx,
@@ -237,7 +262,7 @@ fn BoardCard(mut props: BoardCardProps) -> Element {
                     });
                 },
                 onmouseenter: move |e| {
-                    if props.drag_state.read().dragging_id.is_some() {
+                    if props.drag_state.read().dragging_key.is_some() {
                         let mut state = props.drag_state.write();
                         state.hover_section = Some(props.lane_title.clone());
                         state.hover_idx = props.lane_idx;
@@ -307,21 +332,39 @@ fn BoardDragGhost(props: BoardDragGhostProps) -> Element {
 fn grouped_sections(issues: &[Issue]) -> Vec<(String, Vec<Issue>)> {
     let mut grouped = BTreeMap::<String, Vec<Issue>>::new();
     for issue in issues {
-        grouped.entry(issue.section.clone()).or_default().push(issue.clone());
+        grouped
+            .entry(issue.section.clone())
+            .or_default()
+            .push(issue.clone());
     }
 
     let mut sections: Vec<_> = grouped.into_iter().collect();
-    sections.sort_by(|(left, _), (right, _)| section_sort_key(left).cmp(&section_sort_key(right)).then_with(|| left.cmp(right)));
+    sections.sort_by(|(left, _), (right, _)| {
+        section_sort_key(left)
+            .cmp(&section_sort_key(right))
+            .then_with(|| left.cmp(right))
+    });
     sections
 }
 
 fn section_items<'a>(issues: &'a [Issue], section: &str) -> Vec<&'a Issue> {
-    issues.iter().filter(|issue| issue.section == section).collect()
+    issues
+        .iter()
+        .filter(|issue| issue.section == section)
+        .collect()
 }
 
 fn section_sort_key(section: &str) -> (u8, String) {
     let normalized = section.trim().to_ascii_lowercase();
-    let rank = if normalized.contains("active") { 0 } else if normalized.contains("backlog") { 1 } else if normalized.contains("done") { 2 } else { 3 };
+    let rank = if normalized.contains("active") {
+        0
+    } else if normalized.contains("backlog") {
+        1
+    } else if normalized.contains("done") {
+        2
+    } else {
+        3
+    };
     (rank, normalized)
 }
 
@@ -357,13 +400,14 @@ fn BoardIssueModal(props: BoardIssueModalProps) -> Element {
     let resolution_id = id.clone();
     let status_id = id.clone();
     let section = i.section.to_ascii_lowercase();
-    let color = if section.contains("done") || i.status == Status::Done || i.status == Status::Descoped {
-        "var(--green)"
-    } else if section.contains("backlog") {
-        "var(--blue)"
-    } else {
-        "var(--orange)"
-    };
+    let color =
+        if section.contains("done") || i.status == Status::Done || i.status == Status::Descoped {
+            "var(--green)"
+        } else if section.contains("backlog") {
+            "var(--blue)"
+        } else {
+            "var(--orange)"
+        };
 
     rsx! {
         div {

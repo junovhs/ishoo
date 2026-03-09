@@ -8,6 +8,7 @@ use dioxus::document::eval;
 
 pub const TAU: f64 = 0.22;
 pub const ACCEL: f64 = 4.5;
+pub const INPUT_TAU: f64 = 0.05;
 pub const MAX_V: f64 = 15000.0;
 pub const R_K: f64 = 250.0;
 pub const R_DAMP: f64 = 30.0;
@@ -21,6 +22,7 @@ fn snap_px(value: f64) -> f64 {
 pub struct ScrollPhysics {
     pub offset: f64,
     pub velocity: f64,
+    pending_wheel_delta: f64,
 }
 
 impl Default for ScrollPhysics {
@@ -28,20 +30,22 @@ impl Default for ScrollPhysics {
         Self {
             offset: 0.0,
             velocity: 0.0,
+            pending_wheel_delta: 0.0,
         }
     }
 }
 
 impl ScrollPhysics {
     pub fn add_wheel_delta(&mut self, delta_y: f64, max_scroll: f64) {
-        let mut delta = delta_y * ACCEL;
+        let mut delta = shape_wheel_delta(delta_y) * ACCEL;
         if (self.offset < 0.0 && delta < 0.0) || (self.offset > max_scroll && delta > 0.0) {
             delta *= 0.1;
         }
-        self.velocity = (self.velocity + delta).clamp(-MAX_V, MAX_V);
+        self.pending_wheel_delta = (self.pending_wheel_delta + delta).clamp(-MAX_V, MAX_V);
     }
 
     pub fn tick(&mut self, dt: f64, max_scroll: f64) -> bool {
+        self.flush_pending_wheel(dt);
         self.velocity *= (-dt / TAU).exp();
 
         if self.offset < 0.0 {
@@ -77,6 +81,32 @@ impl ScrollPhysics {
     pub fn reset(&mut self) {
         self.offset = 0.0;
         self.velocity = 0.0;
+        self.pending_wheel_delta = 0.0;
+    }
+
+    fn flush_pending_wheel(&mut self, dt: f64) {
+        if self.pending_wheel_delta.abs() < 0.01 {
+            self.pending_wheel_delta = 0.0;
+            return;
+        }
+
+        let alpha = 1.0 - (-dt / INPUT_TAU).exp();
+        let mut injected = self.pending_wheel_delta * alpha;
+        if self.pending_wheel_delta.abs() < 1.0 {
+            injected = self.pending_wheel_delta;
+        }
+
+        self.pending_wheel_delta -= injected;
+        self.velocity = (self.velocity + injected).clamp(-MAX_V, MAX_V);
+    }
+}
+
+fn shape_wheel_delta(delta_y: f64) -> f64 {
+    let magnitude = delta_y.abs();
+    if magnitude == 0.0 {
+        0.0
+    } else {
+        delta_y.signum() * magnitude.powf(0.96)
     }
 }
 
@@ -130,7 +160,7 @@ pub fn set_is_scrolling(scrolling: bool) {
 pub async fn measure_max_scroll() -> f64 {
     let mut result = eval(
         "var c=document.getElementById('scroll-content'),v=document.querySelector('.content');\
-         dioxus.send(c&&v?c.scrollHeight-v.clientHeight:0)"
+         dioxus.send(c&&v?c.scrollHeight-v.clientHeight:0)",
     );
     result.recv::<f64>().await.unwrap_or_default().max(0.0)
 }
@@ -139,7 +169,7 @@ pub async fn measure_header_positions() -> Vec<f64> {
     let mut result = eval(
         "var hs=document.querySelectorAll('.section-head');\
          var ys=[];hs.forEach(function(h){ys.push(h.offsetTop)});\
-         dioxus.send(ys)"
+         dioxus.send(ys)",
     );
     result.recv::<Vec<f64>>().await.unwrap_or_default()
 }
@@ -210,15 +240,29 @@ mod tests {
     }
 
     #[test]
-    fn test_manual_velocity_dampening_scrub() {
+    fn wheel_input_is_coalesced_across_ticks() {
         let mut physics = ScrollPhysics::default();
+        physics.add_wheel_delta(120.0, 1000.0);
+
+        physics.tick(0.016, 1000.0);
+        let first_frame_velocity = physics.velocity;
+
+        assert!(first_frame_velocity > 0.0);
+        assert!(first_frame_velocity < shape_wheel_delta(120.0) * ACCEL);
+
+        physics.tick(0.016, 1000.0);
+        assert!(physics.velocity > first_frame_velocity);
+    }
+
+    #[test]
+    fn test_manual_velocity_dampening_scrub() {
         let max_scroll = 1000.0;
-        physics.add_wheel_delta(100.0, max_scroll);
-        let initial_v = physics.velocity;
+        let initial_v = shape_wheel_delta(100.0) * ACCEL;
 
         let mut normal_coast = ScrollPhysics {
             velocity: initial_v,
             offset: 0.0,
+            pending_wheel_delta: 0.0,
         };
         for _ in 0..60 {
             normal_coast.tick(0.016, max_scroll);
@@ -227,6 +271,7 @@ mod tests {
         let mut scrub_coast = ScrollPhysics {
             velocity: initial_v,
             offset: 0.0,
+            pending_wheel_delta: 0.0,
         };
         for idx in 0..60 {
             if idx < 3 {

@@ -95,7 +95,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Creates workspace at. [TYPE]
+Implements status ord. [TYPE]
 → Exports: issue_id_sort_key, parse_categorical_issue_id, default_init_path, init_workspace_at
 
 `src/ui/mod.rs`

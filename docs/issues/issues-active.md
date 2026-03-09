@@ -2,96 +2,105 @@
 
 ---
 
-## [9] Add global keyboard shortcuts
+## [134] CLI Parity: every issue action must be possible from the terminal
 **Status:** OPEN
-**Files:** `src/ui/app.rs`
-**Labels:** modal
-**Depends on:** [6]
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/ui/app.rs`
+**Labels:** cli, save-load, markdown
 
-Essential keyboard shortcuts for the desktop app:
-
-- `Cmd/Ctrl + S` — Save All
-- `Esc` — Close modal or collapse active card
-Note: Dioxus desktop runs in a webview that swallows some OS-level key combinations. Prototype early to identify which bindings actually work before committing to a full set. Expand later based on what's possible.
-
-**Resolution:** 
-
----
-
-## [43] Add issue description editing in the UI
-**Status:** OPEN
-**Files:** `src/ui/views/feed/card.rs`
-**Labels:** modal, feed
-
-The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
-Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
-
-**Resolution:** 
-
----
-
-## [61] Project health pulse & Issue Age
-**Status:** OPEN
-**Files:** `src/ui/app.rs`, `src/ui/components.rs`, `src/model/workspace.rs`
-**Labels:** viz, git
-
-Sidebar `.health` pulse and Modal Issue Age. Requires invoking `git log` dynamically to derive sparkline trends and age calculations, which requires a new backend feature.
-
-**Resolution:** 
-
----
-
-## [121] Board Drag Feel: cursor anchoring must match Feed exactly
-**Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`
-**Labels:** board, drag
-
-While dragging in Board, the held card must stay under the cursor with the same deadzone break, live follow, and no-drift behavior as Feed. No shrink, no offset drift, no alternate ghost logic that changes the feel.
+The intended working mode is terminal-first. A user or AI should be able to create, inspect, edit, move, validate, and close work without needing to touch the desktop UI. The UI can stay better for browsing, but it must stop being the only place where core issue mutations are possible.
 
 Requirements:
 
-- Use the same deadzone behavior as Feed
-- Keep the held card anchored identically under the cursor
-- Remove any visual shrink/compression behavior not present in Feed
-- Match Feed lift/shadow/scale treatment while dragging
-
-**Resolution:** 
-
----
-
-## [131] Feed/Text Crispness: eliminate transform-induced fuzz during scroll settle and hover
-**Status:** OPEN
-**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
-**Labels:** feed, polish
-
-The feed text is not consistently crisp. In particular:
-
-- Scroll all the way to the top, let the motion settle, and issue text can land in a slightly fuzzy state
-- Hovering an issue can also soften the text briefly when the row lifts/expands
-- This is subtle, but once noticed it makes the UI feel less exact than it should
-
-This is likely a transform/rendering problem, not a typography problem. The most suspicious causes already in the code are:
-
-- Fractional `translate3d(...)` values applied during custom scrolling in `src/ui/scroll.rs`
-- Feed card positioning with transform-based movement in `src/ui/views/feed/card.rs`
-- Hover/press scaling on text-bearing issue rows in `assets/style.css`
-- App-level `zoom` usage in `src/ui/app.rs`, which may amplify subpixel softness in combination with transforms
-
-Requirements:
-
-- Keep issue text visually crisp at rest after scrolling settles
-- Keep issue text crisp during normal hover and press interactions
-- Preserve the existing feel as much as possible; this should be a rendering-quality fix, not a behavioral redesign
-- Prefer pixel-snapped movement and non-scaling hover treatments over text-bearing scale transforms
-- If there is still an unavoidable tradeoff, prioritize text crispness over tiny amounts of motion flourish
+- Every issue mutation that matters in the UI must have a CLI path
+- Terminal flows must support both human use and AI/scripted use
+- Commands should prefer explicit flags and machine-readable output over interactive-only flows
+- Terminal-first workflows like "make that an issue", "edit this", "close this", and "show me what changed" should not require markdown hand-editing
+- The CLI should become the trusted automation surface for future agent work
 
 Suggested direction:
 
-- Snap scroll and sticky-header transforms to whole pixels before writing them to the DOM
-- Remove or reduce scale transforms on `.issue-row` and preserve the feel through shadow, color, border, or slight translate-only motion
-- Audit whether app zoom plus transformed children is producing compounded softness, and tighten that path if needed
+- Treat `new`, `show`, `list`, `edit`, `delete`, `set`, `lint`, and section/routing operations as one coherent product surface instead of isolated commands
+- Add machine-readable output modes where needed so AI/automation can inspect results safely
+- Close command gaps before polishing secondary UI-only affordances
 
-**Resolution:** Snapped feed scroll/content and sticky-header transforms to whole pixels in `src/ui/scroll.rs`, snapped feed card Y positioning to whole pixels in `src/ui/views/feed/card.rs`, and removed text-bearing scale transforms from issue-row drag/hover/press states in `assets/style.css` in favor of translate-only motion. Verified with `neti check` on 2026-03-08: `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS, Neti scan reported only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`. Relevant labels remain `feed, polish`.
+**Resolution:** 
+
+---
+
+## [37] Add CI/pre-commit hook integration
+**Status:** OPEN
+**Files:** `src/main.rs`, `docs/`
+**Labels:** cli, docs, test-coverage
+**Depends on:** [36]
+
+Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
+
+- Duplicate issue IDs introduced by a bad merge
+- Dangling dependency references
+- Issues left in IN PROGRESS on a branch that's being merged to main
+Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
+
+**Resolution:** ---
+
+---
+
+## [15] Implement ishoo edit CLI command
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`
+**Labels:** cli, markdown
+
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
+
+**Resolution:** 
+
+---
+
+## [133] Machine-Owned Issue Identity: users should not manage IDs by hand
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/model/cli.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`
+**Labels:** cli, architecture, save-load
+**Depends on:** [11]
+
+Issue identity should be machine-owned, not user-managed bookkeeping. Users still benefit from visible handles in the UI because they aid navigation and discussion, but the system should generate and maintain them automatically rather than asking either humans or probabilistic agents to think about numbering.
+
+Requirements:
+
+- Stable internal identity must be programmatic and machine-owned
+- Human-visible handles may remain visible, but users should not need to author or maintain them
+- Renumbering or regenerating visible handles must not break links, dependencies, reorder logic, or persistence
+- CLI and UI workflows like "make that an issue" must work without supplying an ID
+- Existing markdown should migrate cleanly without destroying references
+
+**Resolution:** 
+
+---
+
+## [7] Implement issue deletion via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+**Labels:** cli, save-load
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
+
+**Resolution:** 
+
+---
+
+## [36] Validate and lint issue files
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/parse.rs`
+**Labels:** cli, markdown, test-coverage
+
+There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+
+- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
+- `ishoo lint --strict` — treats warnings as errors (useful for CI)
+This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+
+**Resolution:** 
 
 ---
 
@@ -108,78 +117,6 @@ Requirements:
 - Crossed cards move one slot at a time exactly like Feed
 - No instant snap to final order during live drag
 - Vertical movement within a lane should be indistinguishable from Feed
-
-**Resolution:** 
-
----
-
-## [120] Board Drag Engine: extract feed drag/release physics into a shared engine
-**Status:** OPEN
-**Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `src/ui/views/mod.rs`
-**Labels:** board, drag
-
-Board drag behavior is still a parallel implementation that only approximates Feed. That is the wrong architecture. Feed and Board must share the same drag state model, release timing, displacement math, and cursor anchoring. Only board lane targeting should differ.
-
-Requirements:
-
-- Extract the feed drag/release model into shared reusable code
-- Preserve Feed behavior exactly while moving logic out
-- Make Board consume the same engine instead of a separate approximation
-- Do not change Feed feel while doing this refactor
-
-**Resolution:** 
-
----
-
-## [124] Board Cross-Lane Drag: add left/right lane targeting without altering Feed vertical physics
-**Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`
-**Labels:** board, drag
-
-The only behavior Board should add on top of Feed drag is lane selection. Left/right movement should choose a target lane, but vertical drag behavior inside the chosen lane must remain Feed-identical.
-
-Requirements:
-
-- Lane targeting is the only board-specific drag extension
-- Switching lanes must not change drag feel, deadzone, or release behavior
-- Empty lanes must accept drops cleanly
-- Cross-lane insertion should still preserve Feed-style displacement inside the destination lane
-
-**Resolution:** 
-
----
-
-## [123] Board Release: settle, commit delay, and post-drop state must match Feed exactly
-**Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
-**Labels:** board, drag
-
-Board drop/release still has its own sequencing. That creates risk of pop, dip, snap, or timing mismatch. Feed already solved these edge cases and Board must reuse that exact sequencing.
-
-Requirements:
-
-- Match Feed release timing and delayed reorder commit exactly
-- No dip/pop/rebound after release
-- No alternate board-only settle animation
-- Post-drop hover suppression/re-arm should match Feed behavior where applicable
-
-**Resolution:** 
-
----
-
-## [125] Board Cards: reuse Feed card interaction language at the atomic level
-**Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
-**Labels:** board, modal
-
-Board cards still differ too much from Feed in interaction language. The board should feel like Feed cards rearranged into columns, not a second card system.
-
-Requirements:
-
-- Reuse Feed hover, press, drag, and shadow language as closely as possible
-- Keep the open layout; avoid boxed sockets or custom board chrome that Feed does not use
-- Preserve Board-specific hierarchy improvement where IDs lead scanning
-- Clicking/tapping a non-dragged board card must open the issue modal reliably
 
 **Resolution:** 
 
@@ -203,19 +140,19 @@ Requirements:
 
 ---
 
-## [127] Board Modal Parity: board-opened issue modal must match Feed modal behavior
+## [123] Board Release: settle, commit delay, and post-drop state must match Feed exactly
 **Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`
-**Labels:** board, modal
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
+**Labels:** board, drag
 
-Board can open issues now, but modal behavior is not yet guaranteed to be on par with Feed. Board-opened issues should have the same editing confidence and interaction quality.
+Board drop/release still has its own sequencing. That creates risk of pop, dip, snap, or timing mismatch. Feed already solved these edge cases and Board must reuse that exact sequencing.
 
 Requirements:
 
-- Opening an issue from Board must feel identical in quality to opening from Feed
-- Status, labels, and resolution editing must persist the same way
-- Any modal layout/content drift from Feed should be eliminated unless explicitly intentional
-- Do not fork modal behavior further while drag work is ongoing
+- Match Feed release timing and delayed reorder commit exactly
+- No dip/pop/rebound after release
+- No alternate board-only settle animation
+- Post-drop hover suppression/re-arm should match Feed behavior where applicable
 
 **Resolution:** 
 

@@ -2,7 +2,7 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 38 files | 108695 tokens | 2 violations
+SCAN SUMMARY: 38 files | 111532 tokens | 2 violations
 
 ALL VIOLATING FILES:
     2 violations | src/model/workspace.rs
@@ -11,9 +11,9 @@ warn: Class 'Workspace' is tightly coupled (CBO: 37)
   --> src/model/workspace.rs:10
    |
      9 | #[derive(Debug, Clone)]
-    10 | pub struct Workspace { // neti:allow(CBO, SFOUT)
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    11 |     pub root: PathBuf,
+    10 | pub struct Workspace {
+   | ^^^^^^^^^^^^^^^^^^^^^^
+    11 |     // neti:allow(CBO, SFOUT)
    = CBO: Review recommended — accurate measurement, but may be expected for central/hub types
    |
    = ANALYSIS:
@@ -25,9 +25,9 @@ warn: Class 'Workspace' has high fan-out (SFOUT: 18)
   --> src/model/workspace.rs:10
    |
      9 | #[derive(Debug, Clone)]
-    10 | pub struct Workspace { // neti:allow(CBO, SFOUT)
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    11 |     pub root: PathBuf,
+    10 | pub struct Workspace {
+   | ^^^^^^^^^^^^^^^^^^^^^^
+    11 |     // neti:allow(CBO, SFOUT)
    = SFOUT: Review recommended — high fan-out may be intentional for orchestrator/coordinator functions
    |
    = ANALYSIS:
@@ -35,7 +35,7 @@ warn: Class 'Workspace' has high fan-out (SFOUT: 18)
    |
    = SUPPRESS: // neti:allow(SFOUT) on the line, or SFOUT = "warn" in neti.toml [rules]
 
-~ Neti found 2 warnings (404ms).
+~ Neti found 2 warnings (411ms).
 
 
 ========================================
@@ -54,8 +54,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (306ms)
+> PASS (298ms)
 
 $ cargo test
-> PASS (347ms)
+> PASS (341ms)
 

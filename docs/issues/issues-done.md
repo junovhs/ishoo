@@ -2,7 +2,32 @@
 
 ---
 
-## [132] Feed Scroll Architecture: replace transformed text-layer scrolling with native scroll ownership
+## [14] Fix re-render performance in physics loop
+**Status:** DONE
+**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
+**Labels:** feed, drag, performance
+
+**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
+
+---
+
+## [132] Feed Motion Architecture: push drag and scroll from “smooth enough” to “holy shit”
+**Status:** DONE
+**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `assets/style.css`, `docs/3-7-26.md`
+**Labels:** feed, drag, polish
+**Depends on:** [131]
+
+Current Feed motion is now back in the "good enough" zone, and the repo has a baseline tag to preserve it: `smooth-baseline-2026-03-08`.
+
+That is not the target. The target is motion that feels unnaturally smooth: no perceptible stepping, no glitchy drag phases, no visual fight between crisp text and fluid movement, and no sense that richer cards or more UI density will push the interaction over a performance cliff.
+
+This issue is explicitly not a generic "optimize stuff" bucket. It is a focused motion-architecture pass informed by the research in `docs/3-7-26.md`.
+
+**Resolution:** Reworked the feed/board motion path to use section-scoped runtime identity instead of visible issue IDs, eliminating the drag-start/title-swap aliasing bug and preventing duplicate-ID reorder panics in `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, and `src/ui/app.rs`. Split the feed drag path so the held card now renders on its own overlay track while drag presence is separated from heavier layout reconciliation, which removes parent list churn from live cursor-follow and makes pickup/drag feel materially smoother. Reduced live drag reconciliation frequency in `src/ui/views/feed.rs` so slot recomputation only runs after meaningful pointer travel. Changed `src/ui/scroll.rs` to coalesce wheel input into the physics loop via pending-delta injection instead of directly spiking velocity, which makes detented wheel input feel more continuous without changing the existing bounds/inertia model. Tightened hot-path styling in `assets/style.css` by suppressing bracket overlay visibility during scroll and limiting compositor hints to active motion states instead of permanently advertising `will-change` on every row. Verified on 2026-03-08 with `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS (48 tests), and `neti check` command checks PASS; Neti still reports only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`.
+
+---
+
+## [135] Feed Scroll Architecture: replace transformed text-layer scrolling with native scroll ownership
 **Status:** DONE
 **Files:** `src/ui/app.rs`, `src/ui/scroll.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
 **Labels:** feed, architecture, polish
@@ -137,15 +162,6 @@ Verified via `neti check` (no Atomic layers broken), and `cargo check`/`cargo te
 Prerequisite for rendering beautiful markdown (`.m-body`). Moving to `pulldown-cmark`.
 
 **Resolution:** Replaced manual array splits with `pulldown_cmark` event iteration inside `parse_markdown`. Implemented token extraction that consumes `Text[range]` cleanly across paragraph blocks. Tested via `cargo test parse` and passed `neti check`.
-
----
-
-## [14] Fix re-render performance in physics loop
-**Status:** DONE
-**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
-**Labels:** feed, drag, performance
-
-**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
 
 ---
 

@@ -1,15 +1,19 @@
 use crate::model::{split_issue_id, Issue};
 use crate::ui::components::LabelList;
-use crate::ui::views::feed::{apply_drag_deadzone, DragState, RecentDropState, DRAG_DEADZONE_PX};
+use crate::ui::views::feed::{
+    apply_drag_deadzone, DragPresence, DragState, RecentDropState, DRAG_DEADZONE_PX,
+};
 use dioxus::document::eval;
 use dioxus::prelude::*;
 
 #[derive(Clone, PartialEq, Props)]
 pub struct IssueCardProps {
     pub issue: Issue,
+    pub issue_key: String,
     pub incoming_links: Vec<String>,
     pub idx: usize,
     pub virtual_y: f32, // The pre-calculated absolute Y position of the slot
+    pub drag_presence: Signal<DragPresence>,
     pub drag_state: Signal<DragState>,
     pub drag_offset: Signal<f32>,
     pub recent_drop: Signal<RecentDropState>,
@@ -17,6 +21,17 @@ pub struct IssueCardProps {
     pub is_compact: bool,
     pub array_reordered: bool,
     pub is_hidden: bool,
+}
+
+#[derive(Clone, PartialEq, Props)]
+pub struct DragOverlayProps {
+    pub issue: Issue,
+    pub issue_key: String,
+    pub incoming_links: Vec<String>,
+    pub drag_presence: Signal<DragPresence>,
+    pub drag_state: Signal<DragState>,
+    pub drag_offset: Signal<f32>,
+    pub is_compact: bool,
 }
 
 const CLEAR_LINK_BRACKETS_SCRIPT: &str = r#"
@@ -35,13 +50,15 @@ const CLEAR_LINK_BRACKETS_SCRIPT: &str = r#"
 pub fn IssueCard(props: IssueCardProps) -> Element {
     let i = &props.issue;
     let id = i.id.clone();
+    let issue_key = props.issue_key.clone();
     let idx = props.idx;
+    let dp = props.drag_presence.read();
     let ds = props.drag_state.read();
     let rd = props.recent_drop.read();
 
-    let is_dragging = ds.dragging_id == Some(id.clone());
+    let is_dragging = dp.dragging_key == Some(issue_key.clone());
     let array_reordered = props.array_reordered;
-    let is_recent_drop = rd.id == Some(id.clone());
+    let is_recent_drop = rd.key == Some(issue_key.clone());
     let hover_armed = rd.hover_armed;
 
     // Keep live drag displacement local to the card layer instead of simulating
@@ -50,7 +67,7 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let mut virtual_y = props.virtual_y;
     let slot_h = if props.is_compact { 44.0 } else { 93.0 };
 
-    if ds.dragging_id.is_some() && !is_dragging && !array_reordered {
+    if dp.dragging_key.is_some() && !is_dragging && !array_reordered {
         let start_y = ds.start_virtual_y;
         let hover_y = ds.hover_y;
 
@@ -63,52 +80,14 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
         }
     }
 
-    let mut actually_dragging = is_dragging;
-    let mut effective_offset = if is_dragging && !ds.releasing {
-        (props.drag_offset)()
+    let y_pos = if is_dragging && dp.releasing {
+        ds.hover_y
     } else {
-        0.0
-    };
-
-    if actually_dragging && !ds.releasing {
-        if effective_offset.abs() < DRAG_DEADZONE_PX {
-            actually_dragging = false;
-            effective_offset = 0.0;
-        } else {
-            effective_offset = apply_drag_deadzone(effective_offset);
-        }
-    }
-
-    let y_pos = if is_dragging && !ds.releasing {
-        // During live drag, stay pinned to the original pickup slot so
-        // simulated reordering underneath never pulls the held card away
-        // from the cursor.
-        ds.start_virtual_y + effective_offset
-    } else if is_dragging && ds.releasing {
-        // Snap/suck into the final hover socket
-        if array_reordered {
-            virtual_y
-        } else {
-            ds.hover_y
-        }
-    } else {
-        // Displaced cards or resting cards sit strictly in their assigned socket
         virtual_y
     };
-
-    let transition = if actually_dragging && !ds.releasing {
-        "none" // Instantly follow cursor once deadzone broke
-    } else {
-        "transform 400ms cubic-bezier(0.25, 1, 0.5, 1)" // Match the 0.4s box-shadow / scale release
-    };
+    let transition = "transform 400ms cubic-bezier(0.25, 1, 0.5, 1)";
 
     let mut cls = "item".to_string();
-    if actually_dragging && !ds.releasing {
-        cls.push_str(" dragging");
-    }
-    if ds.releasing && is_dragging {
-        cls.push_str(" settling");
-    }
     if is_recent_drop {
         cls.push_str(" recent-drop");
         if hover_armed {
@@ -119,10 +98,11 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let outer_style = format!(
         "position: absolute; top: 0; left: 0px; right: 0px; transform: translate3d(0, {y_pos}px, 0){}; transition: {transition}; opacity: {}; pointer-events: {};",
         if props.is_hidden { " scale(0.8)" } else { "" },
-        if props.is_hidden { "0" } else { "1" },
-        if props.is_hidden { "none" } else { "auto" },
+        if props.is_hidden || is_dragging { "0" } else { "1" },
+        if props.is_hidden || is_dragging { "none" } else { "auto" },
     );
 
+    let mut drag_presence_signal = props.drag_presence;
     let mut drag_state_signal = props.drag_state;
     let mut drag_offset_signal = props.drag_offset;
     let mut recent_drop_signal = props.recent_drop;
@@ -153,10 +133,8 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     } else {
         String::new()
     };
-    let row_dom_id = format!("issue-row-{id}");
+    let row_dom_id = format!("issue-row-{}", issue_key.replace(':', "-"));
     let section_dom_key = i.section.to_ascii_lowercase().replace(' ', "-");
-    let (id_category, id_number) = split_issue_id(&id);
-
     rsx! {
         div {
             class: "{cls}",
@@ -170,16 +148,19 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     e.prevent_default();
                     let _ = eval(CLEAR_LINK_BRACKETS_SCRIPT);
                     recent_drop_signal.set(RecentDropState::default());
+                    drag_presence_signal.set(DragPresence {
+                        dragging_key: Some(issue_key.clone()),
+                        releasing: false,
+                    });
                     let mut ds_write = drag_state_signal.write();
-                    ds_write.dragging_id = Some(id.clone());
                     ds_write.start_idx = idx;
                     ds_write.hover_idx = idx;
                     ds_write.hover_after = false;
                     ds_write.start_y = e.client_coordinates().y as f32;
                     ds_write.start_virtual_y = props.virtual_y;
+                    ds_write.last_layout_probe_y = props.virtual_y;
                     drag_offset_signal.set(0.0);
                     ds_write.hover_y = props.virtual_y;
-                    ds_write.releasing = false;
                 },
                 onmouseenter: move |_| {
                     if !props.allow_link_hover || link_count == 0 {
@@ -265,49 +246,138 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                 onmouseleave: move |_| {
                     let _ = eval(CLEAR_LINK_BRACKETS_SCRIPT);
                 },
-                div { class: "id-badge",
-                    span { class: "id-cat", "{id_category}-" }
-                    span { class: "id-num", "{id_number}" }
-                }
-                div { class: "issue-body",
-                    div { class: "issue-title",
-                        "{i.title}"
-                    }
-                    if !props.is_compact {
-                        div { class: "issue-sub",
-                            span { "{i.files.len()} file", if i.files.len() != 1 { "s" } }
-                            span { class: "sep", "/" }
-                            span { "2 days" }
-                        }
-                        div { class: "labels-row", style: "display:flex;gap:4px;margin-top:4px;",
-                            span { class: "label b-{i.status.css_class()}", "{i.status.label()}" }
-                            LabelList { labels: i.labels.clone() }
-                        }
-                    }
-                }
-                div { class: "issue-right", // Empty space on the right, matches the dot and links
-                    if outgoing_count > 0 || incoming_count > 0 {
-                        span {
-                            class: "xlink",
-                            title: if outgoing_count > 0 && incoming_count > 0 {
-                                "Mentions {outgoing_count} issue(s) and is mentioned by {incoming_count}"
-                            } else if outgoing_count > 0 {
-                                "Mentions {outgoing_count} linked issue(s)"
-                            } else {
-                                "Mentioned by {incoming_count} issue(s)"
-                            },
-                            if outgoing_count > 0 && incoming_count > 0 {
-                                "↕"
-                            } else if outgoing_count > 0 {
-                                "↗"
-                            } else {
-                                "↙"
-                            }
-                        }
-                    }
-                    div { class: "s-dot", style: "background:{section_color}; width:8px; height:8px; border-radius:50%;" }
+                IssueRowContent {
+                    issue: i.clone(),
+                    incoming_links: props.incoming_links.clone(),
+                    is_compact: props.is_compact,
+                    section_color: section_color.to_string(),
                 }
             }
+        }
+    }
+}
+
+#[component]
+pub fn DragOverlay(props: DragOverlayProps) -> Element {
+    let dp = props.drag_presence.read();
+    let ds = props.drag_state.read();
+    if dp.dragging_key.as_deref() != Some(props.issue_key.as_str()) {
+        return rsx! {};
+    }
+
+    let mut effective_offset = if dp.releasing {
+        0.0
+    } else {
+        (props.drag_offset)()
+    };
+    let mut cls = "item dragging".to_string();
+    let transition = if dp.releasing {
+        cls.push_str(" settling");
+        "transform 400ms cubic-bezier(0.25, 1, 0.5, 1)"
+    } else {
+        if effective_offset.abs() < DRAG_DEADZONE_PX {
+            effective_offset = 0.0;
+        } else {
+            effective_offset = apply_drag_deadzone(effective_offset);
+        }
+        "none"
+    };
+
+    let y_pos = if dp.releasing {
+        ds.hover_y
+    } else {
+        ds.start_virtual_y + effective_offset
+    };
+
+    let outer_style = format!(
+        "position: absolute; top: 0; left: 0; right: 0; transform: translate3d(0, {y_pos}px, 0); transition: {transition}; pointer-events: none;"
+    );
+
+    let is_done = props.issue.status == crate::model::Status::Done
+        || props.issue.status == crate::model::Status::Descoped;
+    let sec_lower = props.issue.section.to_lowercase();
+    let is_backlog = !is_done && sec_lower.contains("backlog");
+    let section_color = if is_done {
+        "var(--green)"
+    } else if is_backlog {
+        "var(--blue)"
+    } else {
+        "var(--orange)"
+    };
+
+    rsx! {
+        div {
+            class: "{cls}",
+            style: "{outer_style}",
+            div {
+                class: "issue-row",
+                IssueRowContent {
+                    issue: props.issue,
+                    incoming_links: props.incoming_links,
+                    is_compact: props.is_compact,
+                    section_color: section_color.to_string(),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Props)]
+struct IssueRowContentProps {
+    issue: Issue,
+    incoming_links: Vec<String>,
+    is_compact: bool,
+    section_color: String,
+}
+
+#[component]
+fn IssueRowContent(props: IssueRowContentProps) -> Element {
+    let (id_category, id_number) = split_issue_id(&props.issue.id);
+    let outgoing_count = props.issue.links.len();
+    let incoming_count = props.incoming_links.len();
+
+    rsx! {
+        div { class: "id-badge",
+            span { class: "id-cat", "{id_category}-" }
+            span { class: "id-num", "{id_number}" }
+        }
+        div { class: "issue-body",
+            div { class: "issue-title",
+                "{props.issue.title}"
+            }
+            if !props.is_compact {
+                div { class: "issue-sub",
+                    span { "{props.issue.files.len()} file", if props.issue.files.len() != 1 { "s" } }
+                    span { class: "sep", "/" }
+                    span { "2 days" }
+                }
+                div { class: "labels-row", style: "display:flex;gap:4px;margin-top:4px;",
+                    span { class: "label b-{props.issue.status.css_class()}", "{props.issue.status.label()}" }
+                    LabelList { labels: props.issue.labels.clone() }
+                }
+            }
+        }
+        div { class: "issue-right",
+            if outgoing_count > 0 || incoming_count > 0 {
+                span {
+                    class: "xlink",
+                    title: if outgoing_count > 0 && incoming_count > 0 {
+                        "Mentions {outgoing_count} issue(s) and is mentioned by {incoming_count}"
+                    } else if outgoing_count > 0 {
+                        "Mentions {outgoing_count} linked issue(s)"
+                    } else {
+                        "Mentioned by {incoming_count} issue(s)"
+                    },
+                    if outgoing_count > 0 && incoming_count > 0 {
+                        "↕"
+                    } else if outgoing_count > 0 {
+                        "↗"
+                    } else {
+                        "↙"
+                    }
+                }
+            }
+            div { class: "s-dot", style: "background:{props.section_color}; width:8px; height:8px; border-radius:50%;" }
         }
     }
 }

@@ -12,18 +12,29 @@ pub fn parse_markdown(text: &str, default_section: &str) -> Vec<Issue> {
 
     while let Some((event, range)) = parser.next() {
         match event {
-            Event::Start(Tag::Heading { level: HeadingLevel::H1, .. }) => {
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H1,
+                ..
+            }) => {
                 let heading_text = skip_and_extract_text(&mut parser);
                 let t = heading_text.trim();
                 if !t.is_empty() {
                     section = t.to_owned(); // neti:allow(P02)
                 }
             }
-            Event::Start(Tag::Heading { level: HeadingLevel::H2, .. }) => {
+            Event::Start(Tag::Heading {
+                level: HeadingLevel::H2,
+                ..
+            }) => {
                 let heading_text = skip_and_extract_text(&mut parser);
                 process_h2(
-                    text, range, &heading_text, &section, 
-                    &mut current, &mut issues, &mut in_resolution
+                    text,
+                    range,
+                    &heading_text,
+                    &section,
+                    &mut current,
+                    &mut issues,
+                    &mut in_resolution,
                 );
             }
             Event::Start(_) => {
@@ -123,7 +134,9 @@ fn ensure_blank_line(cur: &mut Issue, in_resolution: bool) {
     }
 }
 
-fn skip_and_extract_text<'a>(parser: &mut impl Iterator<Item = (Event<'a>, std::ops::Range<usize>)>) -> String {
+fn skip_and_extract_text<'a>(
+    parser: &mut impl Iterator<Item = (Event<'a>, std::ops::Range<usize>)>,
+) -> String {
     let mut extracted = String::new();
     let mut nesting = 1;
     for (inner_ev, _) in parser {
@@ -239,7 +252,8 @@ fn extract_links(issue: &Issue) -> Vec<String> {
     let mut links = vec![];
     let mut seen = std::collections::BTreeSet::new();
 
-    for text in [&issue.title, &issue.description, &issue.resolution] { // neti:allow(P04)
+    for text in [&issue.title, &issue.description, &issue.resolution] {
+        // neti:allow(P04)
         for link in extract_mentions(text) {
             if link != issue.id && seen.insert(link.clone()) {
                 links.push(link);
@@ -361,7 +375,10 @@ mod tests {
         let issues = parse_markdown(md, "Default");
         assert_eq!(issues.len(), 1);
         let issue = &issues[0];
-        assert_eq!(issue.description, "This is a paragraph with **bold** and `code`.\n\n```rust\nfn main() {}\n```");
+        assert_eq!(
+            issue.description,
+            "This is a paragraph with **bold** and `code`.\n\n```rust\nfn main() {}\n```"
+        );
         assert_eq!(issue.resolution, "Fixed by *magic*.");
     }
 }

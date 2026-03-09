@@ -7,7 +7,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct Workspace { // neti:allow(CBO, SFOUT)
+pub struct Workspace {
+    // neti:allow(CBO, SFOUT)
     pub root: PathBuf,
     pub issues: Vec<Issue>,
 }
@@ -66,7 +67,11 @@ impl Workspace {
             .map(|(_, number)| number + 1)
             .max()
             .unwrap_or(1);
-        let next = counters.get(&category).copied().unwrap_or(1).max(existing_next);
+        let next = counters
+            .get(&category)
+            .copied()
+            .unwrap_or(1)
+            .max(existing_next);
         counters.insert(category.clone(), next + 1);
         write_id_counters(&self.root, &counters)?;
         Ok(format_issue_id(&category, next))
@@ -98,7 +103,11 @@ impl Workspace {
     pub fn dependency_edges(&self) -> Vec<(String, String)> {
         self.issues
             .iter()
-            .flat_map(|i| i.depends_on.iter().map(move |dep| (dep.clone(), i.id.clone())))
+            .flat_map(|i| {
+                i.depends_on
+                    .iter()
+                    .map(move |dep| (dep.clone(), i.id.clone()))
+            })
             .collect()
     }
 }
@@ -138,8 +147,8 @@ fn read_id_counters(root: &Path) -> Result<HashMap<String, u32>, String> {
     if !path.exists() {
         return Ok(HashMap::new());
     }
-    let text = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+    let text =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
     let mut counters = HashMap::new();
     for line in text.lines() {
         let line = line.trim();
@@ -158,8 +167,7 @@ fn read_id_counters(root: &Path) -> Result<HashMap<String, u32>, String> {
 
 fn write_id_counters(root: &Path, counters: &HashMap<String, u32>) -> Result<(), String> {
     let dir = root.join(".ishoo");
-    fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create {}: {e}", dir.display()))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create {}: {e}", dir.display()))?;
     let mut entries = counters.iter().collect::<Vec<_>>();
     entries.sort_by(|(left, _), (right, _)| issue_id_sort_key(left).cmp(&issue_id_sort_key(right)));
     let body = entries

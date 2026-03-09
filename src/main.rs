@@ -79,10 +79,16 @@ fn main() {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     model::cli_heatmap(&ws);
                 }
-                Some(Commands::New { title, category, status }) => {
+                Some(Commands::New {
+                    title,
+                    category,
+                    status,
+                }) => {
                     let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     let issue = model::Issue {
-                        id: ws.allocate_issue_id(category).expect("Failed to allocate issue ID"),
+                        id: ws
+                            .allocate_issue_id(category)
+                            .expect("Failed to allocate issue ID"),
                         title: title.clone(),
                         status: model::Status::from_str(status),
                         files: vec![],
