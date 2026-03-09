@@ -36,7 +36,7 @@ your-project/
     └── issues/
         ├── issues-active.md    # Open + In-Progress issues
         ├── issues-backlog.md   # Future work
-        └── issues-done.md      # Completed issues
+        └── issues-done.md      # Completed and descoped issues
 ```
 
 The built-in CLI and lint flow operate on those three core files. Custom files such as `issues-graphics.md` are fine for extension workflows, but the current CLI lint pass only validates the built-in set.
@@ -63,7 +63,7 @@ ishoo lint --strict                          # Exit non-zero on lint findings
 ishoo heatmap                                # CLI visualization of file hotspots
 ```
 
-`ishoo lint` currently checks for duplicate IDs, broken dependency references, missing required authored fields, empty titles, and core-file coherence for `issues-active.md`, `issues-backlog.md`, and `issues-done.md`.
+`ishoo lint` currently checks for duplicate IDs, broken dependency references, missing required authored fields, empty titles, and core-file coherence for `issues-active.md`, `issues-backlog.md`, and `issues-done.md`. In the built-in done file, terminal statuses `DONE` and `DESCOPED` are both valid.
 
 ## Issue Authoring
 

@@ -206,8 +206,8 @@ impl CoreFileKind {
 fn core_file_coherence_message(file_kind: CoreFileKind, status: &str, id: &str) -> Option<String> {
     let normalized = status.trim().to_ascii_uppercase();
     match file_kind {
-        CoreFileKind::Done if normalized != "DONE" => Some(format!(
-            "core section mismatch: [{}] in issues-done.md must use DONE status",
+        CoreFileKind::Done if normalized != "DONE" && normalized != "DESCOPED" => Some(format!(
+            "core section mismatch: [{}] in issues-done.md must use DONE or DESCOPED status",
             id
         )),
         CoreFileKind::Active | CoreFileKind::Backlog if normalized == "DONE" => Some(format!(
@@ -286,6 +286,10 @@ mod tests {
                 "# DONE Issues\n\n---\n\n## [BUG-02] Wrong status\n**Status:** OPEN\n**Labels:** cli\n\n**Resolution:** \n\n---\n".to_string(),
             ),
             (
+                "issues-done.md",
+                "# DONE Issues\n\n---\n\n## [BUG-04] Descoped terminal issue\n**Status:** DESCOPED\n**Labels:** cli\n\n**Resolution:** Not pursuing.\n\n---\n".to_string(),
+            ),
+            (
                 "issues-graphics.md",
                 "# GRAPHICS Issues\n\n---\n\n## [BUG-03] Custom section\n**Status:** OPEN\n**Labels:** graphics\n\n**Resolution:** \n\n---\n".to_string(),
             ),
@@ -296,9 +300,14 @@ mod tests {
             .any(|f| f.message.contains("must move to issues-done.md")));
         assert!(findings
             .iter()
-            .any(|f| f.message.contains("must use DONE status")));
+            .any(|f| f.message.contains("must use DONE or DESCOPED status")));
         assert!(!findings.iter().any(|f| {
             f.file == "issues-graphics.md" && f.message.contains("core section mismatch")
+        }));
+        assert!(!findings.iter().any(|f| {
+            f.file == "issues-done.md"
+                && f.message.contains("[BUG-04]")
+                && f.message.contains("core section mismatch")
         }));
     }
 }
