@@ -36,11 +36,22 @@ pub struct DragOverlayProps {
 
 const CLEAR_LINK_BRACKETS_SCRIPT: &str = r#"
 (() => {
-  document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
+  const clearRows = () => {
+    document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
+  };
+  if (window.__ishooBracketHideTimer) {
+    clearTimeout(window.__ishooBracketHideTimer);
+  }
   const svg = document.getElementById('link-bracket-overlay');
   if (svg) {
-    svg.classList.remove('visible');
-    svg.innerHTML = '';
+    window.__ishooBracketHideTimer = setTimeout(() => {
+      clearRows();
+      svg.classList.remove('visible');
+      svg.innerHTML = '';
+      window.__ishooBracketHideTimer = null;
+    }, 200);
+  } else {
+    clearRows();
   }
 })();
 "#;
@@ -169,6 +180,10 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
                     let script = format!(
                         r#"
 (() => {{
+  if (window.__ishooBracketHideTimer) {{
+    clearTimeout(window.__ishooBracketHideTimer);
+    window.__ishooBracketHideTimer = null;
+  }}
   const source = document.getElementById({row_id:?});
   if (!source) return;
   const container = document.getElementById("scroll-content");

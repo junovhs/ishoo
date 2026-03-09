@@ -160,24 +160,6 @@ Note: Dioxus desktop runs in a webview that swallows some OS-level key combinati
 
 ---
 
-## [124] Board Cross-Lane Drag: add left/right lane targeting without altering Feed vertical physics
-**Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`
-**Labels:** board, drag
-
-The only behavior Board should add on top of Feed drag is lane selection. Left/right movement should choose a target lane, but vertical drag behavior inside the chosen lane must remain Feed-identical.
-
-Requirements:
-
-- Lane targeting is the only board-specific drag extension
-- Switching lanes must not change drag feel, deadzone, or release behavior
-- Empty lanes must accept drops cleanly
-- Cross-lane insertion should still preserve Feed-style displacement inside the destination lane
-
-**Resolution:** 
-
----
-
 ## [5] Add conflict resolution for concurrent edits
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/model/workspace.rs`
@@ -191,6 +173,24 @@ Resolution should include:
 - Content hash or generation counter comparison before overwriting
 - A warning modal: "The file has changed on disk. Overwrite / Reload / Merge?"
 - Optionally, per-issue dirty tracking instead of a single global `dirty` flag
+
+**Resolution:** 
+
+---
+
+## [124] Board Cross-Lane Drag: add left/right lane targeting without altering Feed vertical physics
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`
+**Labels:** board, drag
+
+The only behavior Board should add on top of Feed drag is lane selection. Left/right movement should choose a target lane, but vertical drag behavior inside the chosen lane must remain Feed-identical.
+
+Requirements:
+
+- Lane targeting is the only board-specific drag extension
+- Switching lanes must not change drag feel, deadzone, or release behavior
+- Empty lanes must accept drops cleanly
+- Cross-lane insertion should still preserve Feed-style displacement inside the destination lane
 
 **Resolution:** 
 

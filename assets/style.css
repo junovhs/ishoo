@@ -618,7 +618,7 @@ html.dark .label-filter.active {
     pointer-events: none;
     overflow: visible;
     opacity: 0;
-    transition: opacity 0.12s ease;
+    transition: opacity 0.24s ease;
     z-index: 2;
 }
 .bracket-svg.visible {
@@ -689,11 +689,11 @@ html.dark .label-filter.active {
     background: rgba(0, 0, 0, 0.03);
 }
 
-/* Base hover - gently lift towards user */
+/* Base hover uses the same quiet shading language as linked rows */
 .issue-row:hover {
-    background: var(--bg);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.02);
-    transform: translateY(-1px);
+    background: rgba(0, 0, 0, 0.03);
+    box-shadow: none;
+    transform: none;
 }
 
 /* Press state - push into page */
@@ -706,8 +706,8 @@ html.dark .label-filter.active {
 
 /* Dark mode tweaks */
 html.dark .issue-row:hover {
-    background: rgba(255, 255, 255, 0.03);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: none;
 }
 html.dark .issue-row.link-hl {
     background: rgba(255, 255, 255, 0.05);

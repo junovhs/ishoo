@@ -2,6 +2,18 @@
 
 ---
 
+## [7] Implement issue deletion via CLI
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
+**Labels:** cli, save-load
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
+
+**Resolution:** 
+
+---
+
 ## [134] CLI Parity: every issue action must be possible from the terminal
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/ui/app.rs`
@@ -27,36 +39,6 @@ Suggested direction:
 
 ---
 
-## [37] Add CI/pre-commit hook integration
-**Status:** OPEN
-**Files:** `src/main.rs`, `docs/`
-**Labels:** cli, docs, test-coverage
-**Depends on:** [36]
-
-Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
-
-- Duplicate issue IDs introduced by a bad merge
-- Dangling dependency references
-- Issues left in IN PROGRESS on a branch that's being merged to main
-Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
-
-**Resolution:** ---
-
----
-
-## [15] Implement ishoo edit CLI command
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
-**Labels:** cli, markdown
-
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-
-**Resolution:** 
-
----
-
 ## [133] Machine-Owned Issue Identity: users should not manage IDs by hand
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/model/cli.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`
@@ -77,15 +59,33 @@ Requirements:
 
 ---
 
-## [7] Implement issue deletion via CLI
+## [15] Implement ishoo edit CLI command
 **Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-**Labels:** cli, save-load
+**Files:** `src/main.rs`, `src/model/cli.rs`
+**Labels:** cli, markdown
 
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
+
+---
+
+## [37] Add CI/pre-commit hook integration
+**Status:** OPEN
+**Files:** `src/main.rs`, `docs/`
+**Labels:** cli, docs, test-coverage
+**Depends on:** [36]
+
+Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
+
+- Duplicate issue IDs introduced by a bad merge
+- Dangling dependency references
+- Issues left in IN PROGRESS on a branch that's being merged to main
+Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
+
+**Resolution:** ---
 
 ---
 
