@@ -1,4 +1,4 @@
-//! Scroll physics engine — pure Rust.
+//! Scroll physics engine - pure Rust.
 //!
 //! Physics: velocity-based with exponential friction decay + rubber-band springs at bounds.
 //! Animation loop: `spawn` + `tokio::time::sleep` ticking at ~60fps.
@@ -160,10 +160,15 @@ pub fn set_is_scrolling(scrolling: bool) {
 pub async fn measure_scroll_metrics() -> (f64, f64, f64) {
     let mut result = eval(
         "var c=document.getElementById('scroll-content'),v=document.querySelector('.content');\
-         var scrollHeight=c?c.scrollHeight:0;\
-         var viewportHeight=v?v.clientHeight:0;\
-         var maxScroll=Math.max(scrollHeight-viewportHeight,0);\
-         dioxus.send([maxScroll, viewportHeight, scrollHeight])",
+         var zoom=v?parseFloat(getComputedStyle(v).zoom||'1'):1;\
+         if(!Number.isFinite(zoom)||zoom<=0){zoom=1;}\
+         var contentHeight=c?c.scrollHeight:0;\
+         var viewportRect=v?v.getBoundingClientRect():null;\
+         var windowHeight=(window.visualViewport&&window.visualViewport.height)||window.innerHeight||0;\
+         var visibleHeight=viewportRect?Math.max(Math.min(viewportRect.height, windowHeight-viewportRect.top),0):0;\
+         var viewportHeight=visibleHeight/zoom;\
+         var maxScroll=Math.max(contentHeight-viewportHeight,0);\
+         dioxus.send([maxScroll, viewportHeight, contentHeight])",
     );
     let values = result.recv::<Vec<f64>>().await.unwrap_or_default();
     match values.as_slice() {

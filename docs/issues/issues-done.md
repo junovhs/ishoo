@@ -2,21 +2,6 @@
 
 ---
 
-## [36] Validate and lint issue files
-**Status:** DONE
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/lint.rs`, `src/model/parse.rs`, `src/model/mod.rs`
-**Labels:** cli, markdown, test-coverage
-
-There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
-
-- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
-- `ishoo lint --strict` — treats warnings as errors (useful for CI)
-This enables a pre-commit hook: `ishoo lint --strict || exit 1`
-
-**Resolution:** Added a real `lint` subcommand in `src/main.rs` and `src/model/cli.rs` so the terminal can validate issue files without opening the UI. Split the validation logic into a dedicated `src/model/lint.rs` module to satisfy Neti’s atomicity limit rather than bloating `src/model/parse.rs`. The lint pass now reports duplicate issue IDs, broken dependency references, missing authored `**Status:**`, `**Labels:**`, and `**Resolution:**` fields, and empty titles across `issues-active.md`, `issues-backlog.md`, and `issues-done.md`. It also enforces core-file coherence only for the built-in sections: `issues-done.md` entries must be terminal (`DONE` or `DESCOPED`), while `DONE` issues in `issues-active.md` or `issues-backlog.md` are flagged to move. Custom section files such as `issues-graphics.md` are intentionally left unconstrained so extension workflows are not blocked. Added targeted parser/lint tests plus CLI-level workspace tests for both failing and passing cases, including malformed headings and core-section mismatch coverage. Manually exercised `ishoo lint` on a clean workspace, and `ishoo lint --strict` on temporary broken workspaces to confirm it exits `1` without panicking and reports the expected failures. Commands run: `semmap generate`, `semmap trace src/main.rs`, `cargo fmt`, `cargo test` PASS (56 tests), `cargo run -- --path <tmp> lint` PASS on a clean workspace, `cargo run -- --path <tmp> lint --strict` produced the expected strict failures on malformed issue files, and `neti check` command checks PASS (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS). Remaining Neti red state is pre-existing and unrelated to this change: `src/ui/views/feed/card.rs` still exceeds the atomicity limit, and `src/model/workspace.rs` still carries the existing CBO/SFOUT warnings.
-
----
-
 ## [7] Implement issue deletion via CLI
 **Status:** DONE
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/model/mod.rs`
@@ -38,6 +23,21 @@ Should prompt for confirmation unless `--force` is passed. After deletion, the i
 
 ---
 
+## [36] Validate and lint issue files
+**Status:** DONE
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/lint.rs`, `src/model/parse.rs`, `src/model/mod.rs`
+**Labels:** cli, markdown, test-coverage
+
+There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+
+- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
+- `ishoo lint --strict` — treats warnings as errors (useful for CI)
+This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+
+**Resolution:** Added a real `lint` subcommand in `src/main.rs` and `src/model/cli.rs` so the terminal can validate issue files without opening the UI. Split the validation logic into a dedicated `src/model/lint.rs` module to satisfy Neti’s atomicity limit rather than bloating `src/model/parse.rs`. The lint pass now reports duplicate issue IDs, broken dependency references, missing authored `**Status:**`, `**Labels:**`, and `**Resolution:**` fields, and empty titles across `issues-active.md`, `issues-backlog.md`, and `issues-done.md`. It also enforces core-file coherence only for the built-in sections: `issues-done.md` entries must be terminal (`DONE` or `DESCOPED`), while `DONE` issues in `issues-active.md` or `issues-backlog.md` are flagged to move. Custom section files such as `issues-graphics.md` are intentionally left unconstrained so extension workflows are not blocked. Added targeted parser/lint tests plus CLI-level workspace tests for both failing and passing cases, including malformed headings and core-section mismatch coverage. Manually exercised `ishoo lint` on a clean workspace, and `ishoo lint --strict` on temporary broken workspaces to confirm it exits `1` without panicking and reports the expected failures. Commands run: `semmap generate`, `semmap trace src/main.rs`, `cargo fmt`, `cargo test` PASS (56 tests), `cargo run -- --path <tmp> lint` PASS on a clean workspace, `cargo run -- --path <tmp> lint --strict` produced the expected strict failures on malformed issue files, and `neti check` command checks PASS (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS). Remaining Neti red state is pre-existing and unrelated to this change: `src/ui/views/feed/card.rs` still exceeds the atomicity limit, and `src/model/workspace.rs` still carries the existing CBO/SFOUT warnings.
+
+---
+
 ## [132] Feed Motion Architecture: push drag and scroll from “smooth enough” to “holy shit”
 **Status:** DONE
 **Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `assets/style.css`, `docs/3-7-26.md`
@@ -51,6 +51,17 @@ That is not the target. The target is motion that feels unnaturally smooth: no p
 This issue is explicitly not a generic "optimize stuff" bucket. It is a focused motion-architecture pass informed by the research in `docs/3-7-26.md`.
 
 **Resolution:** Reworked the feed/board motion path to use section-scoped runtime identity instead of visible issue IDs, eliminating the drag-start/title-swap aliasing bug and preventing duplicate-ID reorder panics in `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, and `src/ui/app.rs`. Split the feed drag path so the held card now renders on its own overlay track while drag presence is separated from heavier layout reconciliation, which removes parent list churn from live cursor-follow and makes pickup/drag feel materially smoother. Reduced live drag reconciliation frequency in `src/ui/views/feed.rs` so slot recomputation only runs after meaningful pointer travel. Changed `src/ui/scroll.rs` to coalesce wheel input into the physics loop via pending-delta injection instead of directly spiking velocity, which makes detented wheel input feel more continuous without changing the existing bounds/inertia model. Tightened hot-path styling in `assets/style.css` by suppressing bracket overlay visibility during scroll and limiting compositor hints to active motion states instead of permanently advertising `will-change` on every row. Verified on 2026-03-08 with `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS (48 tests), and `neti check` command checks PASS; Neti still reports only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`.
+
+---
+
+## [4] Replace polling with OS file system events
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `Cargo.toml`
+**Labels:** save-load
+
+The dashboard used a 3-second `tokio::time::sleep` loop to poll for external changes. The issue also called out the race in the old `if !dirty() { issues.set(...) }` reload path, where a local edit could land between the check and the overwrite.
+
+**Resolution:** Replaced the poll coroutine in `src/ui/app.rs` with a `notify` watcher on the workspace directory and added the `notify` dependency in `Cargo.toml`. The watcher debounces bursts, ignores access-only events, and reloads from disk only when the UI is still clean and the local edit epoch is unchanged before and after the disk read, which closes the old check-then-set race without claiming to solve the broader conflict-resolution work tracked separately in issue #5. Added targeted tests for the reload guard and for event filtering. Verified with `cargo test watcher_ignores_access_only_events`, `cargo test external_reload_requires_clean_unchanged_state`, and `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining neti red state is the pre-existing 2 violations in `src/model/workspace.rs`).
 
 ---
 
@@ -79,17 +90,6 @@ This should be fixed at the rendering-ownership level, not with more threshold t
 Replaced numeric-only issue IDs with categorical string IDs across the model, parser, CLI, persistence, and UI. New IDs use the `<CATEGORY>-<NUMBER>` shape, for example `BUG-01` and `FT-12`, and new issue creation now allocates monotonically increasing numbers per category through `.ishoo/id-counters.txt` so deleting a high-numbered issue no longer causes ID reuse.
 
 **Resolution:** Changed `Issue.id` from `u32` to `String`, and changed link/dependency references to `Vec<String>` so authored references can point at real categorical IDs. Added shared ID helpers in `src/model/mod.rs` for normalization, formatting, splitting, parsing, and stable sort keys. Updated `parse_markdown` to accept categorical H2 headings, preserve categorical `Depends on` metadata, and extract `#BUG-12`-style mentions from title/description/resolution text. Added `Workspace::allocate_issue_id` plus `.ishoo/id-counters.txt` persistence so new IDs advance per category even if issues are later deleted. Updated CLI `show`, `set`, and `new` to accept string IDs and added `--category` to `new`. Updated the dashboard, feed modal/card shells, board view, and viz surfaces to render and compare string IDs consistently instead of assuming integers or hardcoded `ISS-` prefixes. Added and updated tests for parser round-trips, mention extraction, dependency parsing, per-category ID allocation, feed lens ordering, board ordering, and view helpers. Verified with `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
-
----
-
-## [4] Replace polling with OS file system events
-**Status:** DONE
-**Files:** `src/ui/app.rs`, `Cargo.toml`
-**Labels:** save-load
-
-The dashboard used a 3-second `tokio::time::sleep` loop to poll for external changes. The issue also called out the race in the old `if !dirty() { issues.set(...) }` reload path, where a local edit could land between the check and the overwrite.
-
-**Resolution:** Replaced the poll coroutine in `src/ui/app.rs` with a `notify` watcher on the workspace directory and added the `notify` dependency in `Cargo.toml`. The watcher debounces bursts, ignores access-only events, and reloads from disk only when the UI is still clean and the local edit epoch is unchanged before and after the disk read, which closes the old check-then-set race without claiming to solve the broader conflict-resolution work tracked separately in issue #5. Added targeted tests for the reload guard and for event filtering. Verified with `cargo test watcher_ignores_access_only_events`, `cargo test external_reload_requires_clean_unchanged_state`, and `neti check` (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS; remaining neti red state is the pre-existing 2 violations in `src/model/workspace.rs`).
 
 ---
 

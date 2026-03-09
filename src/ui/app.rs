@@ -823,7 +823,10 @@ fn render_content(
             let mut was_animating = false;
 
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+                // Windows commonly rounds 16ms sleeps up to the next 15.6ms timer quantum,
+                // which turns this loop into ~31ms pacing. Sleeping below that threshold
+                // keeps the animation loop near 60fps across platforms.
+                tokio::time::sleep(std::time::Duration::from_millis(8)).await;
 
                 let is_anim = animating();
 
@@ -907,11 +910,6 @@ fn render_content(
             onpointerdown: move |_| {
                 if animating() {
                     physics.write().velocity = 0.0;
-                }
-            },
-            onpointermove: move |_| {
-                if animating() {
-                    physics.write().velocity *= 0.85;
                 }
             },
             onwheel: move |evt: Event<WheelData>| {

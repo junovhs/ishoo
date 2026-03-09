@@ -2,46 +2,70 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 39 files | 122158 tokens | 3 violations
+SCAN SUMMARY: 39 files | 123279 tokens | 16 violations
 
 ALL VIOLATING FILES:
-    2 violations | src/model/workspace.rs
-    1 violations | src/ui/views/feed/card.rs
+    6 violations | src\ui\views\feed.rs
+    4 violations | src\model\parse.rs
+    2 violations | src\ui\app.rs
+    2 violations | src\ui\views\feed\card.rs
+    1 violations | src\model\lint.rs
+    1 violations | src\ui\views\board.rs
 
-warn: Class 'Workspace' is tightly coupled (CBO: 39)
-  --> src/model/workspace.rs:10
+error: [1 of 3] String conversion inside loop
+  --> src\model\lint.rs:21
    |
-     9 | #[derive(Debug, Clone)]
-    10 | pub struct Workspace {
-   | ^^^^^^^^^^^^^^^^^^^^^^
-    11 |     // neti:allow(CBO, SFOUT)
-   = CBO: Review recommended — accurate measurement, but may be expected for central/hub types
+    20 |                     line: line_number,
+    21 |                     message: "invalid issue heading: missing closing ']'".to_owned(), // neti:allow(P02)
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    22 |                 });
+   = P02: Fix required
    |
    = ANALYSIS:
-   |   External dependencies: 39
+   |   `"invalid issue heading: missing closing ']'".to_string()` allocates a new String on every iteration.
    |
-   = SUPPRESS: // neti:allow(CBO) on the line, or CBO = "warn" in neti.toml [rules]
+   = WHY: String conversion inside a loop allocates a new String on every iteration.
+   |
+   = FIX: Hoist the conversion before the loop, or operate on borrowed string slices (&str).
+   |
+   = SUPPRESS: // neti:allow(P02) on the line, or P02 = "warn" in neti.toml [rules]
 
-warn: Class 'Workspace' has high fan-out (SFOUT: 18)
-  --> src/model/workspace.rs:10
+error: [2 of 3] String conversion inside loop
+  --> src\model\parse.rs:22
+   = P02: `t.to_string()` allocates a new String on every iteration. — see first P02 above
+
+warn: [1 of 4] Nested loop (O(n²)) detected
+  --> src\model\parse.rs:257
    |
-     9 | #[derive(Debug, Clone)]
-    10 | pub struct Workspace {
-   | ^^^^^^^^^^^^^^^^^^^^^^
-    11 |     // neti:allow(CBO, SFOUT)
-   = SFOUT: Review recommended — high fan-out may be intentional for orchestrator/coordinator functions
+   256 |         // neti:allow(P04)
+   257 |         for link in extract_mentions(text) {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   258 |             if link != issue.id && seen.insert(link.clone()) {
+   = P04: Review recommended — inner loop may be bounded to a small constant
    |
    = ANALYSIS:
-   |   Max outgoing calls: 18
+   |   Quadratic complexity — scales poorly with input size.
    |
-   = SUPPRESS: // neti:allow(SFOUT) on the line, or SFOUT = "warn" in neti.toml [rules]
+   = WHY: Nested loops produce O(n²) complexity, which scales poorly with input size.
+   |
+   = FIX: Replace the inner loop with a lookup structure (HashMap/HashSet) for O(n) total, or confirm the inner loop is bounded to a small constant.
+   |
+   = SUPPRESS: // neti:allow(P04) on the line, or P04 = "warn" in neti.toml [rules]
 
-error: File size is 3302 tokens (Limit: 3300)
-  --> src/ui/views/feed/card.rs:1
+error: [3 of 3] String conversion inside loop
+  --> src\model\parse.rs:293
+   = P02: `candidate.to_string()` allocates a new String on every iteration. — see first P02 above
+
+warn: [2 of 4] Nested loop (O(n²)) detected
+  --> src\model\parse.rs:280
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+error: [1 of 4] File size is 12106 tokens (Limit: 3300)
+  --> src\ui\app.rs:1
    |
-     1 | use crate::model::{split_issue_id, Issue};
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-     2 | use crate::ui::components::LabelList;
+     1 | // neti:allow(LAW OF ATOMICITY)
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     2 | use super::toast::{Toast, ToastContainer, ToastKind};
    = LAW OF ATOMICITY: Fix required
    |
    = WHY: Files beyond the token limit are too large for a single unit of work, increasing cognitive load and merge conflict risk.
@@ -50,7 +74,72 @@ error: File size is 3302 tokens (Limit: 3300)
    |
    = SUPPRESS: // neti:allow(LAW OF ATOMICITY) on the line, or LAW OF ATOMICITY = "warn" in neti.toml [rules]
 
-X Neti found 1 error, 2 warnings (404ms).
+warn: [3 of 4] Nested loop (O(n²)) detected
+  --> src\ui\app.rs:133
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+error: [2 of 4] File size is 4179 tokens (Limit: 3300)
+  --> src\ui\views\board.rs:1
+   = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
+
+error: [3 of 4] File size is 3350 tokens (Limit: 3300)
+  --> src\ui\views\feed\card.rs:1
+   = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
+
+error: Function 'IssueCard' has cognitive complexity 29 (Max: 25)
+  --> src\ui\views\feed\card.rs:61
+   |
+    60 | // neti:allow(LAW OF COMPLEXITY)
+    61 | pub fn IssueCard(props: IssueCardProps) -> Element {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    62 |     let i = &props.issue;
+   = LAW OF COMPLEXITY: Fix required
+   |
+   = ANALYSIS:
+   |   Cognitive score: 29
+   |
+   = SUPPRESS: // neti:allow(LAW OF COMPLEXITY) on the line, or LAW OF COMPLEXITY = "warn" in neti.toml [rules]
+
+error: [4 of 4] File size is 8580 tokens (Limit: 3300)
+  --> src\ui\views\feed.rs:1
+   = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
+
+warn: [4 of 4] Nested loop (O(n²)) detected
+  --> src\ui\views\feed.rs:180
+   = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
+
+warn: [1 of 4] Detected `.clone()` inside a loop
+  --> src\ui\views\feed.rs:265
+   |
+   264 | 
+   265 |                 let dp = drag_presence.read().clone();
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   266 |                 if dp.dragging_key.is_none() {
+   = P01: Review recommended — receiver `drag_presence.read()` has no known heap-type indicator — type inference incomplete
+   |
+   = ANALYSIS:
+   |   Receiver `drag_presence.read()` appears to be a heap-owning type.
+   |   Clone inside a loop allocates on every iteration.
+   |
+   = WHY: Cloning/copying inside a loop allocates on every iteration, scaling linearly with iteration count.
+   |
+   = FIX: Hoist the allocation before the loop, use a reference or borrow, or confirm the copy is cheap (primitives, small structs, reference-counted pointers).
+   |
+   = SUPPRESS: // neti:allow(P01) on the line, or P01 = "warn" in neti.toml [rules]
+
+warn: [2 of 4] Detected `.clone()` inside a loop
+  --> src\ui\views\feed.rs:271
+   = P01: Receiver `drag_state.read()` appears to be a heap-owning type. — see first P01 above
+
+warn: [3 of 4] Detected `.clone()` inside a loop
+  --> src\ui\views\feed.rs:284
+   = P01: Receiver `dp.dragging_key` appears to be a heap-owning type. — see first P01 above
+
+warn: [4 of 4] Detected `.clone()` inside a loop
+  --> src\ui\views\feed.rs:309
+   = P01: Receiver `dp.dragging_key` appears to be a heap-owning type. — see first P01 above
+
+X Neti found 8 errors, 8 warnings (746ms).
 
 
 ========================================
@@ -69,8 +158,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (1809ms)
+> PASS (2131ms)
 
 $ cargo test
-> PASS (345ms)
+> PASS (4563ms)
 

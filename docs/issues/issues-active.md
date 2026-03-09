@@ -48,19 +48,6 @@ Exit criteria:
 
 ---
 
-## [15] Implement ishoo edit CLI command
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
-**Labels:** cli, markdown
-
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-
-**Resolution:** 
-
----
-
 ## [134] CLI Parity: every issue action must be possible from the terminal
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/ui/app.rs`
@@ -81,6 +68,19 @@ Suggested direction:
 - Treat `new`, `show`, `list`, `edit`, `delete`, `set`, `lint`, and section/routing operations as one coherent product surface instead of isolated commands
 - Add machine-readable output modes where needed so AI/automation can inspect results safely
 - Close command gaps before polishing secondary UI-only affordances
+
+**Resolution:** 
+
+---
+
+## [15] Implement ishoo edit CLI command
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`
+**Labels:** cli, markdown
+
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
 

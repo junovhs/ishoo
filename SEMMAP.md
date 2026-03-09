@@ -42,7 +42,7 @@ Implements lint workspace. [TYPE]
 → Exports: lint_markdown, lint_workspace
 
 `src/model/workspace.rs`
-Implements allocate issue id. [TYPE]
+Implements Workspace functionality. [TYPE]
 → Exports: allocate_issue_id, dependency_edges, file_heatmap, delete_issue
 
 `src/ui/app.rs`
@@ -54,7 +54,7 @@ Implements label tone class.
 → Exports: SectionBadgeRow, label_tone_class, NavBtn, StatRow
 
 `src/ui/scroll.rs`
-Scroll physics engine — pure Rust.
+Scroll physics engine - pure Rust.
 → Exports: add_wheel_delta, jump_to_top, set_is_scrolling, ScrollPhysics
 
 `src/ui/toast.rs`
@@ -74,7 +74,7 @@ Implements drag overlay props.
 → Exports: DragOverlayProps, IssueCardProps, DragOverlay, IssueCard
 
 `src/ui/views/viz.rs`
-Implements heatmap view.
+Implements timeline view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
