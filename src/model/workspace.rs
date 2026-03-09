@@ -56,6 +56,17 @@ impl Workspace {
         Ok(())
     }
 
+    pub fn delete_issue(&mut self, id: &str) -> Result<Issue, String> {
+        let index = self
+            .issues
+            .iter()
+            .position(|issue| issue.id == id)
+            .ok_or_else(|| format!("Issue {id} not found"))?;
+        let issue = self.issues.remove(index);
+        self.save()?;
+        Ok(issue)
+    }
+
     pub fn allocate_issue_id(&self, category: &str) -> Result<String, String> {
         let category = normalize_issue_category(category);
         let mut counters = read_id_counters(&self.root)?;
@@ -231,5 +242,87 @@ mod tests {
         assert_eq!(ws.allocate_issue_id("bug").unwrap(), "BUG-04");
         assert_eq!(ws.allocate_issue_id("ft").unwrap(), "FT-01");
         assert_eq!(ws.allocate_issue_id("BUG").unwrap(), "BUG-05");
+    }
+
+    #[test]
+    fn delete_issue_removes_it_from_saved_workspace() {
+        let dir = tempdir().unwrap();
+        let mut ws = Workspace {
+            root: dir.path().to_path_buf(),
+            issues: vec![
+                Issue {
+                    id: "ISS-01".to_string(),
+                    title: "Keep me".to_string(),
+                    status: Status::Open,
+                    files: vec![],
+                    labels: vec![],
+                    links: vec![],
+                    description: String::new(),
+                    resolution: String::new(),
+                    section: "ACTIVE Issues".to_string(),
+                    depends_on: vec![],
+                },
+                Issue {
+                    id: "ISS-02".to_string(),
+                    title: "Delete me".to_string(),
+                    status: Status::Open,
+                    files: vec![],
+                    labels: vec![],
+                    links: vec![],
+                    description: String::new(),
+                    resolution: String::new(),
+                    section: "ACTIVE Issues".to_string(),
+                    depends_on: vec![],
+                },
+            ],
+        };
+
+        ws.save().unwrap();
+        let deleted = ws.delete_issue("ISS-02").unwrap();
+
+        assert_eq!(deleted.id, "ISS-02");
+        assert_eq!(ws.issues.len(), 1);
+        let loaded = Workspace::load(dir.path()).unwrap();
+        assert_eq!(loaded.issues.len(), 1);
+        assert_eq!(loaded.issues[0].id, "ISS-01");
+    }
+
+    #[test]
+    fn deleting_issue_does_not_reuse_its_id() {
+        let dir = tempdir().unwrap();
+        let mut ws = Workspace {
+            root: dir.path().to_path_buf(),
+            issues: vec![
+                Issue {
+                    id: "BUG-03".to_string(),
+                    title: "Delete me".to_string(),
+                    status: Status::Open,
+                    files: vec![],
+                    labels: vec![],
+                    links: vec![],
+                    description: String::new(),
+                    resolution: String::new(),
+                    section: "ACTIVE Issues".to_string(),
+                    depends_on: vec![],
+                },
+                Issue {
+                    id: "BUG-04".to_string(),
+                    title: "Keep me".to_string(),
+                    status: Status::Open,
+                    files: vec![],
+                    labels: vec![],
+                    links: vec![],
+                    description: String::new(),
+                    resolution: String::new(),
+                    section: "ACTIVE Issues".to_string(),
+                    depends_on: vec![],
+                },
+            ],
+        };
+
+        ws.save().unwrap();
+        assert_eq!(ws.allocate_issue_id("bug").unwrap(), "BUG-05");
+        ws.delete_issue("BUG-04").unwrap();
+        assert_eq!(ws.allocate_issue_id("bug").unwrap(), "BUG-06");
     }
 }

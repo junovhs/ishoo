@@ -1,4 +1,5 @@
 mod cli;
+mod lint;
 mod parse;
 mod workspace;
 
@@ -6,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub use cli::{cli_heatmap, cli_list, cli_set_status, cli_show};
+pub use cli::{cli_delete, cli_heatmap, cli_lint, cli_list, cli_set_status, cli_show};
+pub use lint::lint_workspace;
 pub use parse::parse_markdown;
 pub use workspace::Workspace;
 
@@ -161,6 +163,13 @@ pub struct Issue {
     pub resolution: String,
     pub section: String,
     pub depends_on: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LintFinding {
+    pub file: String,
+    pub line: usize,
+    pub message: String,
 }
 
 impl Issue {

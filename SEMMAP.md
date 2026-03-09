@@ -35,11 +35,15 @@ Handles SEMMAP.
 
 `src/model/cli.rs`
 Implements cli set status. [TYPE]
-→ Exports: cli_set_status, cli_heatmap, cli_list, cli_show
+→ Exports: cli_set_status, cli_delete, cli_heatmap, cli_lint
+
+`src/model/lint.rs`
+Implements lint workspace. [TYPE]
+→ Exports: lint_markdown, lint_workspace
 
 `src/model/workspace.rs`
-Implements Workspace functionality. [TYPE]
-→ Exports: allocate_issue_id, dependency_edges, file_heatmap, Workspace
+Implements allocate issue id. [TYPE]
+→ Exports: allocate_issue_id, dependency_edges, file_heatmap, delete_issue
 
 `src/ui/app.rs`
 Implements App functionality.
@@ -62,15 +66,15 @@ Implements board view props.
 → Exports: BoardViewProps, BoardView
 
 `src/ui/views/feed.rs`
-Implements feed view props. [TYPE]
-→ Exports: RecentDropState, FeedViewProps, DragState, FeedView
+Implements drag debug state. [TYPE]
+→ Exports: RecentDropState, FeedViewProps, DragDebugState, DragPresence
 
 `src/ui/views/feed/card.rs`
-Implements issue card props.
-→ Exports: IssueCardProps, IssueCard
+Implements drag overlay props.
+→ Exports: DragOverlayProps, IssueCardProps, DragOverlay, IssueCard
 
 `src/ui/views/viz.rs`
-Implements timeline view.
+Implements heatmap view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`
@@ -95,7 +99,7 @@ Smooth Reorder (Engine-grade, no release jitter)
 Application entry point. [ENTRY]
 
 `src/model/mod.rs`
-Implements status ord. [TYPE]
+Creates workspace at. [TYPE]
 → Exports: issue_id_sort_key, parse_categorical_issue_id, default_init_path, init_workspace_at
 
 `src/ui/mod.rs`

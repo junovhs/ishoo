@@ -2,6 +2,33 @@
 
 ---
 
+## [36] Validate and lint issue files
+**Status:** DONE
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/lint.rs`, `src/model/parse.rs`, `src/model/mod.rs`
+**Labels:** cli, markdown, test-coverage
+
+There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
+
+- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
+- `ishoo lint --strict` — treats warnings as errors (useful for CI)
+This enables a pre-commit hook: `ishoo lint --strict || exit 1`
+
+**Resolution:** Added a real `lint` subcommand in `src/main.rs` and `src/model/cli.rs` so the terminal can validate issue files without opening the UI. Split the validation logic into a dedicated `src/model/lint.rs` module to satisfy Neti’s atomicity limit rather than bloating `src/model/parse.rs`. The lint pass now reports duplicate issue IDs, broken dependency references, missing authored `**Status:**`, `**Labels:**`, and `**Resolution:**` fields, and empty titles across `issues-active.md`, `issues-backlog.md`, and `issues-done.md`. It also enforces core-file coherence only for the built-in sections: `issues-done.md` entries must be `DONE`, while `DONE` issues in `issues-active.md` or `issues-backlog.md` are flagged to move. Custom section files such as `issues-graphics.md` are intentionally left unconstrained so extension workflows are not blocked. Added targeted parser/lint tests plus CLI-level workspace tests for both failing and passing cases, including malformed headings and core-section mismatch coverage. Manually exercised `ishoo lint` on a clean workspace, and `ishoo lint --strict` on temporary broken workspaces to confirm it exits `1` without panicking and reports the expected failures. Commands run: `semmap generate`, `semmap trace src/main.rs`, `cargo fmt`, `cargo test` PASS (56 tests), `cargo run -- --path <tmp> lint` PASS on a clean workspace, `cargo run -- --path <tmp> lint --strict` produced the expected strict failures on malformed issue files, and `neti check` command checks PASS (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS). Remaining Neti red state is pre-existing and unrelated to this change: `src/ui/views/feed/card.rs` still exceeds the atomicity limit, and `src/model/workspace.rs` still carries the existing CBO/SFOUT warnings.
+
+---
+
+## [7] Implement issue deletion via CLI
+**Status:** DONE
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/model/mod.rs`
+**Labels:** cli, save-load
+
+Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
+Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
+
+**Resolution:** Added a real `ishoo delete <id>` subcommand in `src/main.rs`, with `--force` for non-interactive use and a confirmation prompt by default in `src/model/cli.rs`. Moved the destructive mutation itself into `Workspace::delete_issue` in `src/model/workspace.rs` so the issue is removed from memory and persisted back to the markdown files in one path, while leaving the `.ishoo/id-counters.txt` allocation state untouched so deleted IDs are never reused. Updated `src/model/mod.rs` exports accordingly. Verified fail-sensitive behavior with new workspace tests covering deletion persistence and monotonic ID allocation after deletion. Commands run: `semmap generate`, `semmap trace src/main.rs`, `cargo fmt`, `cargo test` PASS (50 tests), `neti check` command checks PASS (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS). Remaining Neti red state is pre-existing and unrelated to this change: `src/ui/views/feed/card.rs` still exceeds the atomicity limit, and `src/model/workspace.rs` still carries the existing CBO/SFOUT warnings.
+
+---
+
 ## [14] Fix re-render performance in physics loop
 **Status:** DONE
 **Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`

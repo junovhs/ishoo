@@ -48,18 +48,6 @@ Exit criteria:
 
 ---
 
-## [7] Implement issue deletion via CLI
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`
-**Labels:** cli, save-load
-
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
-
-**Resolution:** 
-
----
-
 ## [15] Implement ishoo edit CLI command
 **Status:** OPEN
 **Files:** `src/main.rs`, `src/model/cli.rs`
@@ -112,21 +100,6 @@ Provide documentation and a ready-made pre-commit hook config that runs `ishoo l
 Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
 
 **Resolution:** ---
-
----
-
-## [36] Validate and lint issue files
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/parse.rs`
-**Labels:** cli, markdown, test-coverage
-
-There is no way to check whether the issue markdown files are well-formed without loading the full UI. Add:
-
-- `ishoo lint` — parses all issue files and reports warnings: duplicate IDs, broken dependency references (depends on an ID that doesn't exist), missing required fields, empty titles
-- `ishoo lint --strict` — treats warnings as errors (useful for CI)
-This enables a pre-commit hook: `ishoo lint --strict || exit 1`
-
-**Resolution:** 
 
 ---
 

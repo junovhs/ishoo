@@ -32,6 +32,15 @@ enum Commands {
         id: String,
         status: String,
     },
+    Delete {
+        id: String,
+        #[arg(short, long)]
+        force: bool,
+    },
+    Lint {
+        #[arg(long)]
+        strict: bool,
+    },
     Heatmap,
     Dash,
     New {
@@ -46,15 +55,23 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    let exit_code = run(cli);
+    if exit_code != 0 {
+        std::process::exit(exit_code);
+    }
+}
+
+fn run(cli: Cli) -> i32 {
     match &cli.command {
         Some(Commands::Init) => match model::init_workspace(&cli.path) {
             Ok(created_path) => {
                 println!("✓ Initialized ishoo in {}", created_path.display());
                 println!("  Created: issues-active.md, issues-backlog.md, issues-done.md");
+                0
             }
             Err(e) => {
                 eprintln!("Error: {e}");
-                std::process::exit(1);
+                1
             }
         },
         _ => {
@@ -62,22 +79,39 @@ fn main() {
             match &cli.command {
                 Some(Commands::Dash) | None => {
                     ui::launch_dashboard(path);
+                    0
                 }
                 Some(Commands::List { filter }) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     model::cli_list(&ws, filter.as_deref());
+                    0
                 }
                 Some(Commands::Show { id }) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     model::cli_show(&ws, id);
+                    0
                 }
                 Some(Commands::Set { id, status }) => {
                     let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     model::cli_set_status(&mut ws, id, status).expect("Failed to set status");
+                    0
                 }
+                Some(Commands::Delete { id, force }) => {
+                    let mut ws = model::Workspace::load(&path).expect("Failed to load workspace");
+                    model::cli_delete(&mut ws, id, *force).expect("Failed to delete issue");
+                    0
+                }
+                Some(Commands::Lint { strict }) => match model::cli_lint(&path, *strict) {
+                    Ok(()) => 0,
+                    Err(err) => {
+                        eprintln!("Error: {err}");
+                        1
+                    }
+                },
                 Some(Commands::Heatmap) => {
                     let ws = model::Workspace::load(&path).expect("Failed to load workspace");
                     model::cli_heatmap(&ws);
+                    0
                 }
                 Some(Commands::New {
                     title,
@@ -102,6 +136,7 @@ fn main() {
                     println!("Created [{}] {}", issue.id, issue.title);
                     ws.issues.push(issue);
                     ws.save().expect("Failed to save");
+                    0
                 }
                 Some(Commands::Init) => unreachable!(),
             }
