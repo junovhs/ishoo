@@ -16,7 +16,13 @@ Because it uses standard markdown, your issue tracker renders natively in the Gi
 # 1. Initialize a new issue tracker in your current project
 ishoo init
 
-# 2. Launch the desktop dashboard (auto-discovers your issues)
+# 2. Create an issue from the terminal
+ishoo new "Fix the widget"
+
+# 3. Check issue hygiene before committing
+ishoo lint --strict
+
+# 4. Launch the desktop dashboard (auto-discovers your issues)
 ishoo
 ```
 
@@ -30,25 +36,44 @@ your-project/
     └── issues/
         ├── issues-active.md    # Open + In-Progress issues
         ├── issues-backlog.md   # Future work
-        └── issues-done.md      # Completed & Descoped issues
+        └── issues-done.md      # Completed issues
 ```
+
+The built-in CLI and lint flow operate on those three core files. Custom files such as `issues-graphics.md` are fine for extension workflows, but the current CLI lint pass only validates the built-in set.
 
 ## CLI Usage
 
-While the GUI is great for getting oriented, you (or your AI agent) can manage everything directly from the terminal:
+While the GUI is great for getting oriented, you can manage the current core workflow directly from the terminal:
 
 ```bash
-ishoo init                             # Create the docs/issues/ folder structure
-ishoo                                  # Launch the desktop UI (default)
-ishoo dash                             # Explicitly launch the desktop UI
-ishoo list                             # List all issues with stats
-ishoo list --filter "database"         # Filter issues by keyword
-ishoo show 47                          # View detailed issue card (desc, files, deps)
-ishoo set 47 "in progress"             # Update issue status
-ishoo new "Fix the widget"             # Create a new OPEN issue
-ishoo new "Urgent fix" --status done   # Create an issue with a specific status
-ishoo heatmap                          # CLI visualization of file hotspots
+ishoo init                                   # Create the docs/issues/ folder structure
+ishoo                                        # Launch the desktop UI (default)
+ishoo dash                                   # Explicitly launch the desktop UI
+ishoo list                                   # List all issues with summary stats
+ishoo list --filter "database"               # Filter list output by title, description, or file path
+ishoo show ISS-01                            # View one issue in the terminal
+ishoo set ISS-01 "in progress"               # Update issue status and save
+ishoo new "Fix the widget"                   # Create a new OPEN issue in the active section
+ishoo new "Urgent fix" --category bug        # Create a new issue with a different ID prefix
+ishoo new "Close this out" --status done     # Create an issue with a specific status
+ishoo delete ISS-01                          # Prompt before permanent deletion
+ishoo delete ISS-01 --force                  # Delete without confirmation
+ishoo lint                                   # Report issue-file warnings
+ishoo lint --strict                          # Exit non-zero on lint findings
+ishoo heatmap                                # CLI visualization of file hotspots
 ```
+
+`ishoo lint` currently checks for duplicate IDs, broken dependency references, missing required authored fields, empty titles, and core-file coherence for `issues-active.md`, `issues-backlog.md`, and `issues-done.md`.
+
+## Issue Authoring
+
+Ishoo stores issues as Markdown records. For reliable CLI and AI-agent workflows, keep these fields present on every issue:
+
+- `**Status:**`
+- `**Labels:**`
+- `**Resolution:**`
+
+The `Resolution` field may be empty for unfinished work, but the field should still exist so the record structure stays stable.
 
 ## Dashboard Features
 
@@ -64,8 +89,8 @@ When you run `ishoo`, you get a native, hardware-accelerated desktop app with ri
 ### Editing
 - **Create & Reset** — Add new issues instantly, or wipe the board clean with the Reinitialize modal.
 - **Frictionless Reordering** — Drag and drop cards in the Feed view; changes auto-save with a toast notification.
-- **Inline Editing** — Expand any issue card to edit its description, status, or resolution notes. 
-- **Smart Syncing** — Unsaved UI edits trigger a "⚠ Unsaved" state. Click "Save All" to write your changes cleanly back to Markdown.
+- **Inline Editing** — Expand any issue card to edit description, status, labels, files, and resolution notes.
+- **Smart Syncing** — Unsaved UI edits trigger an unsaved state. Use Save All to write changes cleanly back to Markdown.
 
 ## Building from Source
 
@@ -80,6 +105,9 @@ dx serve --desktop
 
 # Bundle a release binary for your OS
 dx bundle --release
+
+# Run the repo verification gate
+neti check
 ```
 
 ## License
