@@ -2,24 +2,43 @@
 
 ---
 
-## [7] Implement issue deletion via CLI
+## [132] Feed Motion Architecture: push drag and scroll from “smooth enough” to “holy shit”
+**Status:** DONE
+**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `assets/style.css`, `docs/3-7-26.md`
+**Labels:** feed, drag, polish
+**Depends on:** [131]
+
+Current Feed motion is now back in the "good enough" zone, and the repo has a baseline tag to preserve it: `smooth-baseline-2026-03-08`.
+
+That is not the target. The target is motion that feels unnaturally smooth: no perceptible stepping, no glitchy drag phases, no visual fight between crisp text and fluid movement, and no sense that richer cards or more UI density will push the interaction over a performance cliff.
+
+This issue is explicitly not a generic "optimize stuff" bucket. It is a focused motion-architecture pass informed by the research in `docs/3-7-26.md`.
+
+**Resolution:** Reworked the feed/board motion path to use section-scoped runtime identity instead of visible issue IDs, eliminating the drag-start/title-swap aliasing bug and preventing duplicate-ID reorder panics in `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, and `src/ui/app.rs`. Split the feed drag path so the held card now renders on its own overlay track while drag presence is separated from heavier layout reconciliation, which removes parent list churn from live cursor-follow and makes pickup/drag feel materially smoother. Reduced live drag reconciliation frequency in `src/ui/views/feed.rs` so slot recomputation only runs after meaningful pointer travel. Changed `src/ui/scroll.rs` to coalesce wheel input into the physics loop via pending-delta injection instead of directly spiking velocity, which makes detented wheel input feel more continuous without changing the existing bounds/inertia model. Tightened hot-path styling in `assets/style.css` by suppressing bracket overlay visibility during scroll and limiting compositor hints to active motion states instead of permanently advertising `will-change` on every row. Verified on 2026-03-08 with `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS (48 tests), and `neti check` command checks PASS; Neti still reports only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`.
+
+---
+
+## [137] Sticky Header Mask: extend topbar background to cover section text seam
 **Status:** DONE
 **Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/model/mod.rs`
 **Labels:** cli, save-load
 
-Users need `ishoo delete <id>` to permanently remove an issue rather than marking it DESCOPED.
-Should prompt for confirmation unless `--force` is passed. After deletion, the issue's ID must never be reused (relevant once #11 lands — the per-category counter must not decrement).
-
+With the feed scrolled near the top, section text could peek through in the seam directly beneath the sticky topbar. The sticky header background ended a few pixels too early, so the underlying `Active`/`Backlog` headings flashed through during scroll.
 **Resolution:** Added a real `ishoo delete <id>` subcommand in `src/main.rs`, with `--force` for non-interactive use and a confirmation prompt by default in `src/model/cli.rs`. Moved the destructive mutation itself into `Workspace::delete_issue` in `src/model/workspace.rs` so the issue is removed from memory and persisted back to the markdown files in one path, while leaving the `.ishoo/id-counters.txt` allocation state untouched so deleted IDs are never reused. Updated `src/model/mod.rs` exports accordingly. Verified fail-sensitive behavior with new workspace tests covering deletion persistence and monotonic ID allocation after deletion. Commands run: `semmap generate`, `semmap trace src/main.rs`, `cargo fmt`, `cargo test` PASS (50 tests), `neti check` command checks PASS (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS). Remaining Neti red state is pre-existing and unrelated to this change: `src/ui/views/feed/card.rs` still exceeds the atomicity limit, and `src/model/workspace.rs` still carries the existing CBO/SFOUT warnings.
+---
+
+**Resolution:** 
 
 ---
 
-## [14] Fix re-render performance in physics loop
+## [138] Dark Mode Shell Polish: remove sidebar glow and expand sticky section masks
 **Status:** DONE
-**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
-**Labels:** feed, drag, performance
+**Files:** `assets/style.css`
+**Labels:** feed, polish, bugs, dark-mode
 
-**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
+Dark mode exposed two visual seams in the feed shell. First, the app chrome behind the sidebar and top window bar was still using a lightened gradient, which made the sidebar read as a glowing band instead of one flat black surface. Second, the sticky section headers did not paint quite far enough past their 45px bounds, so tiny text artifacts could peek around the top and bottom edges while scrolling.
+
+**Resolution:** Added dark-mode-only overrides in `assets/style.css` so `.app-shell` and `.window-bar` render as a flat `var(--bg)` instead of using the lightened gradient treatment. Also added 5px paint extensions above and below `.section-head` plus the existing 5px extension below `.sticky-header` so the sticky masks fully cover the section-title seams in dark mode and light mode. Commands run: `semmap generate`, `neti check`. SEMMAP lines used: `SEMMAP.md` Purpose plus `assets/style.css` in Layer 3 and the UI layer entries for `src/ui/app.rs` / `src/ui/views/feed.rs`. `semmap trace` was not applicable for this CSS-only polish pass. `neti check` verification commands passed (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS), while Neti scan still reports the repo's pre-existing static-analysis violations in `src/ui/views/feed.rs`, `src/model/parse.rs`, `src/ui/app.rs`, `src/ui/views/feed/card.rs`, and other pre-existing files.
 
 ---
 
@@ -38,19 +57,12 @@ This enables a pre-commit hook: `ishoo lint --strict || exit 1`
 
 ---
 
-## [132] Feed Motion Architecture: push drag and scroll from “smooth enough” to “holy shit”
+## [14] Fix re-render performance in physics loop
 **Status:** DONE
-**Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `assets/style.css`, `docs/3-7-26.md`
-**Labels:** feed, drag, polish
-**Depends on:** [131]
+**Files:** `src/ui/views/physics.rs (deleted)`, `src/ui/views/feed.rs`
+**Labels:** feed, drag, performance
 
-Current Feed motion is now back in the "good enough" zone, and the repo has a baseline tag to preserve it: `smooth-baseline-2026-03-08`.
-
-That is not the target. The target is motion that feels unnaturally smooth: no perceptible stepping, no glitchy drag phases, no visual fight between crisp text and fluid movement, and no sense that richer cards or more UI density will push the interaction over a performance cliff.
-
-This issue is explicitly not a generic "optimize stuff" bucket. It is a focused motion-architecture pass informed by the research in `docs/3-7-26.md`.
-
-**Resolution:** Reworked the feed/board motion path to use section-scoped runtime identity instead of visible issue IDs, eliminating the drag-start/title-swap aliasing bug and preventing duplicate-ID reorder panics in `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, and `src/ui/app.rs`. Split the feed drag path so the held card now renders on its own overlay track while drag presence is separated from heavier layout reconciliation, which removes parent list churn from live cursor-follow and makes pickup/drag feel materially smoother. Reduced live drag reconciliation frequency in `src/ui/views/feed.rs` so slot recomputation only runs after meaningful pointer travel. Changed `src/ui/scroll.rs` to coalesce wheel input into the physics loop via pending-delta injection instead of directly spiking velocity, which makes detented wheel input feel more continuous without changing the existing bounds/inertia model. Tightened hot-path styling in `assets/style.css` by suppressing bracket overlay visibility during scroll and limiting compositor hints to active motion states instead of permanently advertising `will-change` on every row. Verified on 2026-03-08 with `cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS (48 tests), and `neti check` command checks PASS; Neti still reports only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`.
+**Resolution:** Completely replaced the 60fps manual physics simulation loop with a declarative, slot-based absolute positioning system. By using CSS `transition` for the "sucking into well" effect and index-based offsets for displaced cards, we eliminated the need for high-frequency signal updates. The UI is now significantly more performant and the code is much simpler.
 
 ---
 
@@ -492,6 +504,18 @@ Note: The HTML UI buttons have been added to the Topbar. Still requires wiring u
 
 ---
 
+## [33] Add issue linking, mentions, and hover brackets
+**Status:** DONE
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** markdown, feed, cli
+
+Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
+Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
+
+**Resolution:** Added first-class `links: Vec<u32>` to the `Issue` model and populated it in `parse_markdown` by scanning issue title, description, and resolution text for `#123` mentions while deduplicating links and ignoring self-references. Wired the modal’s link area to show both authored outgoing mentions (`Mentions`) and reverse incoming references (`Mentioned By`). In the feed, each card now exposes its issue/section identity to the DOM and computes reverse-link context so hover brackets/highlighting work from either side of the relationship while still preserving authored direction in the iconography (`↗`, `↙`, or `↕`). Added the missing bracket and modal link styles in `assets/style.css`, plus parser/reverse-link tests covering real mention extraction, negative self/embedded-hash cases, and incoming-link aggregation. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
+
+---
+
 ## [13] Prevent silent data loss from discover_root ambiguity
 **Status:** DONE
 **Files:** `src/model/mod.rs`
@@ -505,18 +529,6 @@ Fix:
 - The `init` command should print the chosen path explicitly
 
 **Resolution:** Changed `discover_root` so it first collects all matching candidate roots, then warns via stderr when more than one workspace root exists while still preserving the existing first-match preference. Added a regression test proving `docs/issues` still wins when both it and the repo root contain issue files. The CLI `init` path was already printed explicitly in `main.rs`, so no additional change was needed there. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
-
----
-
-## [33] Add issue linking, mentions, and hover brackets
-**Status:** DONE
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
-**Labels:** markdown, feed, cli
-
-Requires parsing `#ID` mentions from markdown text to build a list of `issue.links`.
-Once parsed, the UI must implement the `.bracket-svg` hover effect bridging linked issues in the feed, as well as the `.m-links` section in the modal.
-
-**Resolution:** Added first-class `links: Vec<u32>` to the `Issue` model and populated it in `parse_markdown` by scanning issue title, description, and resolution text for `#123` mentions while deduplicating links and ignoring self-references. Wired the modal’s link area to show both authored outgoing mentions (`Mentions`) and reverse incoming references (`Mentioned By`). In the feed, each card now exposes its issue/section identity to the DOM and computes reverse-link context so hover brackets/highlighting work from either side of the relationship while still preserving authored direction in the iconography (`↗`, `↙`, or `↕`). Added the missing bracket and modal link styles in `assets/style.css`, plus parser/reverse-link tests covering real mention extraction, negative self/embedded-hash cases, and incoming-link aggregation. Verified with `neti check` (clippy PASS, tests PASS, remaining red state is only the pre-existing `Workspace` CBO/SFOUT warnings in `src/model/workspace.rs`).
 
 ---
 

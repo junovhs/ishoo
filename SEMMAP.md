@@ -70,11 +70,11 @@ Implements drag debug state. [TYPE]
 → Exports: RecentDropState, FeedViewProps, DragDebugState, DragPresence
 
 `src/ui/views/feed/card.rs`
-Implements drag overlay props.
+Implements issue card props.
 → Exports: DragOverlayProps, IssueCardProps, DragOverlay, IssueCard
 
 `src/ui/views/viz.rs`
-Implements timeline view.
+Implements heatmap view.
 → Exports: GraphView, HeatmapView, TimelineView
 
 `src/ui/welcome.rs`

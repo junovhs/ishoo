@@ -794,6 +794,7 @@ fn render_content(
     let mut content_height = use_signal(|| 0.0f64);
     let mut header_ys = use_signal(Vec::<f64>::new);
     let mut visual_offset = use_signal(|| 0.0f64);
+    let mut last_pointer = use_signal(|| None::<(f64, f64)>);
     let filtered_len = filtered.len();
 
     use_effect(move || {
@@ -910,6 +911,33 @@ fn render_content(
             onpointerdown: move |_| {
                 if animating() {
                     physics.write().velocity = 0.0;
+                }
+                last_pointer.set(None);
+            },
+            onpointermove: move |evt| {
+                let current = (
+                    evt.client_coordinates().x,
+                    evt.client_coordinates().y,
+                );
+                let previous = last_pointer();
+                last_pointer.set(Some(current));
+
+                if !animating() {
+                    return;
+                }
+
+                let Some((last_x, last_y)) = previous else {
+                    return;
+                };
+                let dx = current.0 - last_x;
+                let dy = current.1 - last_y;
+                let dist = (dx * dx + dy * dy).sqrt();
+
+                // Preserve cursor-driven scroll braking for deliberate mouse moves,
+                // but ignore tiny pointer jitter that can appear during wheel gestures.
+                if dist >= 6.0 {
+                    let factor = (1.0 - (dist / 48.0)).clamp(0.55, 0.94);
+                    physics.write().velocity *= factor;
                 }
             },
             onwheel: move |evt: Event<WheelData>| {

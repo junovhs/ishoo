@@ -96,6 +96,9 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.06);
     overflow: hidden;
 }
+html.dark .app-shell {
+    background: var(--bg);
+}
 .app {
     max-width: 100%;
     width: 100%;
@@ -114,6 +117,9 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     background:
         linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, white) 0%, var(--bg) 100%);
     user-select: none;
+}
+html.dark .window-bar {
+    background: var(--bg);
 }
 .window-bar__spacer {
     width: 120px;
@@ -430,6 +436,16 @@ html.dark body.is-scrolling .item.recent-drop.hover-armed .issue-row {
     padding-bottom: 24px;
     background: var(--bg);
     z-index: 40;
+}
+.sticky-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 5px;
+    background: var(--bg);
+    pointer-events: none;
 }
 .scrollbar {
     position: absolute;
@@ -748,6 +764,22 @@ html.dark .label-filter.active {
     cursor: pointer;
     user-select: none;
 }
+.section-head::before,
+.section-head::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: var(--bg);
+    pointer-events: none;
+}
+.section-head::before {
+    top: -5px;
+}
+.section-head::after {
+    bottom: -5px;
+}
 .section-head.s-active { top: 0; }
 .section-head.s-backlog { top: 45px; }
 .section-head.s-done { top: 90px; }
@@ -1041,7 +1073,7 @@ html.dark .item.dragging .issue-row {
 .label.t-purple-b { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 72%, var(--rule)); background: color-mix(in srgb, var(--purple) 10%, transparent); }
 .label.t-purple-c { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 88%, var(--rule)); background: color-mix(in srgb, var(--purple) 6%, transparent); }
 
-/* ── MODAL ── */
+/* -- MODAL -- */
 @keyframes modalOverlayFade {
     from { opacity: 0; }
     to { opacity: 1; }

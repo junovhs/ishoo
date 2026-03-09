@@ -2,7 +2,7 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 39 files | 123279 tokens | 16 violations
+SCAN SUMMARY: 39 files | 123931 tokens | 16 violations
 
 ALL VIOLATING FILES:
     6 violations | src\ui\views\feed.rs
@@ -60,7 +60,7 @@ warn: [2 of 4] Nested loop (O(n²)) detected
   --> src\model\parse.rs:280
    = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
-error: [1 of 4] File size is 12106 tokens (Limit: 3300)
+error: [1 of 4] File size is 12319 tokens (Limit: 3300)
   --> src\ui\app.rs:1
    |
      1 | // neti:allow(LAW OF ATOMICITY)
@@ -139,7 +139,7 @@ warn: [4 of 4] Detected `.clone()` inside a loop
   --> src\ui\views\feed.rs:309
    = P01: Receiver `dp.dragging_key` appears to be a heap-owning type. — see first P01 above
 
-X Neti found 8 errors, 8 warnings (746ms).
+X Neti found 8 errors, 8 warnings (651ms).
 
 
 ========================================
@@ -158,8 +158,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (2131ms)
+> PASS (2028ms)
 
 $ cargo test
-> PASS (4563ms)
+> PASS (4528ms)
 
