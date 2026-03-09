@@ -2,6 +2,17 @@
 
 ---
 
+## [139] Feed Interaction Polish: stabilize theme toggle, smooth brackets, and separate click from drag lift
+**Status:** DONE
+**Files:** `src/ui/app.rs`, `src/ui/views/feed/card.rs`, `assets/style.css`
+**Labels:** feed, polish, bugs, dark-mode
+
+Theme toggling and link/card interactions still had several pieces of visible jank. Switching between light and dark mode could leave temporary sticky-header paint glitches until the user scrolled. Linked-issue arrows were undersized. A simple click on a card could immediately show the drag-lift overlay shadow before the modal opened, which made the card feel less like a button and more like an accidental drag. The link brackets also did not fade out correctly on pointer leave because the hide delay waited before starting the opacity transition, and they were happy to imply offscreen link context that the user could not actually see.
+
+**Resolution:** Updated the dark-mode toggle path in `src/ui/app.rs` to clear any live bracket overlay/highlight state and force a lightweight repaint of the shell and sticky header layers immediately after flipping theme classes, which removes the sticky-header ghosting that previously lingered until scroll. In `src/ui/views/feed/card.rs`, changed the card/overlay split so the drag overlay does not render until the pointer actually breaks the drag deadzone; a plain press/click now keeps the original card visible and lets the modal-open path feel button-like instead of spawning the drag shadow instantly. Reworked bracket hide behavior so pointer leave starts the fade-out immediately and only delays cleanup of the SVG/highlight classes, which gives consistent ~0.2s fade timing both in and out. Also filtered bracket targets to only currently visible linked rows in the same section; the arrow icon still indicates hidden/offscreen links, but the bracket now only draws when it can reveal concrete visible context. In `assets/style.css`, increased bracket opacity timing consistency, enlarged `.xlink` arrows to `18px`, and softened the non-drag press state so clicks no longer mimic the drag-lift treatment. Commands run: `semmap generate`, `semmap trace src/ui/views/feed.rs`, `neti check`. SEMMAP lines used: Purpose plus the Layer 1 UI ownership entries for `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, and the Layer 3 entry for `assets/style.css`. `neti check` verification commands passed (`cargo clippy --all-targets --no-deps -- -D warnings` PASS, `cargo test` PASS), while Neti scan still reports the repo's pre-existing static-analysis violations in `src/ui/views/feed.rs`, `src/model/parse.rs`, `src/ui/app.rs`, `src/ui/views/feed/card.rs`, and other existing files.
+
+---
+
 ## [132] Feed Motion Architecture: push drag and scroll from “smooth enough” to “holy shit”
 **Status:** DONE
 **Files:** `src/ui/scroll.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`, `assets/style.css`, `docs/3-7-26.md`

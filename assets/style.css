@@ -837,7 +837,7 @@ html.dark .label-filter.active {
     pointer-events: none;
     overflow: visible;
     opacity: 0;
-    transition: opacity 0.24s ease;
+    transition: opacity 0.2s ease;
     z-index: 2;
 }
 .bracket-svg.visible {
@@ -917,9 +917,9 @@ html.dark .label-filter.active {
 
 /* Press state - push into page */
 .item:not(.dragging) .issue-row:active {
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    box-shadow: none;
     transform: translateY(0);
-    transition: transform 0.1s cubic-bezier(0.4, 0.0, 0.2, 1), box-shadow 0.1s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transition: background 0.12s ease, transform 0.12s ease;
     background: rgba(0, 0, 0, 0.02);
 }
 
@@ -933,7 +933,7 @@ html.dark .issue-row.link-hl {
 }
 html.dark .item:not(.dragging) .issue-row:active {
     background: rgba(0, 0, 0, 0.2);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    box-shadow: none;
 }
 html.dark .item.dragging .issue-row {
     background: var(--bg);
@@ -1027,6 +1027,19 @@ html.dark .item.dragging .issue-row {
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+}
+.xlink {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--ink2);
+    transition: color 0.2s ease, opacity 0.2s ease;
+}
+.issue-row:hover .xlink {
+    color: var(--ink);
 }
 
 /* Labels */

@@ -2,7 +2,7 @@
 NETI SCAN REPORT
 ========================================
 
-SCAN SUMMARY: 39 files | 123931 tokens | 16 violations
+SCAN SUMMARY: 39 files | 124274 tokens | 16 violations
 
 ALL VIOLATING FILES:
     6 violations | src\ui\views\feed.rs
@@ -60,7 +60,7 @@ warn: [2 of 4] Nested loop (O(n²)) detected
   --> src\model\parse.rs:280
    = P04: Quadratic complexity — scales poorly with input size. — see first P04 above
 
-error: [1 of 4] File size is 12319 tokens (Limit: 3300)
+error: [1 of 4] File size is 12453 tokens (Limit: 3300)
   --> src\ui\app.rs:1
    |
      1 | // neti:allow(LAW OF ATOMICITY)
@@ -82,11 +82,11 @@ error: [2 of 4] File size is 4179 tokens (Limit: 3300)
   --> src\ui\views\board.rs:1
    = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
 
-error: [3 of 4] File size is 3350 tokens (Limit: 3300)
+error: [3 of 4] File size is 3463 tokens (Limit: 3300)
   --> src\ui\views\feed\card.rs:1
    = LAW OF ATOMICITY: see first LAW OF ATOMICITY above
 
-error: Function 'IssueCard' has cognitive complexity 29 (Max: 25)
+error: Function 'IssueCard' has cognitive complexity 34 (Max: 25)
   --> src\ui\views\feed\card.rs:61
    |
     60 | // neti:allow(LAW OF COMPLEXITY)
@@ -96,7 +96,7 @@ error: Function 'IssueCard' has cognitive complexity 29 (Max: 25)
    = LAW OF COMPLEXITY: Fix required
    |
    = ANALYSIS:
-   |   Cognitive score: 29
+   |   Cognitive score: 34
    |
    = SUPPRESS: // neti:allow(LAW OF COMPLEXITY) on the line, or LAW OF COMPLEXITY = "warn" in neti.toml [rules]
 
@@ -139,7 +139,7 @@ warn: [4 of 4] Detected `.clone()` inside a loop
   --> src\ui\views\feed.rs:309
    = P01: Receiver `dp.dragging_key` appears to be a heap-owning type. — see first P01 above
 
-X Neti found 8 errors, 8 warnings (651ms).
+X Neti found 8 errors, 8 warnings (772ms).
 
 
 ========================================
@@ -158,8 +158,8 @@ NETI COMMANDS REPORT
 ========================================
 
 $ cargo clippy --all-targets --no-deps -- -D warnings
-> PASS (2028ms)
+> PASS (3600ms)
 
 $ cargo test
-> PASS (4528ms)
+> PASS (7032ms)
 

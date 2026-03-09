@@ -1,4 +1,3 @@
-// neti:allow(LAW OF ATOMICITY)
 use super::toast::{Toast, ToastContainer, ToastKind};
 use super::welcome::WelcomeScreen;
 use super::{components, get_workspace_path, views, View};
@@ -561,13 +560,16 @@ fn render_sidebar(
                     title: "Toggle dark mode",
                     onclick: move |_| {
                         // We use a small JS eval to toggle the class on the html element
-                        let _ = eval("document.documentElement.classList.toggle('dark');
-                                      let btn = document.getElementById('dm-toggle-btn');
-                                      if (document.documentElement.classList.contains('dark')) {
-                                          btn.innerHTML = '☀';
-                                      } else {
-                                          btn.innerHTML = '☽';
-                                      }");
+                        let _ = eval("const root = document.documentElement;
+                                      root.classList.toggle('dark');
+                                      const btn = document.getElementById('dm-toggle-btn');
+                                      if (btn) btn.innerHTML = root.classList.contains('dark') ? '☀' : '☽';
+                                      const overlay = document.getElementById('link-bracket-overlay');
+                                      if (overlay) { overlay.classList.remove('visible'); overlay.innerHTML = ''; }
+                                      document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
+                                      const repaintNodes = document.querySelectorAll('.app-shell, .window-bar, .sticky-header, .section-head');
+                                      repaintNodes.forEach((node) => { node.style.willChange = 'transform'; node.style.transform = 'translateZ(0)'; void node.offsetHeight; });
+                                      requestAnimationFrame(() => { repaintNodes.forEach((node) => { node.style.transform = ''; node.style.willChange = ''; }); });");
                     },
                     id: "dm-toggle-btn",
                     "☽"

@@ -2,17 +2,6 @@
 
 ---
 
-## [27] Add comments per issue
-**Status:** OPEN
-**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
-**Labels:** markdown, modal
-
-Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
-
-**Resolution:** 
-
----
-
 ## [123] Board Release: settle, commit delay, and post-drop state must match Feed exactly
 **Status:** OPEN
 **Files:** `src/ui/views/board.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`
@@ -56,6 +45,17 @@ Requirements:
 
 The description field in the expanded card is a read-only `div`. The resolution field is an editable `textarea`. There is no reason the description shouldn't also be editable — users shouldn't have to open their text editor to update an issue's description after creation.
 Add a pencil icon or double-click-to-edit interaction that swaps the description `div` for a `textarea`. Consider a markdown preview toggle (depends on #30).
+
+**Resolution:** 
+
+---
+
+## [27] Add comments per issue
+**Status:** OPEN
+**Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/ui/views/feed/card.rs`
+**Labels:** markdown, modal
+
+Comments/Notes section in the modal (`.m-comments`). Requires backend parsing to read the `### Comments` markdown blocks into the Issue model first.
 
 **Resolution:** 
 

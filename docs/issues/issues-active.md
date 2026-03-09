@@ -2,6 +2,31 @@
 
 ---
 
+## [134] CLI Parity: every issue action must be possible from the terminal
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/ui/app.rs`
+**Labels:** cli, save-load, markdown
+
+The intended working mode is terminal-first. A user or AI should be able to create, inspect, edit, move, validate, and close work without needing to touch the desktop UI. The UI can stay better for browsing, but it must stop being the only place where core issue mutations are possible.
+
+Requirements:
+
+- Every issue mutation that matters in the UI must have a CLI path
+- Terminal flows must support both human use and AI/scripted use
+- Commands should prefer explicit flags and machine-readable output over interactive-only flows
+- Terminal-first workflows like "make that an issue", "edit this", "close this", and "show me what changed" should not require markdown hand-editing
+- The CLI should become the trusted automation surface for future agent work
+
+Suggested direction:
+
+- Treat `new`, `show`, `list`, `edit`, `delete`, `set`, `lint`, and section/routing operations as one coherent product surface instead of isolated commands
+- Add machine-readable output modes where needed so AI/automation can inspect results safely
+- Close command gaps before polishing secondary UI-only affordances
+
+**Resolution:** 
+
+---
+
 ## [136] Feed Motion Perfection: make slow drag feel as locked-solid as fast drag
 **Status:** OPEN
 **Files:** `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/app.rs`, `src/ui/scroll.rs`, `assets/style.css`
@@ -48,61 +73,6 @@ Exit criteria:
 
 ---
 
-## [134] CLI Parity: every issue action must be possible from the terminal
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`, `src/model/workspace.rs`, `src/ui/app.rs`
-**Labels:** cli, save-load, markdown
-
-The intended working mode is terminal-first. A user or AI should be able to create, inspect, edit, move, validate, and close work without needing to touch the desktop UI. The UI can stay better for browsing, but it must stop being the only place where core issue mutations are possible.
-
-Requirements:
-
-- Every issue mutation that matters in the UI must have a CLI path
-- Terminal flows must support both human use and AI/scripted use
-- Commands should prefer explicit flags and machine-readable output over interactive-only flows
-- Terminal-first workflows like "make that an issue", "edit this", "close this", and "show me what changed" should not require markdown hand-editing
-- The CLI should become the trusted automation surface for future agent work
-
-Suggested direction:
-
-- Treat `new`, `show`, `list`, `edit`, `delete`, `set`, `lint`, and section/routing operations as one coherent product surface instead of isolated commands
-- Add machine-readable output modes where needed so AI/automation can inspect results safely
-- Close command gaps before polishing secondary UI-only affordances
-
-**Resolution:** 
-
----
-
-## [15] Implement ishoo edit CLI command
-**Status:** OPEN
-**Files:** `src/main.rs`, `src/model/cli.rs`
-**Labels:** cli, markdown
-
-Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
-`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
-Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
-
-**Resolution:** 
-
----
-
-## [37] Add CI/pre-commit hook integration
-**Status:** OPEN
-**Files:** `src/main.rs`, `docs/`
-**Labels:** cli, docs, test-coverage
-**Depends on:** [36]
-
-Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
-
-- Duplicate issue IDs introduced by a bad merge
-- Dangling dependency references
-- Issues left in IN PROGRESS on a branch that's being merged to main
-Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
-
-**Resolution:** ---
-
----
-
 ## [133] Machine-Owned Issue Identity: users should not manage IDs by hand
 **Status:** OPEN
 **Files:** `src/model/mod.rs`, `src/model/parse.rs`, `src/model/workspace.rs`, `src/model/cli.rs`, `src/ui/app.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `src/ui/views/board.rs`
@@ -118,6 +88,37 @@ Requirements:
 - Renumbering or regenerating visible handles must not break links, dependencies, reorder logic, or persistence
 - CLI and UI workflows like "make that an issue" must work without supplying an ID
 - Existing markdown should migrate cleanly without destroying references
+
+**Resolution:** 
+
+---
+
+## [126] Board Structure: reduce Board to three feed columns with minimal extra chrome
+**Status:** OPEN
+**Files:** `src/ui/views/board.rs`, `assets/style.css`
+**Labels:** board
+
+Board must be a minimal rearrangement of Feed, not a new visual system. The columns should read as Feed sections laid side by side, with only enough structure to support columns and independent scroll.
+
+Requirements:
+
+- Strip remaining non-feed explanatory or decorative chrome
+- Keep separators/rules as faint as Feed
+- Maintain independent per-column scroll without introducing heavy lane boxes
+- Make the whole surface read as the same product language as Feed
+
+**Resolution:** 
+
+---
+
+## [15] Implement ishoo edit CLI command
+**Status:** OPEN
+**Files:** `src/main.rs`, `src/model/cli.rs`
+**Labels:** cli, markdown
+
+Currently the CLI can `new`, `set` (status only), and `show`. There is no way to edit an issue's title, description, resolution, files, or dependencies from the terminal.
+`ishoo edit <id>` with no flags opens `$EDITOR` with the issue rendered as markdown, then parses the result back (like `git commit` without `-m`). The editor approach depends on #8 for robust re-parsing.
+Also support field-level updates for scripting: `ishoo edit <id> --title "New title" --files "a.rs,b.rs"`.
 
 **Resolution:** 
 
@@ -141,21 +142,20 @@ Requirements:
 
 ---
 
-## [126] Board Structure: reduce Board to three feed columns with minimal extra chrome
+## [37] Add CI/pre-commit hook integration
 **Status:** OPEN
-**Files:** `src/ui/views/board.rs`, `assets/style.css`
-**Labels:** board
+**Files:** `src/main.rs`, `docs/`
+**Labels:** cli, docs, test-coverage
+**Depends on:** [36]
 
-Board must be a minimal rearrangement of Feed, not a new visual system. The columns should read as Feed sections laid side by side, with only enough structure to support columns and independent scroll.
+Provide documentation and a ready-made pre-commit hook config that runs `ishoo lint --strict` before every commit. This catches:
 
-Requirements:
+- Duplicate issue IDs introduced by a bad merge
+- Dangling dependency references
+- Issues left in IN PROGRESS on a branch that's being merged to main
+Also consider a GitHub Action / GitLab CI template that runs `ishoo lint` and posts a summary comment on PRs showing which issues were modified.
 
-- Strip remaining non-feed explanatory or decorative chrome
-- Keep separators/rules as faint as Feed
-- Maintain independent per-column scroll without introducing heavy lane boxes
-- Make the whole surface read as the same product language as Feed
-
-**Resolution:** 
+**Resolution:** ---
 
 ---
 

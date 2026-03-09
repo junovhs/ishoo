@@ -44,9 +44,9 @@ const CLEAR_LINK_BRACKETS_SCRIPT: &str = r#"
   }
   const svg = document.getElementById('link-bracket-overlay');
   if (svg) {
+    svg.classList.remove('visible');
     window.__ishooBracketHideTimer = setTimeout(() => {
       clearRows();
-      svg.classList.remove('visible');
       svg.innerHTML = '';
       window.__ishooBracketHideTimer = null;
     }, 200);
@@ -66,8 +66,10 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
     let dp = props.drag_presence.read();
     let ds = props.drag_state.read();
     let rd = props.recent_drop.read();
+    let drag_offset_now = (props.drag_offset)();
 
     let is_dragging = dp.dragging_key == Some(issue_key.clone());
+    let live_dragging = is_dragging && (dp.releasing || drag_offset_now.abs() >= DRAG_DEADZONE_PX);
     let array_reordered = props.array_reordered;
     let is_recent_drop = rd.key == Some(issue_key.clone());
     let hover_armed = rd.hover_armed;
@@ -106,12 +108,15 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
             cls.push_str(" hover-armed");
         }
     }
+    if is_dragging && !live_dragging && !dp.releasing {
+        cls.push_str(" pressing");
+    }
 
     let outer_style = format!(
         "position: absolute; top: 0; left: 0px; right: 0px; transform: translate3d(0, {y_pos}px, 0){}; transition: {transition}; opacity: {}; pointer-events: {};",
         if props.is_hidden { " scale(0.8)" } else { "" },
-        if props.is_hidden || is_dragging { "0" } else { "1" },
-        if props.is_hidden || is_dragging { "none" } else { "auto" },
+        if props.is_hidden || live_dragging { "0" } else { "1" },
+        if props.is_hidden || live_dragging { "none" } else { "auto" },
     );
 
     let mut drag_presence_signal = props.drag_presence;
@@ -190,10 +195,16 @@ pub fn IssueCard(props: IssueCardProps) -> Element {
   const container = document.getElementById("scroll-content");
   if (!container) return;
   const sectionKey = source.dataset.sectionKey;
+  const visibleTop = containerRect.top;
+  const visibleBottom = containerRect.bottom;
   const linkIds = {link_ids:?}.split(',').filter(Boolean);
   const targets = linkIds
     .map((linkId) => document.querySelector(`.issue-row[data-issue-id="${{linkId}}"][data-section-key="${{sectionKey}}"]`))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((target) => {{
+      const rect = target.getBoundingClientRect();
+      return rect.bottom >= visibleTop && rect.top <= visibleBottom;
+    }});
   if (!targets.length) return;
 
   document.querySelectorAll('.issue-row.link-hl').forEach((row) => row.classList.remove('link-hl'));
@@ -292,7 +303,7 @@ pub fn DragOverlay(props: DragOverlayProps) -> Element {
         "transform 400ms cubic-bezier(0.25, 1, 0.5, 1)"
     } else {
         if effective_offset.abs() < DRAG_DEADZONE_PX {
-            effective_offset = 0.0;
+            return rsx! {};
         } else {
             effective_offset = apply_drag_deadzone(effective_offset);
         }
