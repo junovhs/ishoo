@@ -2,6 +2,36 @@
 
 ---
 
+***ai agent reading this file - this issue is fucked up and needs you to fix it to make it like the other formats below, please do so before doing any other work***
+
+semmap on  main [!] is 📦 v1.0.5 via 🦀 v1.90.0
+❯ ishoo
+[Scroll Metrics] Frames: 60 | Avg: 15.3ms | Max: 17.5ms
+[Scroll Metrics] Frames: 170 | Avg: 15.6ms | Max: 24.7ms
+[Scroll Metrics] Frames: 99 | Avg: 15.3ms | Max: 16.9ms
+[Scroll Metrics] Frames: 168 | Avg: 15.5ms | Max: 17.0ms
+[Scroll Metrics] Frames: 89 | Avg: 15.4ms | Max: 17.0ms
+[Scroll Metrics] Frames: 89 | Avg: 15.6ms | Max: 21.6ms
+[Scroll Metrics] Frames: 144 | Avg: 15.5ms | Max: 17.4ms
+[Scroll Metrics] Frames: 121 | Avg: 15.4ms | Max: 17.1ms
+[Scroll Metrics] Frames: 36 | Avg: 15.4ms | Max: 23.3ms
+[Scroll Metrics] Frames: 40 | Avg: 15.2ms | Max: 16.7ms
+[Drag Metrics] key=active issues::67 t=7584ms ptr=0 avg_ptr=0.0ms max_ptr=0.0ms frames=4 avg_frame=1896.0ms max_frame=7491.0ms hover=0 logical=45.0 live=45.0 snapped=45.0 hover_y=45.0
+[Drag Metrics] key=active issues::66 t=18387ms ptr=0 avg_ptr=0.0ms max_ptr=0.0ms frames=7 avg_frame=2626.7ms max_frame=10740.1ms hover=0 logical=603.0 live=603.0 snapped=603.0 hover_y=603.0
+[Scroll Metrics] Frames: 291 | Avg: 15.5ms | Max: 17.2ms
+[Drag Metrics] key=active issues::67 t=29010ms ptr=0 avg_ptr=0.0ms max_ptr=0.0ms frames=10 avg_frame=2901.0ms max_frame=10740.1ms hover=0 logical=45.0 live=45.0 snapped=45.0 hover_y=45.0
+[Scroll Metrics] Frames: 1 | Avg: 5.6ms | Max: 5.6ms
+[Scroll Metrics] Frames: 1 | Avg: 6.6ms | Max: 6.6ms
+
+thread 'main' panicked at C:\Users\SpencerNunamakerTrav\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\dioxus-core-0.7.3\src\diff\mod.rs:44:15:
+invalid key
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+semmap on  main [!] is 📦 v1.0.5 via 🦀 v1.90.0 took 7m33s
+❯
+
+
+***that concludes the bullshit im logging super quick, make it an issue, it crashed when I was collapsing sections***
+
 ## [140] Feed Link Proximity Lens: sort linked issues nearer each other
 **Status:** OPEN
 **Files:** `src/ui/app.rs`, `src/ui/feed_lens.rs`, `src/ui/views/feed.rs`, `src/ui/views/feed/card.rs`, `docs/issues/issues-active.md`, `docs/issues/issues-done.md`
